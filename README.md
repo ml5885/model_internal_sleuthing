@@ -18,10 +18,13 @@ pip install -r requirements.txt
 
 ### Activation Extraction
 
-Run the extraction module on a subset or the full dataset:
+Extract activations from a model using:
 
 ```bash
-python -m src.activation_extraction --data data/controlled_sentences.csv --output output/gpt2_reps.npz --model gpt2
+python -m src.activation_extraction \
+    --data data/controlled_sentences.csv \
+    --output output/gpt2_reps.npz \
+    --model gpt2
 ```
 
 ### Probe Training
@@ -29,25 +32,47 @@ python -m src.activation_extraction --data data/controlled_sentences.csv --outpu
 Train linear probes on the saved activations:
 
 ```bash
-python -m src.train --activations output/gpt2_reps.npz --labels data/controlled_sentences.csv --task both
+python -m src.train \
+    --activations output/gpt2_reps.npz \
+    --labels data/controlled_sentences.csv \
+    --task multiclass_inflection \
+    [--sparse_k K] \
+    [--control_inflection] \
+    [--control_lexeme] \
+    [--one_vs_rest]
 ```
 
-The `--task` flag can be set to `tense`, `lexeme`, or `both`. The script uses PyTorch and runs training over each layer separately, saving performance metrics and confusion matrices.
+The `--task` parameter accepts:
+
+- `multiclass_inflection`: For tense classification
+- `binary_inflection`: For binary tense classification
+- `lexeme`: For verb identity classification
+
+Optional arguments:
+
+- `--sparse_k`: Enable k-sparse probing with specified k
+- `--control_inflection`: Run control experiment for inflection probe
+- `--control_lexeme`: Run control experiment for lexeme probe
+- `--one_vs_rest`: Use one-vs-rest classification strategy
 
 ### Unsupervised Analysis
 
-Perform KMeans clustering and cosine similarity analysis across layers:
+Perform layer-wise analysis including cosine similarities and clustering:
 
 ```bash
-python -m src.analysis --activations output/gpt2_reps.npz --labels data/controlled_sentences.csv
+python -m src.analysis \
+    --activations output/gpt2_reps.npz \
+    --labels data/controlled_sentences.csv \
+    --model gpt2 \
+    --dataset controlled
 ```
 
-## HPC / SLURM
+### Running Full Experiments
 
-Use the provided shell scripts in the `scripts/` folder to run jobs on your cluster. For example:
+For convenience, you can run complete experimental pipelines using:
 
 ```bash
-bash scripts/slurm_submission_example.sh
+python -m src.experiment [arguments]
 ```
 
 ## Testing
@@ -57,9 +82,3 @@ Run all tests via pytest:
 ```bash
 pytest tests
 ```
-
-## Extensibility
-
-The project is designed to be model-agnostic. To add a new model, update `src/config.py` and extend or subclass the interface in `src/model_wrapper.py`.
-
-Happy probing!
