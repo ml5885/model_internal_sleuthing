@@ -9,7 +9,7 @@ def test_cosine_similarity():
     print("Generated random data for cosine similarity computation.")
 
     # Compute average cosine similarity for data points with same labels
-    avg_sim = analysis.compute_cosine_similarities(X, labels)
+    avg_sim = analysis.compute_cosine_sims(X, labels)
     print(f"Computed average cosine similarity: {avg_sim}")
 
     # Check for valid cosine similarity value

@@ -36,7 +36,7 @@ MODEL_CONFIGS = {
 
 # Training hyperparameters for probing
 TRAIN_PARAMS = {
-    "epochs": 20,
+    "epochs": 100,
     "learning_rate": 1e-3,
     "weight_decay": 1e-5,
 }
