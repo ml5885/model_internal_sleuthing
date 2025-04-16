@@ -10,14 +10,17 @@ def run_activation_extraction(model_key, dataset):
     
     if os.path.exists(output_file):
         utils.log_info(f"Using existing activations file: {output_file}")
+        print(f"Using existing activations file: {output_file}")
     else:
         utils.log_info("Extracting new activations...")
+        print("Extracting new activations...")
         subprocess.run([
             "python", "-m", "src.activation_extraction",
             "--data", dataset_file,
             "--output", output_file,
             "--model", model_key
         ], check=True)
+    
     return output_file
 
 def run_probe(exp_args):
@@ -36,37 +39,45 @@ def run_analysis(model_key, dataset):
     ], check=True)
 
 def main():
-    parser = argparse.ArgumentParser(description="Run experiment pipeline using only the dense probe (sparse_k=0) for multiclass inflection and lexeme tasks.")
+    parser = argparse.ArgumentParser(
+        description="Run experiment pipeline for one-vs-rest inflection and lexeme probing tasks with control tasks."
+    )
     parser.add_argument("--model", type=str, default="gpt2", help="Model key to use (e.g. 'gpt2').")
     parser.add_argument("--dataset", type=str, required=True, help="Dataset label (e.g., controlled, wikitext, combined).")
-    parser.add_argument("--one_vs_rest", action="store_true", help="If provided, use one-vs-rest binary classification for the lexeme task.")
-    parser.add_argument("--experiment", type=str, help="If provided, only run the specified experiment (multiclass_inflection_dense or lexeme_dense).")
+    parser.add_argument("--experiment", type=str,
+                        choices=["multiclass_inflection_dense", "lexeme_dense"],
+                        help="Run only the specified experiment.")
     args = parser.parse_args()
+    
     model_key = args.model
     dataset = args.dataset
-
+    
     reps_file = run_activation_extraction(model_key, dataset)
-
+    
     experiments = [
         {
             "name": "multiclass_inflection_dense",
-            "args": ["--activations", reps_file,
-                     "--labels", os.path.join("data", f"{dataset}.csv"),
-                     "--task", "multiclass_inflection",
-                     "--sparse_k", "0",
-                     "--control_inflection",
-                     "--exp_label", f"{model_key}_multiclass_inflection_dense",
-                     "--dataset", dataset]
+            "args": [
+                "--activations", reps_file,
+                "--labels", os.path.join("data", f"{dataset}.csv"),
+                "--task", "multiclass_inflection",
+                "--lambda_reg", "1e-3",
+                "--control_inflection",
+                "--exp_label", f"{model_key}_multiclass_inflection_dense",
+                "--dataset", dataset
+            ]
         },
         {
             "name": "lexeme_dense",
-            "args": ["--activations", reps_file,
-                     "--labels", os.path.join("data", f"{dataset}.csv"),
-                     "--task", "lexeme",
-                     "--sparse_k", "0",
-                     "--control_lexeme",
-                     "--exp_label", f"{model_key}_lexeme_dense",
-                     "--dataset", dataset] + (["--one_vs_rest"] if args.one_vs_rest else [])
+            "args": [
+                "--activations", reps_file,
+                "--labels", os.path.join("data", f"{dataset}.csv"),
+                "--task", "lexeme",
+                "--lambda_reg", "1e-3",
+                "--control_lexeme",
+                "--exp_label", f"{model_key}_lexeme_dense",
+                "--dataset", dataset
+            ]
         }
     ]
     

@@ -1,0 +1,30 @@
+# Python virtual environment
+venv/
+env/
+.env/
+.venv/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# IDEs
+.idea/
+.vscode/
+
+# Environment variables
+.env
+
+# Data files
+*.csv
+*.tsv
+data/
+output/
+*.log
+*.txt

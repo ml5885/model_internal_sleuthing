@@ -56,3 +56,5 @@ CLUSTERING = {
     "n_clusters": 2,  # Adjust as needed
     "random_state": SEED
 }
+
+MAX_WORKERS_CLASS = 2
