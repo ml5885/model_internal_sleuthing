@@ -3,141 +3,111 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans
 from tqdm import tqdm
 from src import config, utils
-from sklearn.metrics.pairwise import cosine_similarity
 
-def compute_cosine_sims(activations, labels):
-    # Compute cosine similarity over datapoints with matching labels.
-    sims = cosine_similarity(activations)
-    n = activations.shape[0]
-    sim_total = 0.0
-    count = 0
-    progress_interval = max(1, n // 10)
-    for i in range(n):
-        if i % progress_interval == 0:
-            print(f"  Row {i}/{n} processed")
-        for j in range(i + 1, n):
-            if labels[i] == labels[j]:
-                sim_total += sims[i, j]
-                count += 1
-    avg_sim = sim_total / count if count > 0 else 0.0
-    return avg_sim
+def avg_group_cosine(acts: np.ndarray, labels: np.ndarray) -> float:
+    total, count = 0.0, 0
+    acts_norm = acts / (np.linalg.norm(acts, axis=1, keepdims=True) + 1e-8)
+    for lab in np.unique(labels):
+        idxs = np.where(labels == lab)[0]
+        k = idxs.size
+        if k < 2:
+            continue
+        sub = acts_norm[idxs]
+        sim = sub @ sub.T
+        total += sim.sum() - np.trace(sim)
+        count += k * (k - 1)
+    return total / count if count > 0 else 0.0
 
 def unsupervised_layer_analysis(activations_file, labels_file, model_key, dataset_key):
-    print("Loading activations...")
-    utils.log_info(f"Loading activations from {activations_file}")
     data = np.load(activations_file)["activations"]
-    n_examples, n_layers, d_model = data.shape
-    print(f"Activations shape: {data.shape}")
-    utils.log_info(f"Activations shape: {data.shape}")
+    _, n_layers, _ = data.shape
 
     df = pd.read_csv(labels_file)
-    utils.log_info(f"Labels loaded from {labels_file}")
-    
-    # Prepare labels.
-    inflection_labels_raw = df["Inflection Label"].values
-    unique_inflections = sorted(set(inflection_labels_raw))
-    inflection_to_idx = {inf: idx for idx, inf in enumerate(unique_inflections)}
-    inflection_labels = np.array([inflection_to_idx[inf] for inf in inflection_labels_raw])
-    
-    lexemes = df["Lemma"].values
-    lexeme_to_idx = {lex: idx for idx, lex in enumerate(sorted(set(lexemes)))}
-    lexeme_labels = np.array([lexeme_to_idx[lex] for lex in lexemes])
-    
-    utils.log_info(f"Unique inflections: {unique_inflections} ({len(unique_inflections)} classes)")
-    utils.log_info(f"Unique lexemes: {list(lexeme_to_idx.keys())} ({len(lexeme_to_idx)} classes)")
-    
+    cat_inf = pd.Categorical(df["Inflection Label"])
+    inf_labels = cat_inf.codes
+    inf_names = list(cat_inf.categories)
+
+    cat_lex = pd.Categorical(df["Lemma"])
+    lex_labels = cat_lex.codes
+
+    sentences = df["Sentence"].values
+    _, unique_idx = np.unique(sentences, return_index=True)
+    unique_idx = np.sort(unique_idx)
+    inf_u = inf_labels[unique_idx]
+
     results = {}
-    analysis_folder = os.path.join(config.OUTPUT_DIR, f"{model_key}_{dataset_key}_analysis")
-    os.makedirs(analysis_folder, exist_ok=True)
-    print(f"Saving analysis results to: {analysis_folder}")
+    cluster_matrix = np.zeros((unique_idx.size, n_layers), dtype=int)
 
-    # Process each layer.
+    outdir = os.path.join(config.OUTPUT_DIR, f"{model_key}_{dataset_key}_analysis")
+    os.makedirs(outdir, exist_ok=True)
+
     for layer in tqdm(range(n_layers), desc="Analyzing Layers"):
-        # Minimal per-layer print summary.
         acts = data[:, layer, :]
-        cosine_inflection = compute_cosine_sims(acts, inflection_labels)
-        cosine_lexeme = compute_cosine_sims(acts, lexeme_labels)
-        results[layer] = {
-            "cosine_inflection": cosine_inflection,
-            "cosine_lexeme": cosine_lexeme
-        }
-        utils.log_info(f"Layer {layer}: CosineInflection={cosine_inflection:.4f}, CosineLexeme={cosine_lexeme:.4f}")
-        
-        # Run t-SNE.
-        tsne = TSNE(n_components=2, random_state=42, perplexity=30)
-        tsne_proj = tsne.fit_transform(acts)
-        
-        # KMeans clustering.
-        n_clusters = len(unique_inflections)
-        kmeans = KMeans(n_clusters=n_clusters, random_state=config.CLUSTERING["random_state"])
-        cluster_labels = kmeans.fit_predict(tsne_proj)
-        
-        # Save CSV with minimal information.
-        csv_rows = []
-        for idx in range(n_examples):
-            csv_rows.append({
-                "Index": idx,
-                "Lemma": df.loc[idx, "Lemma"] if "Lemma" in df.columns else "",
-                "Inflection_Label": df.loc[idx, "Inflection Label"] if "Inflection Label" in df.columns else "",
-                "TSNE1": tsne_proj[idx, 0],
-                "TSNE2": tsne_proj[idx, 1],
-                "Cluster": int(cluster_labels[idx])
-            })
-        csv_df = pd.DataFrame(csv_rows)
-        csv_path = os.path.join(analysis_folder, f"layer_{layer}_clusters.csv")
-        csv_df.to_csv(csv_path, index=False)
-        
-        # Plot t-SNE scatter (without centroids).
-        plt.figure(figsize=(8, 6))
-        scatter = plt.scatter(tsne_proj[:, 0], tsne_proj[:, 1], c=cluster_labels, cmap="viridis", s=20)
-        plt.title(f"Layer {layer} t-SNE (Inflection Clusters)")
-        plt.xlabel("t-SNE Component 1")
-        plt.ylabel("t-SNE Component 2")
-        plt.colorbar(scatter, label="Cluster")
-        tsne_plot_path = os.path.join(analysis_folder, f"layer_{layer}_tsne_inflection.png")
-        plt.savefig(tsne_plot_path, bbox_inches="tight")
-        plt.close()
-        
-        print(f"Layer {layer} - Avg Cosine Inflection: {cosine_inflection:.4f}, saved CSV and t-SNE plot.")
-    
-    # Save analysis results.
-    output_path = os.path.join(analysis_folder, "analysis_results.npz")
-    np.savez_compressed(output_path, results=results)
-    utils.log_info(f"Analysis results saved to {output_path}")
 
-    # Combined cosine similarity plot.
-    layers = list(range(n_layers))
-    cosine_inflections = [results[layer]["cosine_inflection"] for layer in layers]
-    cosine_lexemes = [results[layer]["cosine_lexeme"] for layer in layers]
-    plt.figure(figsize=(8, 6))
-    plt.plot(layers, cosine_inflections, marker="o", label="Cosine Inflection")
-    plt.plot(layers, cosine_lexemes, marker="s", label="Cosine Lexeme")
+        ci = avg_group_cosine(acts, inf_labels)
+        cl = avg_group_cosine(acts, lex_labels)
+        results[layer] = {"cosine_inflection": ci, "cosine_lexeme": cl}
+
+        acts_u = acts[unique_idx]
+        pca_proj = PCA(n_components=len(inf_names), random_state=42).fit_transform(acts_u)
+        tsne_proj = TSNE(n_components=2, random_state=42, perplexity=30).fit_transform(pca_proj)
+
+        clusters = KMeans(n_clusters=len(inf_names), random_state=config.CLUSTERING["random_state"])\
+            .fit_predict(tsne_proj)
+        cluster_matrix[:, layer] = clusters
+
+        cmap = plt.get_cmap("tab10")
+        colors = [cmap(inf_u[i] % 10) for i in range(len(inf_u))]
+
+        plt.figure(figsize=(6, 6))
+        plt.scatter(tsne_proj[:, 0], tsne_proj[:, 1], c=colors, s=10)
+        handles = [
+            plt.Line2D([0], [0], marker='o', color='w', label=inf_names[i],
+                       markerfacecolor=cmap(i % 10), markersize=6)
+            for i in range(len(inf_names))
+        ]
+        plt.legend(handles=handles, title="Inflection", fontsize='small', markerscale=0.7)
+        plt.title(f"Layer {layer} t-SNE")
+        plt.savefig(os.path.join(outdir, f"layer_{layer}_tsne.png"), bbox_inches="tight")
+        plt.close()
+
+    rows = []
+    for i, idx in enumerate(unique_idx):
+        row = {
+            "Index": int(idx),
+            "Sentence": sentences[idx],
+            "Inflection_Label": df.loc[idx, "Inflection Label"]
+        }
+        for layer in range(n_layers):
+            row[f"Cluster_L{layer}"] = int(cluster_matrix[i, layer])
+        rows.append(row)
+
+    pd.DataFrame(rows).to_csv(os.path.join(outdir, "clusters_per_layer.csv"), index=False)
+    np.savez_compressed(os.path.join(outdir, "analysis_results.npz"), results=results)
+
+    layers = list(results.keys())
+    cos_inf = [results[l]["cosine_inflection"] for l in layers]
+    cos_lex = [results[l]["cosine_lexeme"] for l in layers]
+
+    plt.figure(figsize=(6, 4))
+    plt.plot(layers, cos_inf, marker="o", label="Inflection")
+    plt.plot(layers, cos_lex, marker="s", label="Lexeme")
     plt.xlabel("Layer")
-    plt.ylabel("Cosine Similarity")
-    plt.title("Cosine Similarity over Layers")
+    plt.ylabel("Avg Cosine Similarity")
     plt.legend()
-    combined_plot_path = os.path.join(analysis_folder, "cosine_similarity_over_layers.png")
-    plt.savefig(combined_plot_path, bbox_inches="tight")
+    plt.savefig(os.path.join(outdir, "cosine_similarity_over_layers.png"), bbox_inches="tight")
     plt.close()
-    print("Analysis complete. Combined cosine similarity plot saved.")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Perform unsupervised analysis on activations using t-SNE.")
-    parser.add_argument("--activations", type=str, required=True, help="Path to the NPZ file with activations.")
-    parser.add_argument("--labels", type=str, required=True, help="Path to the CSV file with labels.")
-    parser.add_argument("--model", type=str, default="gpt2", help="Model key (used for saving results).")
-    parser.add_argument("--dataset", type=str, required=True, help="Dataset label (e.g., controlled, wikitext, combined).")
-    args = parser.parse_args()
-    
-    print("Starting analysis:")
-    print(f" Activations: {args.activations}")
-    print(f" Labels: {args.labels}")
-    print(f" Model: {args.model}")
-    print(f" Dataset: {args.dataset}")
-    
+    p = argparse.ArgumentParser()
+    p.add_argument("--activations", required=True)
+    p.add_argument("--labels", required=True)
+    p.add_argument("--model", default="gpt2")
+    p.add_argument("--dataset", required=True)
+    args = p.parse_args()
     unsupervised_layer_analysis(args.activations, args.labels, args.model, args.dataset)
-    print("Unsupervised analysis complete.")
