@@ -3,14 +3,11 @@ import os
 import numpy as np
 import pandas as pd
 import torch
-import zipfile
 from tqdm import tqdm
-from numpy.lib.format import write_array_header_1_0
 from src.model_wrapper import ModelWrapper
 from src import config, utils
 
-
-def extract_and_save(data_path, output_path, model_key):
+def extract_and_save(data_path, output_dir, model_key):
     df = pd.read_csv(data_path)
     sentences = df["Sentence"].tolist()
     target_indices = df["Target Index"].tolist()
@@ -22,45 +19,31 @@ def extract_and_save(data_path, output_path, model_key):
         utils.log_error("Input data is empty, no activations to extract.")
         return
 
-    # Open a compressed .npz (zip) and write the .npy entry incrementally
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with zipfile.ZipFile(output_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-        # We'll write a single entry 'activations.npy' inside the zip
-        with zf.open('activations.npy', mode='w') as arr_f:
-            # Process batches and stream raw data
-            for start in tqdm(range(0, total, batch_size), desc="Extracting Batches"):
-                end = min(start + batch_size, total)
-                batch_sents = sentences[start:end]
-                batch_idxs = target_indices[start:end]
+    os.makedirs(output_dir, exist_ok=True)
 
-                # Extract activations (batch_size, n_layers, d_model)
-                batch_acts = model_wrapper.extract_activations(batch_sents, batch_idxs).numpy()
+    # Process in shards and save each
+    for part_idx, start in enumerate(tqdm(range(0, total, batch_size), desc="Extracting Batches")):
+        end = min(start + batch_size, total)
+        batch_sents = sentences[start:end]
+        batch_idxs = target_indices[start:end]
 
-                if start == 0:
-                    # On first batch, write the .npy header for the full array
-                    n_layers = batch_acts.shape[1]
-                    d_model = batch_acts.shape[2]
-                    header = {
-                        'descr': np.lib.format.dtype_to_descr(batch_acts.dtype),
-                        'fortran_order': False,
-                        'shape': (total, n_layers, d_model)
-                    }
-                    write_array_header_1_0(arr_f, header)
+        # Extract activations: (batch, n_layers, d_model)
+        batch_acts = model_wrapper.extract_activations(batch_sents, batch_idxs).numpy()
 
-                # Stream the raw bytes of this batch
-                arr_f.write(batch_acts.tobytes(order='C'))
+        # Save this shard
+        shard_path = os.path.join(output_dir, f"activations_part{part_idx}.npz")
+        np.savez_compressed(shard_path, activations=batch_acts)
 
-    utils.log_info(f"Saved compressed activations to {output_path}")
+    utils.log_info(f"Saved {part_idx+1} activation shards to {output_dir}")
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Extract model activations from sentences.")
-    parser.add_argument("--data",    type=str, required=True, help="Path to the input CSV file.")
-    parser.add_argument("--output",  type=str, required=True, help="Output NPZ file path.")
-    parser.add_argument("--model",   type=str, default="gpt2", help="Model key from config.")
+    parser = argparse.ArgumentParser(description="Extract model activations in shards.")
+    parser.add_argument("--data",       type=str, required=True, help="Path to input CSV.")
+    parser.add_argument("--output-dir", type=str, required=True, help="Directory to save activation shards.")
+    parser.add_argument("--model",      type=str, default="gpt2", help="Model key from config.")
     return parser.parse_args()
-
 
 if __name__ == "__main__":
     args = parse_args()
-    extract_and_save(args.data, args.output, args.model)
+    extract_and_save(args.data, args.output_dir, args.model)
