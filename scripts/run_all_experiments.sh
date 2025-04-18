@@ -1,10 +1,23 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-models=("gpt2" "pythia1.4b" "gemma2b" "qwen2")
-dataset="ud_gum_dataset"
+DATASET="ud_gum_dataset"
+MODELS=(gpt2 qwen2 gemma2b)
 
-for model in "${models[@]}"
-do
-    echo "Running experiment for model: $model"
-    python -m src.experiment --model "$model" --dataset "$dataset" --one_vs_rest
+for MODEL in "${MODELS[@]}"; do
+    REPS="output/${MODEL}_${DATASET}_reps.npz"
+    ANALYSIS_DIR="output/${MODEL}_${DATASET}_analysis"
+
+    if [[ -f "$REPS" && -d "$ANALYSIS_DIR" ]]; then
+        echo "Skipping ${MODEL}: outputs already exist."
+        continue
+    fi
+
+    echo "Running pipeline for ${MODEL}..."
+
+    python3 -u -m src.experiment --model "$MODEL" --dataset "$DATASET"
+
+    echo "Completed ${MODEL}"
 done
+
+echo "Done with all models."
