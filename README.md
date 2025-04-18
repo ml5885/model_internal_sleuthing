@@ -21,8 +21,8 @@ pip install -r requirements.txt
 Dataset notebooks in `notebooks/` can be used to:
 
 - Process UD GUM English dataset
-- Generate control tasks
 - Analyze data distributions
+- Create visualizations of probing results
 
 ### Activation Extraction
 
@@ -37,10 +37,10 @@ python -m src.activation_extraction \
 
 ### Probe Training
 
-Two types of probing tasks are supported:
+Two types of probing tasks are implemented:
 
 1. Multiclass inflection probing
-2. Lexeme classification probing
+2. Multiclass lexeme probing
 
 Each comes with corresponding control tasks to validate findings.
 
@@ -71,8 +71,8 @@ Available experiments:
 The pipeline automatically generates:
 
 - Probing accuracy plots for each layer
-- Side-by-side comparisons of linguistic vs control task performance
-- Layer-wise analysis including cosine similarities
+- Plots of linguistic vs control task performance
+- Layer-wise analysis including cosine similarities and activation clustering
 
 Results are saved in:
 
@@ -86,12 +86,13 @@ output/{model}_{dataset}_analysis/
 ```
 src/
   ├── activation_extraction.py  # Extract model hidden states
-  ├── train.py                 # Train probing classifiers
-  ├── analysis.py             # Analysis and visualization
-  ├── experiment.py           # End-to-end experimental pipeline
-  ├── config.py              # Configuration settings
-  └── utils.py                # Helper functions
+  ├── train.py                  # Train probing classifiers
+  ├── train.py                  # Neural probe model setup
+  ├── analysis.py               # Analysis and visualization
+  ├── experiment.py             # End-to-end experimental pipeline
+  ├── config.py                 # Configuration settings
+  └── utils.py                  # Helper functions
 notebooks/
-  ├── dataset.ipynb          # Dataset creation and analysis
-  └── analysis.ipynb         # Results analysis and plotting
+  ├── dataset.ipynb             # Dataset creation and analysis
+  └── analysis.ipynb            # Results analysis and plotting
 ```
