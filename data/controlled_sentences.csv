@@ -1,0 +1,486 @@
+Sentence,Target Index,Lemma,Category,Inflection Label,Word Form,Dimension,Source Type
+I gathered yesterday.,1,gather,Verb,past,gathered,Tense/Aspect,Template
+I ceased yesterday.,1,cease,Verb,past,ceased,Tense/Aspect,Template
+I brought yesterday.,1,bring,Verb,past,brought,Tense/Aspect,Template
+I confused yesterday.,1,confuse,Verb,past,confused,Tense/Aspect,Template
+I instructed yesterday.,1,instruct,Verb,past,instructed,Tense/Aspect,Template
+I identified yesterday.,1,identify,Verb,past,identified,Tense/Aspect,Template
+I launched yesterday.,1,launch,Verb,past,launched,Tense/Aspect,Template
+I deemed yesterday.,1,deem,Verb,past,deemed,Tense/Aspect,Template
+I accused yesterday.,1,accuse,Verb,past,accused,Tense/Aspect,Template
+I repeated yesterday.,1,repeat,Verb,past,repeated,Tense/Aspect,Template
+I encouraged yesterday.,1,encourage,Verb,past,encouraged,Tense/Aspect,Template
+I asked yesterday.,1,ask,Verb,past,asked,Tense/Aspect,Template
+I followed yesterday.,1,followe,Verb,past,followed,Tense/Aspect,Template
+I related yesterday.,1,relate,Verb,past,related,Tense/Aspect,Template
+I dispatched yesterday.,1,dispatch,Verb,past,dispatched,Tense/Aspect,Template
+I rose yesterday.,1,rise,Verb,past,rose,Tense/Aspect,Template
+I had yesterday.,1,hav,Verb,past,had,Tense/Aspect,Template
+I hoped yesterday.,1,hope,Verb,past,hoped,Tense/Aspect,Template
+I renewed yesterday.,1,renew,Verb,past,renewed,Tense/Aspect,Template
+I pushed yesterday.,1,push,Verb,past,pushed,Tense/Aspect,Template
+I diagnosed yesterday.,1,diagnose,Verb,past,diagnosed,Tense/Aspect,Template
+I took yesterday.,1,take,Verb,past,took,Tense/Aspect,Template
+I rejected yesterday.,1,reject,Verb,past,rejected,Tense/Aspect,Template
+I promoted yesterday.,1,promote,Verb,past,promoted,Tense/Aspect,Template
+I improved yesterday.,1,improve,Verb,past,improved,Tense/Aspect,Template
+I converted yesterday.,1,convert,Verb,past,converted,Tense/Aspect,Template
+I buried yesterday.,1,bury,Verb,past,buried,Tense/Aspect,Template
+I convicted yesterday.,1,convict,Verb,past,convicted,Tense/Aspect,Template
+I bought yesterday.,1,buy,Verb,past,bought,Tense/Aspect,Template
+I mixed yesterday.,1,mixe,Verb,past,mixed,Tense/Aspect,Template
+I allocated yesterday.,1,allocate,Verb,past,allocated,Tense/Aspect,Template
+I surpassed yesterday.,1,surpass,Verb,past,surpassed,Tense/Aspect,Template
+I shot yesterday.,1,shoot,Verb,past,shot,Tense/Aspect,Template
+I exposed yesterday.,1,expose,Verb,past,exposed,Tense/Aspect,Template
+I went yesterday.,1,go,Verb,past,went,Tense/Aspect,Template
+I naked yesterday.,1,nake,Verb,past,naked,Tense/Aspect,Template
+I nominated yesterday.,1,nominate,Verb,past,nominated,Tense/Aspect,Template
+I loved yesterday.,1,love,Verb,past,loved,Tense/Aspect,Template
+I reduced yesterday.,1,reduce,Verb,past,reduced,Tense/Aspect,Template
+I withdrew yesterday.,1,withdraw,Verb,past,withdrew,Tense/Aspect,Template
+I celebrated yesterday.,1,celebrate,Verb,past,celebrated,Tense/Aspect,Template
+I came yesterday.,1,come,Verb,past,came,Tense/Aspect,Template
+I flew yesterday.,1,fly,Verb,past,flew,Tense/Aspect,Template
+I relocated yesterday.,1,relocate,Verb,past,relocated,Tense/Aspect,Template
+I undertook yesterday.,1,undertake,Verb,past,undertook,Tense/Aspect,Template
+I underwent yesterday.,1,undergoe,Verb,past,underwent,Tense/Aspect,Template
+I cleared yesterday.,1,clear,Verb,past,cleared,Tense/Aspect,Template
+I resumed yesterday.,1,resume,Verb,past,resumed,Tense/Aspect,Template
+I renamed yesterday.,1,rename,Verb,past,renamed,Tense/Aspect,Template
+I stopped yesterday.,1,stop,Verb,past,stopped,Tense/Aspect,Template
+I required yesterday.,1,require,Verb,past,required,Tense/Aspect,Template
+I illustrated yesterday.,1,illustrate,Verb,past,illustrated,Tense/Aspect,Template
+I convinced yesterday.,1,convince,Verb,past,convinced,Tense/Aspect,Template
+I perceived yesterday.,1,perceive,Verb,past,perceived,Tense/Aspect,Template
+I accomplished yesterday.,1,accomplish,Verb,past,accomplished,Tense/Aspect,Template
+I detached yesterday.,1,detach,Verb,past,detached,Tense/Aspect,Template
+I possessed yesterday.,1,possess,Verb,past,possessed,Tense/Aspect,Template
+I gained yesterday.,1,gain,Verb,past,gained,Tense/Aspect,Template
+I defined yesterday.,1,define,Verb,past,defined,Tense/Aspect,Template
+I cost yesterday.,1,cost,Verb,past,cost,Tense/Aspect,Template
+I observed yesterday.,1,observe,Verb,past,observed,Tense/Aspect,Template
+I controlled yesterday.,1,control,Verb,past,controlled,Tense/Aspect,Template
+I located yesterday.,1,locate,Verb,past,located,Tense/Aspect,Template
+I chose yesterday.,1,choose,Verb,past,chose,Tense/Aspect,Template
+I collaborated yesterday.,1,collaborate,Verb,past,collaborated,Tense/Aspect,Template
+I increased yesterday.,1,increase,Verb,past,increased,Tense/Aspect,Template
+I received yesterday.,1,receive,Verb,past,received,Tense/Aspect,Template
+I executed yesterday.,1,execute,Verb,past,executed,Tense/Aspect,Template
+I reinforced yesterday.,1,reinforce,Verb,past,reinforced,Tense/Aspect,Template
+I underwent yesterday.,1,undergo,Verb,past,underwent,Tense/Aspect,Template
+I fed yesterday.,1,feed,Verb,past,fed,Tense/Aspect,Template
+I asserted yesterday.,1,assert,Verb,past,asserted,Tense/Aspect,Template
+I followed yesterday.,1,follow,Verb,past,followed,Tense/Aspect,Template
+I helped yesterday.,1,helpe,Verb,past,helped,Tense/Aspect,Template
+I comprised yesterday.,1,comprise,Verb,past,comprised,Tense/Aspect,Template
+I upset yesterday.,1,upset,Verb,past,upset,Tense/Aspect,Template
+I opposed yesterday.,1,oppose,Verb,past,opposed,Tense/Aspect,Template
+I survived yesterday.,1,survive,Verb,past,survived,Tense/Aspect,Template
+I integrated yesterday.,1,integrate,Verb,past,integrated,Tense/Aspect,Template
+I applied yesterday.,1,apply,Verb,past,applied,Tense/Aspect,Template
+I passed yesterday.,1,passe,Verb,past,passed,Tense/Aspect,Template
+I died yesterday.,1,die,Verb,past,died,Tense/Aspect,Template
+I permitted yesterday.,1,permit,Verb,past,permitted,Tense/Aspect,Template
+I deployed yesterday.,1,deploy,Verb,past,deployed,Tense/Aspect,Template
+I surrounded yesterday.,1,surround,Verb,past,surrounded,Tense/Aspect,Template
+I topped yesterday.,1,top,Verb,past,topped,Tense/Aspect,Template
+I authorized yesterday.,1,authorize,Verb,past,authorized,Tense/Aspect,Template
+I killed yesterday.,1,kill,Verb,past,killed,Tense/Aspect,Template
+I indicated yesterday.,1,indicate,Verb,past,indicated,Tense/Aspect,Template
+I devoted yesterday.,1,devote,Verb,past,devoted,Tense/Aspect,Template
+I donated yesterday.,1,donate,Verb,past,donated,Tense/Aspect,Template
+I left yesterday.,1,leaue,Verb,past,left,Tense/Aspect,Template
+I explored yesterday.,1,explore,Verb,past,explored,Tense/Aspect,Template
+I evolved yesterday.,1,evolve,Verb,past,evolved,Tense/Aspect,Template
+I found yesterday.,1,foind,Verb,past,found,Tense/Aspect,Template
+I determined yesterday.,1,determine,Verb,past,determined,Tense/Aspect,Template
+I avoided yesterday.,1,avoid,Verb,past,avoided,Tense/Aspect,Template
+I recognised yesterday.,1,recognise,Verb,past,recognised,Tense/Aspect,Template
+I enlisted yesterday.,1,enlist,Verb,past,enlisted,Tense/Aspect,Template
+I lost yesterday.,1,lose,Verb,past,lost,Tense/Aspect,Template
+I distinguished yesterday.,1,distinguish,Verb,past,distinguished,Tense/Aspect,Template
+I installed yesterday.,1,install,Verb,past,installed,Tense/Aspect,Template
+I described yesterday.,1,describe,Verb,past,described,Tense/Aspect,Template
+I supplied yesterday.,1,supply,Verb,past,supplied,Tense/Aspect,Template
+I persuaded yesterday.,1,persuade,Verb,past,persuaded,Tense/Aspect,Template
+I displaced yesterday.,1,displace,Verb,past,displaced,Tense/Aspect,Template
+I put yesterday.,1,put,Verb,past,put,Tense/Aspect,Template
+I won yesterday.,1,win,Verb,past,won,Tense/Aspect,Template
+I resulted yesterday.,1,result,Verb,past,resulted,Tense/Aspect,Template
+I introduced yesterday.,1,introduce,Verb,past,introduced,Tense/Aspect,Template
+I laid yesterday.,1,lay,Verb,past,laid,Tense/Aspect,Template
+I demonstrated yesterday.,1,demonstrate,Verb,past,demonstrated,Tense/Aspect,Template
+I organized yesterday.,1,organize,Verb,past,organized,Tense/Aspect,Template
+I washed yesterday.,1,wash,Verb,past,washed,Tense/Aspect,Template
+I acquired yesterday.,1,acquire,Verb,past,acquired,Tense/Aspect,Template
+I submitted yesterday.,1,submit,Verb,past,submitted,Tense/Aspect,Template
+I developed yesterday.,1,develope,Verb,past,developed,Tense/Aspect,Template
+I suspected yesterday.,1,suspect,Verb,past,suspected,Tense/Aspect,Template
+I advised yesterday.,1,advise,Verb,past,advised,Tense/Aspect,Template
+I proclaimed yesterday.,1,proclaime,Verb,past,proclaimed,Tense/Aspect,Template
+I approached yesterday.,1,approach,Verb,past,approached,Tense/Aspect,Template
+I cast yesterday.,1,cast,Verb,past,cast,Tense/Aspect,Template
+I managed yesterday.,1,manage,Verb,past,managed,Tense/Aspect,Template
+I invited yesterday.,1,invite,Verb,past,invited,Tense/Aspect,Template
+I appeared yesterday.,1,appeare,Verb,past,appeared,Tense/Aspect,Template
+I dressed yesterday.,1,dress,Verb,past,dressed,Tense/Aspect,Template
+I certified yesterday.,1,certify,Verb,past,certified,Tense/Aspect,Template
+I worried yesterday.,1,worry,Verb,past,worried,Tense/Aspect,Template
+I distributed yesterday.,1,distribute,Verb,past,distributed,Tense/Aspect,Template
+I arrived yesterday.,1,arrive,Verb,past,arrived,Tense/Aspect,Template
+I enhanced yesterday.,1,enhance,Verb,past,enhanced,Tense/Aspect,Template
+I believed yesterday.,1,believe,Verb,past,believed,Tense/Aspect,Template
+I sent yesterday.,1,send,Verb,past,sent,Tense/Aspect,Template
+I read yesterday.,1,read,Verb,past,read,Tense/Aspect,Template
+I preferred yesterday.,1,preferre,Verb,past,preferred,Tense/Aspect,Template
+I emphasized yesterday.,1,emphasize,Verb,past,emphasized,Tense/Aspect,Template
+I wrote yesterday.,1,write,Verb,past,wrote,Tense/Aspect,Template
+I had yesterday.,1,haue,Verb,past,had,Tense/Aspect,Template
+I complicated yesterday.,1,complicate,Verb,past,complicated,Tense/Aspect,Template
+I replaced yesterday.,1,replace,Verb,past,replaced,Tense/Aspect,Template
+I struck yesterday.,1,strike,Verb,past,struck,Tense/Aspect,Template
+I fixed yesterday.,1,fixe,Verb,past,fixed,Tense/Aspect,Template
+I secured yesterday.,1,secure,Verb,past,secured,Tense/Aspect,Template
+I desired yesterday.,1,desire,Verb,past,desired,Tense/Aspect,Template
+I looked yesterday.,1,looke,Verb,past,looked,Tense/Aspect,Template
+I travelled yesterday.,1,travel,Verb,past,travelled,Tense/Aspect,Template
+I fitted yesterday.,1,fit,Verb,past,fitted,Tense/Aspect,Template
+I saw yesterday.,1,see,Verb,past,saw,Tense/Aspect,Template
+I sang yesterday.,1,sing,Verb,past,sang,Tense/Aspect,Template
+I published yesterday.,1,publish,Verb,past,published,Tense/Aspect,Template
+I translated yesterday.,1,translate,Verb,past,translated,Tense/Aspect,Template
+I studied yesterday.,1,study,Verb,past,studied,Tense/Aspect,Template
+I stationed yesterday.,1,station,Verb,past,stationed,Tense/Aspect,Template
+I impressed yesterday.,1,impress,Verb,past,impressed,Tense/Aspect,Template
+I held yesterday.,1,hold,Verb,past,held,Tense/Aspect,Template
+I passed yesterday.,1,pass,Verb,past,passed,Tense/Aspect,Template
+I discussed yesterday.,1,discuss,Verb,past,discussed,Tense/Aspect,Template
+I erected yesterday.,1,erect,Verb,past,erected,Tense/Aspect,Template
+I spoke yesterday.,1,speak,Verb,past,spoke,Tense/Aspect,Template
+I emerged yesterday.,1,emerge,Verb,past,emerged,Tense/Aspect,Template
+I halted yesterday.,1,halt,Verb,past,halted,Tense/Aspect,Template
+I asked yesterday.,1,aske,Verb,past,asked,Tense/Aspect,Template
+I learned yesterday.,1,learn,Verb,past,learned,Tense/Aspect,Template
+I generated yesterday.,1,generate,Verb,past,generated,Tense/Aspect,Template
+I shut yesterday.,1,shut,Verb,past,shut,Tense/Aspect,Template
+I created yesterday.,1,create,Verb,past,created,Tense/Aspect,Template
+I declared yesterday.,1,declare,Verb,past,declared,Tense/Aspect,Template
+I engaged yesterday.,1,engage,Verb,past,engaged,Tense/Aspect,Template
+I seized yesterday.,1,seize,Verb,past,seized,Tense/Aspect,Template
+I acknowledged yesterday.,1,acknowledge,Verb,past,acknowledged,Tense/Aspect,Template
+I tried yesterday.,1,try,Verb,past,tried,Tense/Aspect,Template
+I continued yesterday.,1,continue,Verb,past,continued,Tense/Aspect,Template
+I demolished yesterday.,1,demolish,Verb,past,demolished,Tense/Aspect,Template
+I lasted yesterday.,1,last,Verb,past,lasted,Tense/Aspect,Template
+I gave yesterday.,1,give,Verb,past,gave,Tense/Aspect,Template
+I wished yesterday.,1,wishe,Verb,past,wished,Tense/Aspect,Template
+I pursued yesterday.,1,pursue,Verb,past,pursued,Tense/Aspect,Template
+I revived yesterday.,1,revive,Verb,past,revived,Tense/Aspect,Template
+I sat yesterday.,1,sit,Verb,past,sat,Tense/Aspect,Template
+I became yesterday.,1,become,Verb,past,became,Tense/Aspect,Template
+I advanced yesterday.,1,advance,Verb,past,advanced,Tense/Aspect,Template
+I broke yesterday.,1,break,Verb,past,broke,Tense/Aspect,Template
+I qualified yesterday.,1,qualify,Verb,past,qualified,Tense/Aspect,Template
+I composed yesterday.,1,compose,Verb,past,composed,Tense/Aspect,Template
+I did yesterday.,1,do,Verb,past,did,Tense/Aspect,Template
+I sold yesterday.,1,sell,Verb,past,sold,Tense/Aspect,Template
+I affected yesterday.,1,affect,Verb,past,affected,Tense/Aspect,Template
+I operated yesterday.,1,operate,Verb,past,operated,Tense/Aspect,Template
+I produced yesterday.,1,produce,Verb,past,produced,Tense/Aspect,Template
+I transferred yesterday.,1,transfer,Verb,past,transferred,Tense/Aspect,Template
+I closed yesterday.,1,close,Verb,past,closed,Tense/Aspect,Template
+I examined yesterday.,1,examin,Verb,past,examined,Tense/Aspect,Template
+I requested yesterday.,1,request,Verb,past,requested,Tense/Aspect,Template
+I realized yesterday.,1,realize,Verb,past,realized,Tense/Aspect,Template
+I installed yesterday.,1,instal,Verb,past,installed,Tense/Aspect,Template
+I lay yesterday.,1,lie,Verb,past,lay,Tense/Aspect,Template
+I intensified yesterday.,1,intensify,Verb,past,intensified,Tense/Aspect,Template
+I imposed yesterday.,1,impose,Verb,past,imposed,Tense/Aspect,Template
+I cut yesterday.,1,cut,Verb,past,cut,Tense/Aspect,Template
+I made yesterday.,1,make,Verb,past,made,Tense/Aspect,Template
+I decided yesterday.,1,decide,Verb,past,decided,Tense/Aspect,Template
+I backed yesterday.,1,back,Verb,past,backed,Tense/Aspect,Template
+I failed yesterday.,1,faile,Verb,past,failed,Tense/Aspect,Template
+I invaded yesterday.,1,invade,Verb,past,invaded,Tense/Aspect,Template
+I concentrated yesterday.,1,concentrate,Verb,past,concentrated,Tense/Aspect,Template
+I walked yesterday.,1,walk,Verb,past,walked,Tense/Aspect,Template
+I pronounced yesterday.,1,pronounce,Verb,past,pronounced,Tense/Aspect,Template
+I transformed yesterday.,1,transform,Verb,past,transformed,Tense/Aspect,Template
+I moved yesterday.,1,move,Verb,past,moved,Tense/Aspect,Template
+I told yesterday.,1,tell,Verb,past,told,Tense/Aspect,Template
+I agreed yesterday.,1,agree,Verb,past,agreed,Tense/Aspect,Template
+I turned yesterday.,1,turn,Verb,past,turned,Tense/Aspect,Template
+I exhibited yesterday.,1,exhibit,Verb,past,exhibited,Tense/Aspect,Template
+I organised yesterday.,1,organise,Verb,past,organised,Tense/Aspect,Template
+I preferred yesterday.,1,prefer,Verb,past,preferred,Tense/Aspect,Template
+I changed yesterday.,1,change,Verb,past,changed,Tense/Aspect,Template
+I eliminated yesterday.,1,eliminate,Verb,past,eliminated,Tense/Aspect,Template
+I enrolled yesterday.,1,enrol,Verb,past,enrolled,Tense/Aspect,Template
+I began yesterday.,1,begin,Verb,past,began,Tense/Aspect,Template
+I contributed yesterday.,1,contribute,Verb,past,contributed,Tense/Aspect,Template
+I returned yesterday.,1,return,Verb,past,returned,Tense/Aspect,Template
+I rendered yesterday.,1,render,Verb,past,rendered,Tense/Aspect,Template
+I dismissed yesterday.,1,dismiss,Verb,past,dismissed,Tense/Aspect,Template
+I married yesterday.,1,marry,Verb,past,married,Tense/Aspect,Template
+I retrieved yesterday.,1,retrieve,Verb,past,retrieved,Tense/Aspect,Template
+I varied yesterday.,1,vary,Verb,past,varied,Tense/Aspect,Template
+I assigned yesterday.,1,assign,Verb,past,assigned,Tense/Aspect,Template
+I paid yesterday.,1,pay,Verb,past,paid,Tense/Aspect,Template
+I bound yesterday.,1,bind,Verb,past,bound,Tense/Aspect,Template
+I completed yesterday.,1,complete,Verb,past,completed,Tense/Aspect,Template
+I populated yesterday.,1,populate,Verb,past,populated,Tense/Aspect,Template
+I let yesterday.,1,let,Verb,past,let,Tense/Aspect,Template
+I approved yesterday.,1,approve,Verb,past,approved,Tense/Aspect,Template
+I reached yesterday.,1,reach,Verb,past,reached,Tense/Aspect,Template
+I sustained yesterday.,1,sustain,Verb,past,sustained,Tense/Aspect,Template
+I collapsed yesterday.,1,collapse,Verb,past,collapsed,Tense/Aspect,Template
+I animated yesterday.,1,animate,Verb,past,animated,Tense/Aspect,Template
+I ignored yesterday.,1,ignore,Verb,past,ignored,Tense/Aspect,Template
+I modified yesterday.,1,modify,Verb,past,modified,Tense/Aspect,Template
+I evacuated yesterday.,1,evacuate,Verb,past,evacuated,Tense/Aspect,Template
+I split yesterday.,1,split,Verb,past,split,Tense/Aspect,Template
+I got yesterday.,1,get,Verb,past,got,Tense/Aspect,Template
+I included yesterday.,1,include,Verb,past,included,Tense/Aspect,Template
+I admitted yesterday.,1,admit,Verb,past,admitted,Tense/Aspect,Template
+I spread yesterday.,1,spread,Verb,past,spread,Tense/Aspect,Template
+I proposed yesterday.,1,propose,Verb,past,proposed,Tense/Aspect,Template
+I spent yesterday.,1,spend,Verb,past,spent,Tense/Aspect,Template
+I occurred yesterday.,1,occur,Verb,past,occurred,Tense/Aspect,Template
+I discontinued yesterday.,1,discontinue,Verb,past,discontinued,Tense/Aspect,Template
+I heard yesterday.,1,hea',Verb,past,heard,Tense/Aspect,Template
+I replied yesterday.,1,reply,Verb,past,replied,Tense/Aspect,Template
+I announced yesterday.,1,announce,Verb,past,announced,Tense/Aspect,Template
+I accompanied yesterday.,1,accompany,Verb,past,accompanied,Tense/Aspect,Template
+I relieved yesterday.,1,relieve,Verb,past,relieved,Tense/Aspect,Template
+I originated yesterday.,1,originate,Verb,past,originated,Tense/Aspect,Template
+I thought yesterday.,1,thinke,Verb,past,thought,Tense/Aspect,Template
+I made yesterday.,1,myek,Verb,past,made,Tense/Aspect,Template
+I dissolved yesterday.,1,dissolve,Verb,past,dissolved,Tense/Aspect,Template
+I mixed yesterday.,1,mix,Verb,past,mixed,Tense/Aspect,Template
+I kept yesterday.,1,keep,Verb,past,kept,Tense/Aspect,Template
+I drew yesterday.,1,draw,Verb,past,drew,Tense/Aspect,Template
+I paved yesterday.,1,pave,Verb,past,paved,Tense/Aspect,Template
+I united yesterday.,1,unite,Verb,past,united,Tense/Aspect,Template
+I reported yesterday.,1,report,Verb,past,reported,Tense/Aspect,Template
+I argued yesterday.,1,argue,Verb,past,argued,Tense/Aspect,Template
+I banned yesterday.,1,ban,Verb,past,banned,Tense/Aspect,Template
+I rebuilt yesterday.,1,rebuild,Verb,past,rebuilt,Tense/Aspect,Template
+I lifted yesterday.,1,lift,Verb,past,lifted,Tense/Aspect,Template
+I compiled yesterday.,1,compile,Verb,past,compiled,Tense/Aspect,Template
+I showed yesterday.,1,show,Verb,past,showed,Tense/Aspect,Template
+I fled yesterday.,1,flee,Verb,past,fled,Tense/Aspect,Template
+I resolved yesterday.,1,resolve,Verb,past,resolved,Tense/Aspect,Template
+I left yesterday.,1,leave,Verb,past,left,Tense/Aspect,Template
+I conceived yesterday.,1,conceive,Verb,past,conceived,Tense/Aspect,Template
+I dissipated yesterday.,1,dissipate,Verb,past,dissipated,Tense/Aspect,Template
+I criticised yesterday.,1,criticise,Verb,past,criticised,Tense/Aspect,Template
+I speculated yesterday.,1,speculate,Verb,past,speculated,Tense/Aspect,Template
+I decreased yesterday.,1,decrease,Verb,past,decreased,Tense/Aspect,Template
+I entered yesterday.,1,enter,Verb,past,entered,Tense/Aspect,Template
+I met yesterday.,1,meet,Verb,past,met,Tense/Aspect,Template
+I recovered yesterday.,1,recover,Verb,past,recovered,Tense/Aspect,Template
+I retired yesterday.,1,retire,Verb,past,retired,Tense/Aspect,Template
+I filled yesterday.,1,fill,Verb,past,filled,Tense/Aspect,Template
+I carved yesterday.,1,carve,Verb,past,carved,Tense/Aspect,Template
+I thought yesterday.,1,thinck,Verb,past,thought,Tense/Aspect,Template
+I compared yesterday.,1,compare,Verb,past,compared,Tense/Aspect,Template
+I grew yesterday.,1,grow,Verb,past,grew,Tense/Aspect,Template
+I achieved yesterday.,1,achieve,Verb,past,achieved,Tense/Aspect,Template
+I assembled yesterday.,1,assemble,Verb,past,assembled,Tense/Aspect,Template
+I anticipated yesterday.,1,anticipate,Verb,past,anticipated,Tense/Aspect,Template
+I missed yesterday.,1,miss,Verb,past,missed,Tense/Aspect,Template
+I combined yesterday.,1,combine,Verb,past,combined,Tense/Aspect,Template
+I held yesterday.,1,hould,Verb,past,held,Tense/Aspect,Template
+I looked yesterday.,1,look,Verb,past,looked,Tense/Aspect,Template
+I charted yesterday.,1,chart,Verb,past,charted,Tense/Aspect,Template
+I added yesterday.,1,adde,Verb,past,added,Tense/Aspect,Template
+I liked yesterday.,1,like,Verb,past,liked,Tense/Aspect,Template
+I arranged yesterday.,1,arrange,Verb,past,arranged,Tense/Aspect,Template
+I played yesterday.,1,playe,Verb,past,played,Tense/Aspect,Template
+I settled yesterday.,1,settle,Verb,past,settled,Tense/Aspect,Template
+I educated yesterday.,1,educate,Verb,past,educated,Tense/Aspect,Template
+I inspired yesterday.,1,inspire,Verb,past,inspired,Tense/Aspect,Template
+I isolated yesterday.,1,isolate,Verb,past,isolated,Tense/Aspect,Template
+I sacred yesterday.,1,sacre,Verb,past,sacred,Tense/Aspect,Template
+I hit yesterday.,1,hit,Verb,past,hit,Tense/Aspect,Template
+I provided yesterday.,1,provide,Verb,past,provided,Tense/Aspect,Template
+I entitled yesterday.,1,entitle,Verb,past,entitled,Tense/Aspect,Template
+I merged yesterday.,1,merge,Verb,past,merged,Tense/Aspect,Template
+I sought yesterday.,1,seek,Verb,past,sought,Tense/Aspect,Template
+I wore yesterday.,1,wear,Verb,past,wore,Tense/Aspect,Template
+I encountered yesterday.,1,encounter,Verb,past,encountered,Tense/Aspect,Template
+I denied yesterday.,1,deny,Verb,past,denied,Tense/Aspect,Template
+I hurt yesterday.,1,hurt,Verb,past,hurt,Tense/Aspect,Template
+I sank yesterday.,1,sink,Verb,past,sank,Tense/Aspect,Template
+I committed yesterday.,1,commit,Verb,past,committed,Tense/Aspect,Template
+I removed yesterday.,1,remove,Verb,past,removed,Tense/Aspect,Template
+I alleged yesterday.,1,allege,Verb,past,alleged,Tense/Aspect,Template
+I built yesterday.,1,build,Verb,past,built,Tense/Aspect,Template
+I assumed yesterday.,1,assume,Verb,past,assumed,Tense/Aspect,Template
+I did yesterday.,1,de,Verb,past,did,Tense/Aspect,Template
+I commenced yesterday.,1,commence,Verb,past,commenced,Tense/Aspect,Template
+I designated yesterday.,1,designate,Verb,past,designated,Tense/Aspect,Template
+I had yesterday.,1,have,Verb,past,had,Tense/Aspect,Template
+I seemed yesterday.,1,seeme,Verb,past,seemed,Tense/Aspect,Template
+I developed yesterday.,1,develop,Verb,past,developed,Tense/Aspect,Template
+I revised yesterday.,1,revise,Verb,past,revised,Tense/Aspect,Template
+I set yesterday.,1,set,Verb,past,set,Tense/Aspect,Template
+I threw yesterday.,1,throw,Verb,past,threw,Tense/Aspect,Template
+I occupied yesterday.,1,occupy,Verb,past,occupied,Tense/Aspect,Template
+I altered yesterday.,1,alter,Verb,past,altered,Tense/Aspect,Template
+I responded yesterday.,1,respond,Verb,past,responded,Tense/Aspect,Template
+I classified yesterday.,1,classify,Verb,past,classified,Tense/Aspect,Template
+I treated yesterday.,1,treat,Verb,past,treated,Tense/Aspect,Template
+I recognized yesterday.,1,recognize,Verb,past,recognized,Tense/Aspect,Template
+I suited yesterday.,1,suit,Verb,past,suited,Tense/Aspect,Template
+I curved yesterday.,1,curve,Verb,past,curved,Tense/Aspect,Template
+I predicted yesterday.,1,predict,Verb,past,predicted,Tense/Aspect,Template
+I criticized yesterday.,1,criticize,Verb,past,criticized,Tense/Aspect,Template
+I destroyed yesterday.,1,destroy,Verb,past,destroyed,Tense/Aspect,Template
+I knew yesterday.,1,know,Verb,past,knew,Tense/Aspect,Template
+I separated yesterday.,1,separate,Verb,past,separated,Tense/Aspect,Template
+I referred yesterday.,1,refer,Verb,past,referred,Tense/Aspect,Template
+I dedicated yesterday.,1,dedicate,Verb,past,dedicated,Tense/Aspect,Template
+I restored yesterday.,1,restore,Verb,past,restored,Tense/Aspect,Template
+I dominated yesterday.,1,dominate,Verb,past,dominated,Tense/Aspect,Template
+I characterized yesterday.,1,characterize,Verb,past,characterized,Tense/Aspect,Template
+I disabled yesterday.,1,disable,Verb,past,disabled,Tense/Aspect,Template
+I added yesterday.,1,add,Verb,past,added,Tense/Aspect,Template
+I granted yesterday.,1,grant,Verb,past,granted,Tense/Aspect,Template
+I expressed yesterday.,1,expresse,Verb,past,expressed,Tense/Aspect,Template
+I opened yesterday.,1,open,Verb,past,opened,Tense/Aspect,Template
+I cited yesterday.,1,cite,Verb,past,cited,Tense/Aspect,Template
+I participated yesterday.,1,participate,Verb,past,participated,Tense/Aspect,Template
+I thought yesterday.,1,think,Verb,past,thought,Tense/Aspect,Template
+I repaired yesterday.,1,repair,Verb,past,repaired,Tense/Aspect,Template
+I meant yesterday.,1,mean,Verb,past,meant,Tense/Aspect,Template
+I deemed yesterday.,1,deeme,Verb,past,deemed,Tense/Aspect,Template
+I allied yesterday.,1,ally,Verb,past,allied,Tense/Aspect,Template
+I cancelled yesterday.,1,cancel,Verb,past,cancelled,Tense/Aspect,Template
+I competed yesterday.,1,compete,Verb,past,competed,Tense/Aspect,Template
+I arose yesterday.,1,arise,Verb,past,arose,Tense/Aspect,Template
+I dubbed yesterday.,1,dub,Verb,past,dubbed,Tense/Aspect,Template
+I carried yesterday.,1,carry,Verb,past,carried,Tense/Aspect,Template
+I concluded yesterday.,1,conclude,Verb,past,concluded,Tense/Aspect,Template
+I said yesterday.,1,say,Verb,past,said,Tense/Aspect,Template
+I returned yesterday.,1,returne,Verb,past,returned,Tense/Aspect,Template
+I examined yesterday.,1,examine,Verb,past,examined,Tense/Aspect,Template
+I stood yesterday.,1,stand,Verb,past,stood,Tense/Aspect,Template
+I housed yesterday.,1,house,Verb,past,housed,Tense/Aspect,Template
+I fought yesterday.,1,fight,Verb,past,fought,Tense/Aspect,Template
+I supposed yesterday.,1,suppose,Verb,past,supposed,Tense/Aspect,Template
+I incorporated yesterday.,1,incorporate,Verb,past,incorporated,Tense/Aspect,Template
+I heard yesterday.,1,hear,Verb,past,heard,Tense/Aspect,Template
+I visited yesterday.,1,visit,Verb,past,visited,Tense/Aspect,Template
+I calculated yesterday.,1,calculate,Verb,past,calculated,Tense/Aspect,Template
+I elevated yesterday.,1,elevate,Verb,past,elevated,Tense/Aspect,Template
+I situated yesterday.,1,situate,Verb,past,situated,Tense/Aspect,Template
+I consisted yesterday.,1,consist,Verb,past,consisted,Tense/Aspect,Template
+I escaped yesterday.,1,escape,Verb,past,escaped,Tense/Aspect,Template
+I absorbed yesterday.,1,absorb,Verb,past,absorbed,Tense/Aspect,Template
+I prepared yesterday.,1,prepare,Verb,past,prepared,Tense/Aspect,Template
+I attempted yesterday.,1,attempt,Verb,past,attempted,Tense/Aspect,Template
+I assessed yesterday.,1,assess,Verb,past,assessed,Tense/Aspect,Template
+I felt yesterday.,1,feel,Verb,past,felt,Tense/Aspect,Template
+I raised yesterday.,1,raise,Verb,past,raised,Tense/Aspect,Template
+I ran yesterday.,1,rin,Verb,past,ran,Tense/Aspect,Template
+I relied yesterday.,1,rely,Verb,past,relied,Tense/Aspect,Template
+I understood yesterday.,1,understand,Verb,past,understood,Tense/Aspect,Template
+I submerged yesterday.,1,submerge,Verb,past,submerged,Tense/Aspect,Template
+I specialized yesterday.,1,specialize,Verb,past,specialized,Tense/Aspect,Template
+I stayed yesterday.,1,stay,Verb,past,stayed,Tense/Aspect,Template
+I injured yesterday.,1,injure,Verb,past,injured,Tense/Aspect,Template
+I derived yesterday.,1,derive,Verb,past,derived,Tense/Aspect,Template
+I sought yesterday.,1,seech,Verb,past,sought,Tense/Aspect,Template
+I rescued yesterday.,1,rescue,Verb,past,rescued,Tense/Aspect,Template
+I divided yesterday.,1,divide,Verb,past,divided,Tense/Aspect,Template
+I bid yesterday.,1,bid,Verb,past,bid,Tense/Aspect,Template
+I bit yesterday.,1,bite,Verb,past,bit,Tense/Aspect,Template
+I opined yesterday.,1,opine,Verb,past,opined,Tense/Aspect,Template
+I pleased yesterday.,1,please,Verb,past,pleased,Tense/Aspect,Template
+I forecast yesterday.,1,forecast,Verb,past,forecast,Tense/Aspect,Template
+I involved yesterday.,1,involve,Verb,past,involved,Tense/Aspect,Template
+I decorated yesterday.,1,decorate,Verb,past,decorated,Tense/Aspect,Template
+I interrupted yesterday.,1,interrupt,Verb,past,interrupted,Tense/Aspect,Template
+I earned yesterday.,1,earn,Verb,past,earned,Tense/Aspect,Template
+I attached yesterday.,1,attach,Verb,past,attached,Tense/Aspect,Template
+I dropped yesterday.,1,drop,Verb,past,dropped,Tense/Aspect,Template
+I lived yesterday.,1,live,Verb,past,lived,Tense/Aspect,Template
+I failed yesterday.,1,fail,Verb,past,failed,Tense/Aspect,Template
+I established yesterday.,1,establish,Verb,past,established,Tense/Aspect,Template
+I proved yesterday.,1,prove,Verb,past,proved,Tense/Aspect,Template
+I assisted yesterday.,1,assist,Verb,past,assisted,Tense/Aspect,Template
+I taught yesterday.,1,teach,Verb,past,taught,Tense/Aspect,Template
+I confirmed yesterday.,1,confirme,Verb,past,confirmed,Tense/Aspect,Template
+I quit yesterday.,1,quit,Verb,past,quit,Tense/Aspect,Template
+It is sandy than before.,2,sandy,Adjective,comparative,sandy,Degree,Template
+It is the sandy one.,3,sandy,Adjective,superlative,sandy,Degree,Template
+It is dark than before.,2,dark,Adjective,comparative,dark,Degree,Template
+It is the dark one.,3,dark,Adjective,superlative,dark,Degree,Template
+It is young than before.,2,young,Adjective,comparative,young,Degree,Template
+It is the young one.,3,young,Adjective,superlative,young,Degree,Template
+It is black than before.,2,black,Adjective,comparative,black,Degree,Template
+It is the black one.,3,black,Adjective,superlative,black,Degree,Template
+It is large than before.,2,large,Adjective,comparative,large,Degree,Template
+It is the large one.,3,large,Adjective,superlative,large,Degree,Template
+It is riley than before.,2,riley,Adjective,comparative,riley,Degree,Template
+It is the riley one.,3,riley,Adjective,superlative,riley,Degree,Template
+It is strict than before.,2,strict,Adjective,comparative,strict,Degree,Template
+It is the strict one.,3,strict,Adjective,superlative,strict,Degree,Template
+It is dwarf than before.,2,dwarf,Adjective,comparative,dwarf,Degree,Template
+It is the dwarf one.,3,dwarf,Adjective,superlative,dwarf,Degree,Template
+It is front than before.,2,front,Adjective,comparative,front,Degree,Template
+It is the front one.,3,front,Adjective,superlative,front,Degree,Template
+It is weak than before.,2,weak,Adjective,comparative,weak,Degree,Template
+It is the weak one.,3,weak,Adjective,superlative,weak,Degree,Template
+It is lengthy than before.,2,lengthy,Adjective,comparative,lengthy,Degree,Template
+It is the lengthy one.,3,lengthy,Adjective,superlative,lengthy,Degree,Template
+It is away than before.,2,away,Adjective,comparative,away,Degree,Template
+It is the away one.,3,away,Adjective,superlative,away,Degree,Template
+It is soon than before.,2,soon,Adjective,comparative,soon,Degree,Template
+It is the soon one.,3,soon,Adjective,superlative,soon,Degree,Template
+It is hard than before.,2,hard,Adjective,comparative,hard,Degree,Template
+It is the hard one.,3,hard,Adjective,superlative,hard,Degree,Template
+It is loud than before.,2,loud,Adjective,comparative,loud,Degree,Template
+It is the loud one.,3,loud,Adjective,superlative,loud,Degree,Template
+It is swift than before.,2,swift,Adjective,comparative,swift,Degree,Template
+It is the swift one.,3,swift,Adjective,superlative,swift,Degree,Template
+It is strong than before.,2,strong,Adjective,comparative,strong,Degree,Template
+It is the strong one.,3,strong,Adjective,superlative,strong,Degree,Template
+It is healthy than before.,2,healthy,Adjective,comparative,healthy,Degree,Template
+It is the healthy one.,3,healthy,Adjective,superlative,healthy,Degree,Template
+It is good than before.,2,good,Adjective,comparative,good,Degree,Template
+It is the good one.,3,good,Adjective,superlative,good,Degree,Template
+It is grey than before.,2,grey,Adjective,comparative,grey,Degree,Template
+It is the grey one.,3,grey,Adjective,superlative,grey,Degree,Template
+It is punk than before.,2,punk,Adjective,comparative,punk,Degree,Template
+It is the punk one.,3,punk,Adjective,superlative,punk,Degree,Template
+It is huge than before.,2,huge,Adjective,comparative,huge,Degree,Template
+It is the huge one.,3,huge,Adjective,superlative,huge,Degree,Template
+It is Greek than before.,2,Greek,Adjective,comparative,Greek,Degree,Template
+It is the Greek one.,3,Greek,Adjective,superlative,Greek,Degree,Template
+It is fierce than before.,2,fierce,Adjective,comparative,fierce,Degree,Template
+It is the fierce one.,3,fierce,Adjective,superlative,fierce,Degree,Template
+It is poor than before.,2,poor,Adjective,comparative,poor,Degree,Template
+It is the poor one.,3,poor,Adjective,superlative,poor,Degree,Template
+It is tight than before.,2,tight,Adjective,comparative,tight,Degree,Template
+It is the tight one.,3,tight,Adjective,superlative,tight,Degree,Template
+It is cool than before.,2,cool,Adjective,comparative,cool,Degree,Template
+It is the cool one.,3,cool,Adjective,superlative,cool,Degree,Template
+It is sweet than before.,2,sweet,Adjective,comparative,sweet,Degree,Template
+It is the sweet one.,3,sweet,Adjective,superlative,sweet,Degree,Template
+It is sick than before.,2,sick,Adjective,comparative,sick,Degree,Template
+It is the sick one.,3,sick,Adjective,superlative,sick,Degree,Template
+It is sure than before.,2,sure,Adjective,comparative,sure,Degree,Template
+It is the sure one.,3,sure,Adjective,superlative,sure,Degree,Template
+It is crazy than before.,2,crazy,Adjective,comparative,crazy,Degree,Template
+It is the crazy one.,3,crazy,Adjective,superlative,crazy,Degree,Template
+It is camp than before.,2,camp,Adjective,comparative,camp,Degree,Template
+It is the camp one.,3,camp,Adjective,superlative,camp,Degree,Template
+It is deep than before.,2,deep,Adjective,comparative,deep,Degree,Template
+It is the deep one.,3,deep,Adjective,superlative,deep,Degree,Template
+It is skill than before.,2,skill,Adjective,comparative,skill,Degree,Template
+It is the skill one.,3,skill,Adjective,superlative,skill,Degree,Template
+It is angry than before.,2,angry,Adjective,comparative,angry,Degree,Template
+It is the angry one.,3,angry,Adjective,superlative,angry,Degree,Template

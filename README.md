@@ -1,12 +1,11 @@
-# Lexeme Inflection Probing
+# Probing Lexemes and Inflections
 
-This repository implements an end-to-end pipeline to probe transformer language models for
-disentangled encoding of lexical and inflectional information, with control tasks to validate findings.
+Minimal steps to extract activations, train probes, and analyze.
 
-## Installation
+## 1. Install
 
-1. Clone the repository
-2. Create a virtual environment and install the dependencies:
+1. Clone the repo
+2. Create a virtual environment and install the dependencies
 
 ```bash
 python -m venv venv
@@ -14,85 +13,46 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Usage
-
-### Dataset Preparation
-
-Dataset notebooks in `notebooks/` can be used to:
-
-- Process UD GUM English dataset
-- Analyze data distributions
-- Create visualizations of probing results
-
-### Activation Extraction
-
-Extract model activations for analysis using:
+## 2. Extract activations
 
 ```bash
 python -m src.activation_extraction \
-    --data data/dataset.csv \
-    --output output/model_dataset_reps.npz \
-    --model model_name
+  --data data/your_dataset.csv \
+  --output-dir output/<model>_reps \
+  --model <model_key>
 ```
 
-### Probe Training
-
-Two types of probing tasks are implemented:
-
-1. Multiclass inflection probing
-2. Multiclass lexeme probing
-
-Each comes with corresponding control tasks to validate findings.
-
-### Running Experiments
-
-Run complete experimental pipelines with:
+## 3. Train probes
 
 ```bash
-python -m src.experiment \
-    --model gpt2 \
-    --dataset ud_gum_dataset \
-    [--experiment {multiclass_inflection_dense,lexeme_dense}]
+python -m src.train \
+  --activations output/<model>_reps \
+  --labels data/your_dataset.csv \
+  --task [lexeme|multiclass_inflection|binary_inflection] \
+  --dataset your_dataset \
+  --exp_label run1 \
+  --layers 0,1,2       # optional
+  --probe_type [linear|nn]
 ```
 
-This will:
+Results + plots → `output/probes/`
 
-1. Extract activations if not already present
-2. Run probing experiments with both main and control tasks
-3. Perform analysis and generate visualizations
+## 4. Unsupervised analysis
 
-Available experiments:
-
-- `multiclass_inflection_dense`: Dense probe for inflection classification with control task
-- `lexeme_dense`: Dense probe for lexeme classification with control task
-
-### Analysis & Visualization
-
-The pipeline automatically generates:
-
-- Probing accuracy plots for each layer
-- Plots of linguistic vs control task performance
-- Layer-wise analysis including cosine similarities and activation clustering
-
-Results are saved in:
-
-```
-output/probes/{dataset}_{model}_{experiment_name}/
-output/{model}_{dataset}_analysis/
+```bash
+python -m src.analysis \
+  --activations-dir output/<model>_reps \
+  --labels data/your_dataset.csv \
+  --model <model_key> \
+  --dataset your_dataset
 ```
 
-## Project Structure
+Outputs → `output/<model>_analysis/`
+
+---
+
+Adjust `src/config.py` for model settings and hyperparameters.
 
 ```
-src/
-  ├── activation_extraction.py  # Extract model hidden states
-  ├── train.py                  # Train probing classifiers
-  ├── train.py                  # Neural probe model setup
-  ├── analysis.py               # Analysis and visualization
-  ├── experiment.py             # End-to-end experimental pipeline
-  ├── config.py                 # Configuration settings
-  └── utils.py                  # Helper functions
-notebooks/
-  ├── dataset.ipynb             # Dataset creation and analysis
-  └── analysis.ipynb            # Results analysis and plotting
+
 ```
