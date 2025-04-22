@@ -1,42 +1,33 @@
 import numpy as np
-from src import train
+import torch
+import pytest
 
-def test_split_data():
-    print("Starting test: test_split_data")
-    # Generate random dataset
-    X = np.random.randn(100, 768)
-    y = np.random.randint(0, 2, size=(100,))
-    print("Generated dummy data for X and y.")
-    
-    # Split the data using the provided function
-    X_train, y_train, X_val, y_val, X_test, y_test = train.split_data(X, y)
-    print("Data split into training, validation, and testing sets.")
-    total = X_train.shape[0] + X_val.shape[0] + X_test.shape[0]
-    
-    print(f"Total samples after split: {total} (Expected: 100)")
-    assert total == 100, f"Expected total of 100 samples, got {total}"
-    print("test_split_data passed.\n")
+from src.probe import closed_form_ridge_binary_predict, process_inflection_layer
 
-def test_train_runs():
-    print("Starting test: test_train_runs")
-    n_samples = 50
-    # Generate random data
-    X = np.random.randn(n_samples, 768)
-    y = np.random.randint(0, 2, size=(n_samples,))
-    print("Generated dummy data for training.")
+def test_closed_form_ridge_binary_predict_line():
+    # y = 2*x  perfectly linear
+    X = torch.tensor([[1.],[2.],[3.]], dtype=torch.float32)
+    y = torch.tensor([2.,4.,6.], dtype=torch.float32)
+    pred = closed_form_ridge_binary_predict(X, y, X, lambda_reg=0.0)
+    # should recover exactly
+    assert torch.allclose(pred.squeeze(), y, atol=1e-4)
 
-    # Split the data
-    X_train, y_train, X_val, y_val, X_test, y_test = train.split_data(X, y)
-    print("Data split completed for train, validation, and test sets.")
-
-    # Train the probe model
-    print("Training the probe model...")
-    model = train.train_probe(X_train, y_train, X_val, y_val, 768, 2)
-    print("Training completed. Evaluating the model...")
-
-    # Evaluate the model
-    acc, cm = train.evaluate_probe(model, X_test, y_test)
-    print(f"Evaluation results: Accuracy = {acc}, Confusion Matrix =\n{cm}")
-
-    assert 0.0 <= acc <= 1.0, f"Accuracy out of bounds: {acc}"
-    print("test_train_runs passed.\n")
+def test_process_inflection_layer_perfectly_separable():
+    # build a small toy layer: 4 points in 2D, two classes
+    # class 0 → cluster at (1,1), class1 → cluster at (-1,-1)
+    X = np.array([[1,1],[1,1],[-1,-1],[-1,-1]], dtype=float)
+    labels = np.array([0,0,1,1])
+    # target_indices is ignored for 2D input so just zeros
+    tgt = np.zeros(4, dtype=int)
+    layer_id, res = process_inflection_layer(
+        layer=5,
+        X_layer=X,
+        inflection_labels=labels,
+        lambda_reg=1e-3,
+        target_indices=tgt
+    )
+    assert layer_id == 5
+    # perfect separation ⇒ acc ≈ 1.0
+    assert pytest.approx(res["inflection_acc"], rel=1e-3) == 1.0
+    # control should be between 0 and 1
+    assert 0.0 <= res["inflection_control_acc"] <= 1.0

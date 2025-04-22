@@ -7,9 +7,16 @@ def run_activation_extraction(model_key, dataset):
     utils.log_info(f"Starting activation extraction for {model_key} on dataset {dataset}...")
     dataset_file = os.path.join("data", f"{dataset}.csv")
     output_dir = os.path.join("output", f"{model_key}_{dataset}_reps")
-    if os.path.isdir(output_dir) and any(f.startswith("activations_part") for f in os.listdir(output_dir)):
+    npz_file = output_dir + ".npz"
+
+    if os.path.isfile(npz_file):
+        utils.log_info(f"Using existing activation file: {npz_file}")
+        print(f"Using existing activation file: {npz_file}")
+        return npz_file
+    elif os.path.isdir(output_dir) and any(f.startswith("activations_part") for f in os.listdir(output_dir)):
         utils.log_info(f"Using existing activation shards: {output_dir}")
         print(f"Using existing activation shards: {output_dir}")
+        return output_dir
     else:
         utils.log_info("Extracting new activations...")
         print("Extracting new activations...")
@@ -19,7 +26,7 @@ def run_activation_extraction(model_key, dataset):
             "--output-dir", output_dir,
             "--model", model_key
         ], check=True)
-    return output_dir
+        return output_dir
 
 def run_probe(exp_args):
     cmd = ["python", "-m", "src.train"] + exp_args
@@ -43,9 +50,9 @@ def main():
     parser.add_argument("--model", type=str, default="gpt2",
                         help="Model key (e.g. 'gpt2').")
     parser.add_argument("--dataset", type=str, required=True,
-                        help="Dataset label (e.g. 'ud_gum_dataset').")
+                        help="Dataset label (e.g._gum_dataset').")
     parser.add_argument("--experiment", type=str,
-                        choices=["multiclass_inflection", "lexeme"],
+                        choices=["inflection", "lexeme"],
                         help="Specific experiment to run.")
     args = parser.parse_args()
 
@@ -54,12 +61,12 @@ def main():
     reps = run_activation_extraction(model_key, dataset)
 
     experiments = [
-        {"name": "multiclass_inflection", "args": [
+        {"name": "inflection", "args": [
             "--activations", reps,
             "--labels", os.path.join("data", f"{dataset}.csv"),
-            "--task", "multiclass_inflection",
+            "--task", "inflection",
             "--lambda_reg", "1e-3",
-            "--exp_label", f"{model_key}_multiclass_inflection",
+            "--exp_label", f"{model_key}_inflection",
             "--dataset", dataset
         ]},
         {"name": "lexeme", "args": [
@@ -82,7 +89,8 @@ def main():
         print(f"Running experiment: {exp['name']}")
         run_probe(exp["args"])
 
-    # run_analysis(model_key, dataset)
+    if not args.experiment:
+        run_analysis(model_key, dataset)
     utils.log_info("All experiments and analysis completed.")
 
 if __name__ == "__main__":

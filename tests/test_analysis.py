@@ -1,31 +1,47 @@
 import numpy as np
-from src import analysis
+import os
+import tempfile
+import pytest
 
-def test_cosine_similarity():
-    print("Starting test: test_cosine_similarity")
-    # Generate random matrix
-    X = np.random.randn(10, 768)
-    labels = np.random.randint(0, 2, size=(10,))
-    print("Generated random data for cosine similarity computation.")
+from src.analysis import load_activations, avg_group_cosine
 
-    # Compute average cosine similarity for data points with same labels
-    avg_sim = analysis.compute_cosine_sims(X, labels)
-    print(f"Computed average cosine similarity: {avg_sim}")
+def make_npz(path, arr):
+    np.savez_compressed(path, activations=arr)
 
-    # Check for valid cosine similarity value
-    assert -1.0 <= avg_sim <= 1.0, f"Average similarity {avg_sim} is out of expected range [-1, 1]"
-    print("test_cosine_similarity passed.\n")
+def test_load_activations_single_file(tmp_path):
+    arr = np.random.randn(5, 3, 4)
+    f = tmp_path / "a.npz"
+    make_npz(str(f), arr)
+    out = load_activations(str(f))
+    assert out.shape == arr.shape
+    assert np.allclose(out, arr)
 
-def test_kmeans_clustering():
-    print("Starting test: test_kmeans_clustering")
-    # Generate random feature matrix
-    X = np.random.randn(20, 768)
-    print("Generated random data for clustering.")
+def test_load_activations_directory(tmp_path):
+    arr1 = np.ones((2,3,4))
+    arr2 = np.zeros((1,3,4))
+    f1 = tmp_path / "activations_part0.npz"
+    f2 = tmp_path / "activations_part1.npz"
+    make_npz(str(f1), arr1)
+    make_npz(str(f2), arr2)
+    out = load_activations(str(tmp_path))
+    # should stack along axis=0
+    assert out.shape == (3,3,4)
+    assert np.allclose(out[:2], arr1)
+    assert np.allclose(out[2:], arr2)
 
-    # Run clustering algorithm
-    clusters = analysis.run_clustering(X, n_clusters=2)
-    print(f"Clustering completed. Cluster labels shape: {clusters.shape}")
+def test_avg_group_cosine_perfect_and_orthogonal():
+    # group 0: [1,0],[1,0] → cosine=1
+    # group 1: [0,1],[0,1] → cosine=1
+    acts = np.array([[1.,0.],[1.,0.],[0.,1.],[0.,1.]])
+    labels = np.array([0,0,1,1])
+    ci = avg_group_cosine(acts, labels)
+    assert pytest.approx(ci, rel=1e-6) == 1.0
 
-    # Expecting one cluster assignment per sample
-    assert clusters.shape[0] == 20, f"Expected 20 cluster assignments, got {clusters.shape[0]}"
-    print("test_kmeans_clustering passed.\n")
+def test_avg_group_cosine_mixed():
+    # group 0: identical unit vectors → 1
+    # group 1: opposite vectors → -1
+    acts = np.array([[1.,0.],[1.,0.],[-1.,0.],[1.,0.]])
+    labels = np.array([0,0,1,1])
+    ci = avg_group_cosine(acts, labels)
+    # group0 mean=1, group1 mean=cos(-1,1)= -1 so average=0
+    assert pytest.approx(ci, rel=1e-6) == 0.0

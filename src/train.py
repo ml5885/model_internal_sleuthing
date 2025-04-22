@@ -1,112 +1,89 @@
 import argparse
 import os
+import re
+
 import numpy as np
 import pandas as pd
-import torch
-import concurrent.futures
 from tqdm import tqdm
-from multiprocessing import Lock
+
 from src import config, utils
-from src.probe import process_inflection_layer, process_lexeme_layer, plot_probe_results
+from src.probe import process_layer, plot_probe_results
 
-tqdm.set_lock(Lock())
+def load_shards(path):
+    if os.path.isdir(path):
+        files = [os.path.join(path, f)
+                 for f in os.listdir(path)
+                 if f.endswith(".npz") and "activations_part" in f]
+        files.sort(key=lambda fn: int(
+            re.search(r"part_?(\d+)", os.path.basename(fn)).group(1)))
+        return files
+    if os.path.isfile(path) and path.endswith(".npz"):
+        return [path]
+    raise ValueError(f"{path} is not a .npz file or directory of shards")
 
-def closed_form_ridge_binary_predict(X_train, y_train, X_test, lambda_reg=1e-3):
-    d = X_train.shape[1]
-    I = torch.eye(d, device=X_train.device, dtype=X_train.dtype)
-    A = X_train.t() @ X_train + lambda_reg * I
-    w = torch.linalg.solve(A, X_train.t() @ y_train)
-    return X_test @ w
+def load_layer(shards, layer_idx):
+    parts = []
+    for shard in shards:
+        try:
+            arr = np.load(shard, mmap_mode="r")["activations"]
+        except Exception as e:
+            utils.log_info(f"Warning: failed mmap load of {shard}: {e}, retrying without mmap")
+            arr = np.load(shard)["activations"]
+        parts.append(arr[:, layer_idx, :])
+    return np.concatenate(parts, axis=0)
 
-def extract_target_representation(layer_data, target_indices):
-    reps = []
-    for i in range(layer_data.shape[0]):
-        idx = int(target_indices[i])
-        idx = min(idx, layer_data.shape[1] - 1)
-        reps.append(layer_data[i, idx])
-    return torch.stack(reps)
-
-def run_probes(activations_input, labels_file, task, lambda_reg, exp_label, dataset):
-    if os.path.isdir(activations_input):
-        shard_files = sorted(
-            [os.path.join(activations_input, f) for f in os.listdir(activations_input)
-             if f.endswith('.npz') and 'activations_part' in f]
-        )
-    else:
-        shard_files = [activations_input]
-
-    # Inspect first shard to get number of layers
-    sample = np.load(shard_files[0])['activations']
+def run_probes(activations, labels, task, lambda_reg, exp_label, dataset, probe_type):
+    shards = load_shards(activations)
+    sample = np.load(shards[0], mmap_mode="r")["activations"]
     n_layers = sample.shape[1]
 
-    # Read labels
-    df = pd.read_csv(labels_file)
-    lexemes = df["Lemma"].values
-    uniq_lex = sorted(set(lexemes))
-    l2i = {lx: idx for idx, lx in enumerate(uniq_lex)}
-    lex_labels = np.array([l2i[lx] for lx in lexemes], dtype=int)
+    df = pd.read_csv(labels)
+    lemmas = df["Lemma"].values
+    uniq = sorted(set(lemmas))
+    lex_labels = np.array([uniq.index(w) for w in lemmas], dtype=int)
 
     if "Inflection Label" in df.columns:
-        vals = df["Inflection Label"].values
-        uniq_inf = sorted(set(vals))
-        inf_labels = np.array([uniq_inf.index(v) for v in vals], dtype=int)
+        infl = df["Inflection Label"].values
+        uniq_infl = sorted(set(infl))
+        inf_labels = np.array([uniq_infl.index(x) for x in infl], dtype=int)
     else:
-        inf_labels = None
+        inf_labels = lex_labels
 
-    # Target indices if present
-    tgt_idx = df.get("Target Index", pd.Series(0)).astype(int).values
-
-    utils.log_info(f"Streaming activations for {n_layers} layers from {len(shard_files)} shards")
-
+    y_true = lex_labels if task == "lexeme" else inf_labels
+    y_ctrl = lex_labels
     results = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=config.MAX_WORKERS_CLASS) as executor:
-        futures = {}
-        for L in range(n_layers):
-            # Build X_layer by concatenating only this layer from each shard
-            layer_slices = []
-            for f in shard_files:
-                arr = np.load(f)['activations']
-                layer_slices.append(arr[:, L, :])
-            X_layer = np.concatenate(layer_slices, axis=0)
 
-            if task == "lexeme":
-                fut = executor.submit(
-                    process_lexeme_layer, L, X_layer, lex_labels, lambda_reg, l2i, tgt_idx
-                )
-            else:
-                fut = executor.submit(
-                    process_inflection_layer, L, X_layer, inf_labels, lambda_reg, tgt_idx
-                )
-            futures[fut] = L
+    for layer_idx in tqdm(range(n_layers), desc="Layers"):
+        X_flat = load_layer(shards, layer_idx)
+        seed = config.SEED + layer_idx
+        _, res = process_layer(seed, X_flat, y_true, y_ctrl,
+                               lambda_reg, task, probe_type, layer_idx + 1)
+        del X_flat
+        results[f"layer_{layer_idx}"] = res
 
-        for fut in tqdm(concurrent.futures.as_completed(futures),
-                        total=n_layers, desc="Processing Layers"):
-            L, res = fut.result()
-            results[L] = res
-
-    # Save and plot
-    outdir = os.path.join(config.OUTPUT_DIR, "probes", f"{dataset}_{exp_label}")
+    outdir = os.path.join(config.OUTPUT_DIR,
+                          "probes",
+                          f"{dataset}_{exp_label}_{probe_type}")
     os.makedirs(outdir, exist_ok=True)
-    np.savez_compressed(os.path.join(outdir, "probe_results.npz"), results=results)
-    utils.log_info(f"Saved raw probe results to {outdir}")
+
+    np.savez_compressed(os.path.join(outdir, "probe_results.npz"),
+                        results=results)
+    utils.log_info(f"Saved probe results to {outdir}")
+
     plot_probe_results(results, outdir, task)
 
 def parse_args():
-    p = argparse.ArgumentParser()
-    p.add_argument("--activations", required=True)
-    p.add_argument("--labels", required=True)
-    p.add_argument("--task", required=True, choices=["binary_inflection",
-                                                     "multiclass_inflection",
-                                                     "lexeme"])
-    p.add_argument("--lambda_reg", type=float, default=1e-3)
-    p.add_argument("--exp_label", default="default_exp")
-    p.add_argument("--dataset", required=True)
-    return p.parse_args()
+    parser = argparse.ArgumentParser(description="Train probes on activations")
+    parser.add_argument("--activations", required=True)
+    parser.add_argument("--labels", required=True)
+    parser.add_argument("--task", required=True, choices=["inflection", "lexeme"])
+    parser.add_argument("--lambda_reg", type=float, default=1e-3)
+    parser.add_argument("--exp_label", default="exp")
+    parser.add_argument("--dataset", required=True)
+    parser.add_argument("--probe_type", choices=["reg", "nn"], default="reg")
+    return parser.parse_args()
 
-def main():
+if __name__ == "__main__":
     args = parse_args()
-    run_probes(args.activations, args.labels, args.task, 
-               args.lambda_reg, args.exp_label, args.dataset)
-
-if __name__=="__main__":
-    main()
+    run_probes(args.activations, args.labels, args.task, args.lambda_reg,
+               args.exp_label, args.dataset, args.probe_type)
