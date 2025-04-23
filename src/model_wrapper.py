@@ -1,6 +1,10 @@
 import torch
 from transformers import AutoModel, AutoTokenizer
 from src import config, utils
+from huggingface_hub import hf_hub_download
+from tokenizers import Tokenizer
+from transformers import PreTrainedTokenizerFast
+import json
 
 class ModelWrapper:
     def __init__(self, model_key: str):
@@ -13,34 +17,72 @@ class ModelWrapper:
         # Load the model with hidden states enabled
         self.model = AutoModel.from_pretrained(
             self.model_config["model_name"],
-            output_hidden_states=True
+            output_hidden_states=True,
+            trust_remote_code=self.model_config.get("trust_remote_code", False)
         )
 
-        # Load the tokenizer, prefer the fast implementation but fall back if needed
-        try:
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_config["tokenizer_name"],
-                add_prefix_space=True,
-                use_fast=True
-            )
-        except Exception as fast_err:
-            utils.log_info(
-                f"Fast tokenizer load failed for '{model_key}' ({fast_err}); falling back to slow Python tokenizer."
-            )
+        # If this model repo only provides a tokenizers JSON (no .model file),
+        # do a direct fast-only load via huggingface_hub + tokenizers
+        if self.model_config.get("trust_remote_code", False):
+            try:
+
+                repo = self.model_config["tokenizer_name"]
+                # download the two JSONs
+                tok_json = hf_hub_download(repo_id=repo, filename="tokenizer.json")
+                cfg_json = hf_hub_download(repo_id=repo, filename="tokenizer_config.json")
+                cfg = json.load(open(cfg_json, "r", encoding="utf-8"))
+
+                # build a tokenizers Tokenizer
+                tok = Tokenizer.from_file(tok_json)
+                # collect any special tokens
+                special_kwargs = {}
+                for key in ("unk_token","bos_token","eos_token",
+                            "sep_token","pad_token","cls_token","mask_token"):
+                    if key in cfg:
+                        special_kwargs[key] = cfg[key]
+                # ensure we have a pad_token
+                special_kwargs.setdefault("pad_token", special_kwargs.get("eos_token"))
+
+                self.tokenizer = PreTrainedTokenizerFast(
+                    tokenizer_object=tok,
+                    use_fast=True,
+                    **special_kwargs
+                )
+            except Exception as e:
+                raise ImportError(
+                    f"Failed to load DeepSeek tokenizer directly from JSON ({e}).\n"
+                    "Make sure you have huggingface_hub and tokenizers installed:\n"
+                    "    pip install huggingface_hub tokenizers"
+                )
+        else:
+            # fallback to standard HF AutoTokenizer logic
             try:
                 self.tokenizer = AutoTokenizer.from_pretrained(
                     self.model_config["tokenizer_name"],
                     add_prefix_space=True,
-                    use_fast=False
+                    use_fast=True,
+                    trust_remote_code=self.model_config.get("trust_remote_code", False)
                 )
-            except Exception as slow_err:
-                error_msg = (
-                    f"Cannot load a tokenizer for '{model_key}'.\n"
-                    "Please install the following dependencies and retry:\n"
-                    "    pip install tiktoken protobuf sentencepiece"
+            except Exception as fast_err:
+                utils.log_info(
+                    f"Fast tokenizer load failed for '{model_key}' ({fast_err}); "
+                    "falling back to slow Python tokenizer."
                 )
-                utils.log_info(f"Slow tokenizer load failed for '{model_key}' ({slow_err}).")
-                raise ImportError(error_msg)
+                try:
+                    self.tokenizer = AutoTokenizer.from_pretrained(
+                        self.model_config["tokenizer_name"],
+                        add_prefix_space=True,
+                        use_fast=False,
+                        trust_remote_code=self.model_config.get("trust_remote_code", False)
+                    )
+                except Exception as slow_err:
+                    error_msg = (
+                        f"Cannot load a tokenizer for '{model_key}'.\n"
+                        "Please install the following dependencies and retry:\n"
+                        "    pip install tiktoken protobuf sentencepiece"
+                    )
+                    utils.log_info(f"Slow tokenizer load failed for '{model_key}' ({slow_err}).")
+                    raise ImportError(error_msg)
 
         # Ensure a pad token is defined
         if self.tokenizer.pad_token is None:

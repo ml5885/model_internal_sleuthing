@@ -6,7 +6,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
-# ----- HELPERS -----
 def load_results(dataset, model, task_name):
     variants = [task_name]
     tn = task_name.lower()
@@ -35,12 +34,10 @@ def extract_data(df, task_name):
     order = np.argsort(layers)
     return acc[order]
 
-# ----- MAIN SCRIPT -----
 dataset    = "ud_gum_dataset"
 tasks      = ["lexeme", "multiclass_inflection"]
 probe_dir  = "../output/probes/"
 
-# 1. Discover all models
 pattern = re.compile(rf"{dataset}_(.+?)_(?:lexeme|multiclass_inflection|inflection)_reg")
 models = sorted({
     m.group(1)
@@ -48,7 +45,6 @@ models = sorted({
     if (m := pattern.match(entry))
 })
 
-# 2. Load results for each model & task
 results = {}
 for m in models:
     accs = {}
@@ -60,7 +56,6 @@ for m in models:
     if set(accs) == set(tasks):
         results[m] = accs
 
-# 3. Compute average accuracies
 names   = []
 lex_avg = []
 inf_avg = []
@@ -69,7 +64,6 @@ for m, accs in results.items():
     lex_avg.append(accs["lexeme"].mean())
     inf_avg.append(accs["multiclass_inflection"].mean())
 
-# 4. Define vocab sizes
 vocab_sizes = {
     "bert-base-uncased":   30522,
     "bert-large-uncased":  30000,
@@ -79,7 +73,6 @@ vocab_sizes = {
     "gemma2b":           256000
 }
 
-# Colors for each model
 model_colors = {
     "gpt2":               "tab:blue",
     "pythia1.4b":         "tab:orange",
@@ -89,7 +82,6 @@ model_colors = {
     "bert-large-uncased": "tab:olive"
 }
 
-# 5. Filter to models present in both results & vocab_sizes
 filtered = [
     (m, la, ia, vocab_sizes[m])
     for m, la, ia in zip(names, lex_avg, inf_avg)
@@ -98,12 +90,10 @@ filtered = [
 if not filtered:
     raise ValueError("No overlapping models found between results and vocab_sizes.")
 
-# 6. Unpack filtered data
 names_filt, lex_avg_filt, inf_avg_filt, sizes = zip(*filtered)
 
-# 8. Plot
-fig = plt.figure(figsize=(12, 6))  # Create figure object explicitly
-main_ax = fig.add_axes([0.1, 0.1, 1.0, 1.0])  # [left, bottom, width, height]
+fig = plt.figure(figsize=(12, 6))
+main_ax = fig.add_axes([0.1, 0.1, 1.0, 1.0])
 
 for m, la, ia, sz in zip(names_filt, lex_avg_filt, inf_avg_filt, sizes):
     color = model_colors[m]
@@ -119,8 +109,6 @@ main_ax.set_ylabel("Average Accuracy (%)", fontsize=16)
 main_ax.set_title("Model Vocabulary Size vs. Average Probing Accuracy", fontsize=18)
 main_ax.grid(True, linestyle="--", alpha=0.6)
 
-# 9. Legends
-# a) Model colors
 model_handles = [
     Line2D([0], [0],
            marker="o",
@@ -137,7 +125,6 @@ legend1 = main_ax.legend(handles=model_handles,
                         bbox_to_anchor=(1, 0.6))
 main_ax.add_artist(legend1)
 
-# b) Task shapes
 task_handles = [
     Line2D([0], [0], marker="o", color="gray", linestyle="", markersize=10, markeredgecolor="k", label="Lexeme"),
     Line2D([0], [0], marker="s", color="gray", linestyle="", markersize=10, markeredgecolor="k", label="Inflection")

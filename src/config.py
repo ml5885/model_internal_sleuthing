@@ -62,12 +62,14 @@ MODEL_CONFIGS = {
     "deepseek-r1-distill-qwen-7b": {
         "model_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
         "tokenizer_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+        "trust_remote_code": True,
         "max_length": 128,
         "batch_size": 32,
     },
     "deepseek-r1-distill-llama-8b": {
-        "model_name": "unsloth/DeepSeek-R1-Distill-Llama-8B",
-        "tokenizer_name": "unsloth/DeepSeek-R1-Distill-Llama-8B",
+        "model_name": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
+        "tokenizer_name": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
+        "trust_remote_code": True,
         "max_length": 128,
         "batch_size": 32,
     },

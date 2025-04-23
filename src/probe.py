@@ -87,148 +87,141 @@ def process_layer(
     seed, X_flat, y_true, y_control,
     lambda_reg, task, probe_type, layer
 ):
+    """
+    Train and evaluate both task and control probes on a single layer.
+    Returns (seed, results_dict) containing accuracies, F1s, and top-5 scores.
+    """
     rng = np.random.RandomState(seed)
     N = X_flat.shape[0]
-    permutation = rng.permutation(N)
 
-    X = X_flat[permutation]
-    y = y_true[permutation]
-    c = y_control[permutation]
+    # Shuffle data
+    perm = rng.permutation(N)
+    X = X_flat[perm]
+    y = y_true[perm]
+    c = y_control[perm]
 
+    # Split into train / val / test
     n_train = int(N * config.SPLIT_RATIOS["train"])
-    n_val = int(N * config.SPLIT_RATIOS["val"])
-    n_test = N - n_train - n_val
+    n_val   = int(N * config.SPLIT_RATIOS["val"])
+    X_train, X_val, X_test = (
+        X[:n_train],
+        X[n_train : n_train+n_val],
+        X[n_train+n_val :],
+    )
+    Y_train, Y_val, Y_test = (
+        y[:n_train],
+        y[n_train : n_train+n_val],
+        y[n_train+n_val :],
+    )
+    control_train, control_val, control_test = (
+        c[:n_train],
+        c[n_train : n_train+n_val],
+        c[n_train+n_val :],
+    )
 
-    X_train = X[:n_train]
-    X_val = X[n_train:n_train + n_val]
-    X_test = X[n_train + n_val:]
-
-    Y_train = y[:n_train]
-    Y_val = y[n_train:n_train + n_val]
-    Y_test = y[n_train + n_val:]
-
-    control_train = c[:n_train]
-    control_val = c[n_train:n_train + n_val]
-    control_test = c[n_train + n_val:]
-
-    # number of inflection classes
     num_classes = len(np.unique(y_true))
 
-    # ---- FIXED CONTROL MAPPING ----
-    # map each unique control (lemma) to a random inflection class
-    unique_lemmas = np.unique(c)
-    num_control = unique_lemmas.shape[0]
-    # sample with replacement from [0 .. num_classes-1]
-    random_inf_labels = rng.randint(low=0, high=num_classes, size=num_control)
-    control_map = {
-        lemma: random_inf_labels[i]
-        for i, lemma in enumerate(unique_lemmas)
-    }
+    # Build a random control→class map
+    unique_controls = np.unique(c)
+    nc = unique_controls.shape[0]
+    if nc <= num_classes:
+        mapping = rng.permutation(num_classes)[:nc]
+    else:
+        mapping = rng.randint(0, num_classes, size=nc)
+    control_map = { ctl: int(mapping[i]) for i, ctl in enumerate(unique_controls) }
 
     control_train_mapped = np.array([control_map[x] for x in control_train])
     control_val_mapped   = np.array([control_map[x] for x in control_val])
     control_test_mapped  = np.array([control_map[x] for x in control_test])
-    # ---------------------------------
 
+    # Train & eval
     if probe_type == "nn":
         device = get_device()
         X_test_tensor = torch.from_numpy(X_test).float().to(device)
-
         workers = config.TRAIN_PARAMS.get("workers", max(1, os.cpu_count() // 2))
-
-        scores = np.zeros((n_test, num_classes), dtype=np.float32)
-        control_scores = np.zeros((n_test, num_classes), dtype=np.float32)
+        scores = np.zeros((X_test.shape[0], num_classes), dtype=np.float32)
+        control_scores = np.zeros_like(scores)
 
         def run_true_class(cls):
-            Y_train_bin = (Y_train == cls).astype(int)
-            Y_val_bin = (Y_val == cls).astype(int)
-
-            model = train_probe(
-                X_train, Y_train_bin, X_val, Y_val_bin,
+            ytr = (Y_train == cls).astype(int)
+            yvl = (Y_val   == cls).astype(int)
+            m = train_probe(
+                X_train, ytr, X_val, yvl,
                 input_dim=X_train.shape[1],
                 output_dim=2,
                 lambda_reg=lambda_reg,
                 quiet=True
             )
-
             with torch.no_grad():
-                return cls, model(X_test_tensor)[:, 1].cpu().numpy()
+                return cls, m(X_test_tensor)[:,1].cpu().numpy()
 
         def run_control_class(cls):
-            ctl_train_bin = (control_train_mapped == cls).astype(int)
-            ctl_val_bin = (control_val_mapped == cls).astype(int)
-
-            model = train_probe(
-                X_train, ctl_train_bin, X_val, ctl_val_bin,
+            ctr = (control_train_mapped == cls).astype(int)
+            cvr = (control_val_mapped   == cls).astype(int)
+            m = train_probe(
+                X_train, ctr, X_val, cvr,
                 input_dim=X_train.shape[1],
                 output_dim=2,
                 lambda_reg=lambda_reg,
                 quiet=True
             )
-
             with torch.no_grad():
-                return cls, model(X_test_tensor)[:, 1].cpu().numpy()
+                return cls, m(X_test_tensor)[:,1].cpu().numpy()
 
-        with ThreadPoolExecutor(max_workers=workers) as executor:
-            futures_true = {executor.submit(run_true_class, cls): cls for cls in range(num_classes)}
-            for f in tqdm(as_completed(futures_true), total=num_classes,
-                          desc=f"Layer {layer} True Probes", leave=True, file=sys.stdout):
+        with ThreadPoolExecutor(max_workers=workers) as exe:
+            futs = {exe.submit(run_true_class, cls): cls for cls in range(num_classes)}
+            for f in tqdm(as_completed(futs), total=num_classes,
+                          desc=f"Layer {layer} True Probes"):
                 cls, vals = f.result()
                 scores[:, cls] = vals
 
-        print(f"\nProcessing Layer {layer} (Control Probes):")
-        with ThreadPoolExecutor(max_workers=workers) as executor:
-            futures_control = {executor.submit(run_control_class, cls): cls for cls in range(num_classes)}
-            for f in tqdm(as_completed(futures_control), total=num_classes,
-                          desc=f"Layer {layer} Control Probes", leave=True, file=sys.stdout):
+        with ThreadPoolExecutor(max_workers=workers) as exe:
+            futs = {exe.submit(run_control_class, cls): cls for cls in range(num_classes)}
+            for f in tqdm(as_completed(futs), total=num_classes,
+                          desc=f"Layer {layer} Control Probes"):
                 cls, vals = f.result()
                 control_scores[:, cls] = vals
 
         preds = np.argmax(scores, axis=1)
         accuracy = (preds == Y_test).mean()
-
-        preds_control = np.argmax(control_scores, axis=1)
-        control_accuracy = (preds_control == control_test_mapped).mean()
+        preds_ctrl = np.argmax(control_scores, axis=1)
+        control_accuracy = (preds_ctrl == control_test_mapped).mean()
 
     else:
-        # closed-form ridge regression
         d = X_train.shape[1]
         cov = X_train.T.dot(X_train) + lambda_reg * np.eye(d)
-
-        # true labels one-hot
-        Y_train_one = np.eye(num_classes)[Y_train]
-        W = np.linalg.solve(cov, X_train.T.dot(Y_train_one))
+        Y_one = np.eye(num_classes)[Y_train]
+        W = np.linalg.solve(cov, X_train.T.dot(Y_one))
         scores = X_test.dot(W)
-
-        # control labels one-hot
-        Y_control_one = np.eye(num_classes)[control_train_mapped]
-        Wc = np.linalg.solve(cov, X_train.T.dot(Y_control_one))
+        C_one = np.eye(num_classes)[control_train_mapped]
+        Wc = np.linalg.solve(cov, X_train.T.dot(C_one))
         control_scores = X_test.dot(Wc)
 
         preds = np.argmax(scores, axis=1)
         accuracy = (preds == Y_test).mean()
+        preds_ctrl = np.argmax(control_scores, axis=1)
+        control_accuracy = (preds_ctrl == control_test_mapped).mean()
 
-        preds_control = np.argmax(control_scores, axis=1)
-        control_accuracy = (preds_control == control_test_mapped).mean()
-
-    average_type = 'binary' if num_classes == 2 else 'macro'
-    f1 = f1_score(Y_test, preds, average=average_type)
-    control_f1 = f1_score(control_test_mapped, preds_control, average=average_type)
-
-    top5 = top_k_accuracy_score(Y_test, scores, k=5, labels=np.arange(num_classes)) if num_classes > 2 else None
-    control_top5 = top_k_accuracy_score(control_test_mapped, control_scores, k=5, labels=np.arange(num_classes)) if num_classes > 2 else None
+    average = 'binary' if num_classes == 2 else 'macro'
+    f1             = f1_score(Y_test,         preds,     average=average)
+    control_f1     = f1_score(control_test_mapped, preds_ctrl, average=average)
+    top5           = (top_k_accuracy_score(Y_test, scores, k=5, labels=np.arange(num_classes))
+                      if num_classes > 2 else None)
+    control_top5   = (top_k_accuracy_score(control_test_mapped, control_scores,
+                                          k=5, labels=np.arange(num_classes))
+                      if num_classes > 2 else None)
 
     result = {
-        f"{task}_acc": accuracy,
-        f"{task}_control_acc": control_accuracy,
-        f"{task}_acc_ci_low": -1,
-        f"{task}_acc_ci_high": -1,
-        f"{task}_control_acc_ci_low": -1,
+        f"{task}_acc":              accuracy,
+        f"{task}_control_acc":      control_accuracy,
+        f"{task}_acc_ci_low":       -1,
+        f"{task}_acc_ci_high":      -1,
+        f"{task}_control_acc_ci_low":  -1,
         f"{task}_control_acc_ci_high": -1,
-        f"{task}_f1": f1,
-        f"{task}_control_f1": control_f1,
-        f"{task}_top5": top5,
-        f"{task}_control_top5": control_top5
+        f"{task}_f1":               f1,
+        f"{task}_control_f1":       control_f1,
+        f"{task}_top5":             top5,
+        f"{task}_control_top5":     control_top5,
     }
 
     utils.log_info(
@@ -236,7 +229,6 @@ def process_layer(
         f"acc {accuracy:.3f} f1 {f1:.3f} "
         f"control_acc {control_accuracy:.3f} control_f1 {control_f1:.3f}"
     )
-
     return seed, result
 
 def plot_probe_results(results, outdir, task):
