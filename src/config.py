@@ -6,7 +6,6 @@ OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 MODEL_CONFIGS = {
-    # Original models
     "gpt2": {
         "model_name": "gpt2",
         "tokenizer_name": "gpt2",
@@ -57,23 +56,7 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
-
-    # DeepSeek reasoning‑distilled models
-    "deepseek-r1-distill-qwen-7b": {
-        "model_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
-        "tokenizer_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
-        "trust_remote_code": True,
-        "max_length": 128,
-        "batch_size": 32,
-    },
-    "deepseek-r1-distill-llama-8b": {
-        "model_name": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
-        "tokenizer_name": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
-        "trust_remote_code": True,
-        "max_length": 128,
-        "batch_size": 32,
-    },
-
+    
     # Meta Llama models
     "llama2-7b-chat": {
         "model_name": "meta-llama/Llama-2-7b-chat-hf",
@@ -88,7 +71,7 @@ MODEL_CONFIGS = {
         "batch_size": 32,
     },
 
-    # Additional causal LMs
+    # More open models
     "gpt-neo-2.7b": {
         "model_name": "EleutherAI/gpt-neo-2.7B",
         "tokenizer_name": "EleutherAI/gpt-neo-2.7B",
@@ -106,14 +89,33 @@ MODEL_CONFIGS = {
         "tokenizer_name": "EleutherAI/pythia-2.8b-v0",
         "max_length": 128,
         "batch_size": 32,
-    }
+    },
+
+    # Reasoning models
+    "deepseek-r1-distill-qwen-7b": {
+        "model_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+        "tokenizer_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+        "trust_remote_code": True,
+        "max_length": 128,
+        "batch_size": 32,
+    },
+    "deepseek-r1-distill-llama-8b": {
+        "model_name": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
+        "tokenizer_name": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
+        "trust_remote_code": True,
+        "max_length": 128,
+        "batch_size": 32,
+    },
 }
 
 # Training hyperparameters for probing
 TRAIN_PARAMS = {
-    "epochs": 100,
-    "learning_rate": 1e-3,
+    "epochs": 50,
+    "learning_rate": 3e-4,
     "weight_decay": 1e-5,
+    "batch_size": 4096,
+    "early_stop": 7,
+    "workers": min(4, os.cpu_count() or 2),
 }
 
 # Data split ratios

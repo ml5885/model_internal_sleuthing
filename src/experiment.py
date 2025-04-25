@@ -54,6 +54,13 @@ def main():
     parser.add_argument("--experiment", type=str,
                         choices=["inflection", "lexeme"],
                         help="Specific experiment to run.")
+    parser.add_argument("--lambda_reg", type=float, default=1e-3,
+                        help="Regularization parameter for probes.")
+    parser.add_argument("--probe_type", type=str, default="reg",
+                        choices=["reg", "mlp"],
+                        help="Type of probe to use (regression or neural network).")
+    parser.add_argument("--no_analysis", action="store_true",
+                        help="Skip analysis after running experiments.")
     args = parser.parse_args()
 
     model_key = args.model
@@ -65,17 +72,19 @@ def main():
             "--activations", reps,
             "--labels", os.path.join("data", f"{dataset}.csv"),
             "--task", "inflection",
-            "--lambda_reg", "1e-3",
+            "--lambda_reg", str(args.lambda_reg),
             "--exp_label", f"{model_key}_inflection",
-            "--dataset", dataset
+            "--dataset", dataset,
+            "--probe_type", args.probe_type
         ]},
         {"name": "lexeme", "args": [
             "--activations", reps,
             "--labels", os.path.join("data", f"{dataset}.csv"),
             "--task", "lexeme",
-            "--lambda_reg", "1e-3",
+            "--lambda_reg", str(args.lambda_reg),
             "--exp_label", f"{model_key}_lexeme",
-            "--dataset", dataset
+            "--dataset", dataset,
+            "--probe_type", args.probe_type
         ]}
     ]
 
@@ -89,8 +98,9 @@ def main():
         print(f"Running experiment: {exp['name']}")
         run_probe(exp["args"])
 
-    if not args.experiment:
+    if not args.experiment and not args.no_analysis:
         run_analysis(model_key, dataset)
+        
     utils.log_info("All experiments and analysis completed.")
 
 if __name__ == "__main__":

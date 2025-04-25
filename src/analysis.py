@@ -34,8 +34,7 @@ def shard_loader(shard_path, layer_idx):
 
 def avg_pairwise_cosine_stream(normed_shard_list, labels):
     """
-    Compute avg pairwise cosine similarity per label by streaming.
-    Uses the identity (||sum v_i||^2 - k)/2 to avoid O(k^2).
+    Compute avg pairwise cosine similarity per label.
     """
     uniq = np.unique(labels)
     d_model = normed_shard_list[0].shape[1]
@@ -55,9 +54,9 @@ def avg_pairwise_cosine_stream(normed_shard_list, labels):
             sums[lbl]  += Xn[mask].sum(axis=0)
             counts[lbl] += int(mask.sum())
 
-    numer = ((np.linalg.norm(sums, axis=1)**2 - counts) / 2).sum()
+    num = ((np.linalg.norm(sums, axis=1)**2 - counts) / 2).sum()
     denom = ((counts * (counts - 1)) / 2).sum()
-    return float(numer / denom) if denom > 0 else 0.0
+    return float(num / denom) if denom > 0 else 0.0
 
 def unsupervised_layer_analysis(activations_input, labels_file, model_key, dataset_key):
     # Gather shard files
@@ -144,10 +143,8 @@ def unsupervised_layer_analysis(activations_input, labels_file, model_key, datas
         plt.figure(figsize=(6, 6))
         plt.scatter(tsne_proj[:, 0], tsne_proj[:, 1], c=colors_inf, s=10)
         handles_inf = [
-            plt.Line2D([0], [0], marker='o', color='w',
-                       label=lab,
-                       markerfacecolor=cmap(i % 10),
-                       markersize=6)
+            plt.Line2D([0], [0], marker='o', color='w', label=lab,
+                       markerfacecolor=cmap(i % 10), markersize=6)
             for i, lab in enumerate(pd.Categorical(df["Inflection Label"]).categories)
         ]
         plt.legend(handles=handles_inf, title="Inflection", fontsize='small', markerscale=0.7)
@@ -162,8 +159,6 @@ def unsupervised_layer_analysis(activations_input, labels_file, model_key, datas
         plt.title(f"Layer {layer} t-SNE by Lexeme (legend omitted)")
         plt.savefig(os.path.join(outdir, f"layer_{layer}_tsne_lexeme.png"), bbox_inches="tight")
         plt.close()
-
-    # --- after layer loop ---
 
     # Save cosine-by-layer table
     cos_df = pd.DataFrame(records)
