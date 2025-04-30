@@ -98,8 +98,6 @@ class ModelWrapper:
             last_pos = positions[-1]
 
             for layer_idx, layer_states in enumerate(hidden_states):
-                # token_vecs = layer_states[i, :, :]
-                # activations[i, layer_idx, :] = token_vecs.mean(0
                 activations[i, layer_idx, :] = layer_states[i, last_pos, :]
 
         return activations.cpu()

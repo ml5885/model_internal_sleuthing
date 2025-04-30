@@ -32,7 +32,7 @@ python -m src.train \
   --dataset your_dataset \
   --exp_label run1 \
   --layers 0,1,2       # optional
-  --probe_type [linear|nn]
+  --probe_type [reg|mlp]
 ```
 
 Results + plots → `output/probes/`

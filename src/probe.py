@@ -6,7 +6,9 @@ import torch.nn as nn
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score, top_k_accuracy_score
+from sklearn.decomposition import PCA
 from src import config, utils
+from sklearn.model_selection import train_test_split
 
 def get_device():
     if torch.cuda.is_available():
@@ -16,7 +18,7 @@ def get_device():
     return torch.device("cpu")
 
 class LinearProbe(nn.Module):
-    """One multi-class soft-max layer."""
+    """One multi-class softmax layer."""
     def __init__(self, input_dim, output_dim):
         super().__init__()
         self.linear = nn.Linear(input_dim, output_dim)
@@ -99,14 +101,8 @@ def train_probe(X_train, y_train, X_val, y_val, input_dim, n_classes):
 
 def solve_ridge(X_train, y_train, X_test, lambda_reg, n_classes):
     d = X_train.shape[1]
-    
-    # X^T * X + lambda * I
     cov = X_train.T.dot(X_train) + lambda_reg * np.eye(d)
-    
-    # cov * W = X^T * y, solve for W
     W = np.linalg.solve(cov, X_train.T.dot(np.eye(n_classes)[y_train]))
-    
-    # X_test * W to get predictions
     return X_test.dot(W)
 
 def predict(arr, model):
@@ -121,39 +117,47 @@ def predict(arr, model):
             out.append(model(chunk).cpu())
     return torch.cat(out, dim=0).numpy()
 
-def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type, layer):
-    rng = np.random.RandomState(seed)
-    N = X_flat.shape[0]
-    order = rng.permutation(N)
-
-    X = X_flat[order]
-    y = y_true[order]
-    yc = y_control[order]
-
-    n_train = int(N * config.SPLIT_RATIOS["train"])
-    n_val = int(N * config.SPLIT_RATIOS["val"])
-
-    X_train, X_val, X_test = (
-        X[:n_train],
-        X[n_train:n_train + n_val],
-        X[n_train + n_val:],
+def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type, layer, pca_dim):
+    X_train, X_temp, y_train, y_temp, yc_train, yc_temp = train_test_split(
+        X_flat, y_true, y_control,
+        train_size = config.SPLIT_RATIOS["train"],
+        random_state = seed,
+        stratify = y_true
     )
-    y_train, y_val, y_test = (
-        y[:n_train],
-        y[n_train:n_train + n_val],
-        y[n_train + n_val:],
+
+    val_frac = config.SPLIT_RATIOS["val"] / (
+        config.SPLIT_RATIOS["val"] + config.SPLIT_RATIOS["test"]
     )
-    yc_train, yc_val, yc_test = (
-        yc[:n_train],
-        yc[n_train:n_train + n_val],
-        yc[n_train + n_val:],
+    
+    temp_counts = np.bincount(y_temp)
+    stratify_val = y_temp if temp_counts.min() > 1 else None
+    
+    X_val, X_test, y_val, y_test, yc_val, yc_test = train_test_split(
+        X_temp, y_temp, yc_temp,
+        train_size = val_frac,
+        random_state = seed,
+        stratify = stratify_val
     )
+
+    pca_explained_variance = -1
+    
+    if pca_dim and pca_dim < X_train.shape[1]:
+        pca = PCA(n_components=pca_dim, random_state=config.SEED)
+        X_train = pca.fit_transform(X_train)
+        X_val = pca.transform(X_val)
+        X_test = pca.transform(X_test)
+        
+        pca_explained_variance = sum(pca.explained_variance_ratio_)
 
     n_classes = int(np.max(y_true) + 1)
 
-    # random control-label mapping
-    uniq_control = np.unique(yc)
-    control_map = {int(u): int(rng.randint(0, n_classes)) for u in uniq_control}
+    rng = np.random.RandomState(seed)
+    
+    unique_controls = sorted(set(yc_train.tolist() + yc_val.tolist() + yc_test.tolist()))
+    
+    perm = rng.permutation(len(unique_controls))
+    control_map = {unique_controls[i]: perm[i] % n_classes for i in range(len(unique_controls))}
+    
     yc_train_m = np.array([control_map[v] for v in yc_train])
     yc_val_m = np.array([control_map[v] for v in yc_val])
     yc_test_m = np.array([control_map[v] for v in yc_test])
@@ -164,7 +168,7 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
         model = train_probe(
             X_train, y_train,
             X_val, y_val,
-            input_dim=X.shape[1],
+            input_dim=X_train.shape[1],
             n_classes=n_classes,
         )
         scores = model.predict(X_test, batch_size=bs)
@@ -172,7 +176,7 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
         control_model = train_probe(
             X_train, yc_train_m,
             X_val, yc_val_m,
-            input_dim=X.shape[1],
+            input_dim=X_train.shape[1],
             n_classes=n_classes,
         )
         control_scores = control_model.predict(X_test, batch_size=bs)
@@ -189,12 +193,31 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
     f1 = f1_score(y_test, preds, average="macro")
     cf1 = f1_score(yc_test_m, preds_control, average="macro")
 
-    top5 = top_k_accuracy_score(y_test, scores, k=5)
-    ctop5 = top_k_accuracy_score(yc_test_m, control_scores, k=5)
+    top5 = -1
+    ctop5 = -1
+    
+    try:
+        unique_test_classes = np.unique(y_test)
+        scores_subset = scores[:, unique_test_classes]
+        class_map = {original: new for new, original in enumerate(unique_test_classes)}
+        mapped_y_test = np.array([class_map[y] for y in y_test])
+        top5 = top_k_accuracy_score(mapped_y_test, scores_subset, k=min(5, len(unique_test_classes)))
+    except Exception as e:
+        utils.log_info(f"Warning: Could not calculate top5 accuracy for task {task}: {e}")
+    
+    try:
+        unique_control_classes = np.unique(yc_test_m)
+        control_scores_subset = control_scores[:, unique_control_classes]
+        control_class_map = {original: new for new, original in enumerate(unique_control_classes)}
+        mapped_yc_test = np.array([control_class_map[y] for y in yc_test_m])
+        ctop5 = top_k_accuracy_score(mapped_yc_test, control_scores_subset, k=min(5, len(unique_control_classes)))
+    except Exception as e:
+        utils.log_info(f"Warning: Could not calculate top5 accuracy for control task: {e}")
 
     utils.log_info(f"[layer {layer}] {task} {probe_type}  acc {accuracy:.3f}  f1 {f1:.3f}  "
                    f"control_acc {control_acc:.3f}  control_f1 {cf1:.3f}")
-    return seed, {
+    
+    result = {
         f"{task}_acc": accuracy,
         f"{task}_control_acc": control_acc,
         f"{task}_f1": f1,
@@ -205,13 +228,15 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
         f"{task}_acc_ci_high": -1,
         f"{task}_control_acc_ci_low": -1,
         f"{task}_control_acc_ci_high": -1,
+        "pca_explained_variance": pca_explained_variance
     }
+        
+    return seed, result
 
 def plot_probe_results(results: dict, outdir: str, task: str):
     os.makedirs(outdir, exist_ok=True)
     layers = sorted(results.keys(), key=lambda k: int(k.split("_")[1]))
     idx = np.arange(len(layers))
-
     col = lambda k: np.array([results[l][k] or 0 for l in layers])
 
     plt.figure(figsize=(10, 6))
@@ -226,8 +251,7 @@ def plot_probe_results(results: dict, outdir: str, task: str):
     plt.savefig(os.path.join(outdir, f"{task}_combined.png"), bbox_inches="tight")
     plt.close()
 
-    for key, title in [(f"{task}_acc", "Task accuracy"), 
-                       (f"{task}_control_acc", "Control accuracy"),]:
+    for key, title in [(f"{task}_acc", "Task accuracy"), (f"{task}_control_acc", "Control accuracy")]:
         plt.figure(figsize=(10, 6))
         plt.bar(idx, col(key), 0.6)
         plt.ylim(0, 1)
@@ -241,17 +265,17 @@ def plot_probe_results(results: dict, outdir: str, task: str):
     csv_path = os.path.join(outdir, f"{task}_results.csv")
     with open(csv_path, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["Layer", "Acc", "F1", "Top5", "controlAcc", "controlF1", "controlTop5"])
+        w.writerow(["Layer", "Acc", "F1", "Top5", "controlAcc", "controlF1",
+                    "controlTop5", "PCA_ExplainedVar"])
         for l in layers:
             r = results[l]
-            w.writerow(
-                [
-                    l.split("_")[1],
-                    r[f"{task}_acc"],
-                    r[f"{task}_f1"],
-                    r[f"{task}_top5"] or "",
-                    r[f"{task}_control_acc"],
-                    r[f"{task}_control_f1"],
-                    r[f"{task}_control_top5"] or "",
-                ]
-            )
+            w.writerow([
+                l.split("_")[1],
+                r[f"{task}_acc"],
+                r[f"{task}_f1"],
+                r[f"{task}_top5"],
+                r[f"{task}_control_acc"],
+                r[f"{task}_control_f1"],
+                r[f"{task}_control_top5"],
+                r["pca_explained_variance"],
+            ])

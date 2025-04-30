@@ -12,6 +12,12 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
+    "qwen2": {
+        "model_name": "Qwen/Qwen2.5-1.5B-Instruct",
+        "tokenizer_name": "Qwen/Qwen2.5-1.5B-Instruct",
+        "max_length": 128,
+        "batch_size": 32,
+    },
     "pythia1.4b": {
         "model_name": "EleutherAI/pythia-1.4b-v0",
         "tokenizer_name": "EleutherAI/pythia-1.4b-v0",
@@ -21,12 +27,6 @@ MODEL_CONFIGS = {
     "gemma2b": {
         "model_name": "google/gemma-2-2b",
         "tokenizer_name": "google/gemma-2-2b",
-        "max_length": 128,
-        "batch_size": 32,
-    },
-    "qwen2": {
-        "model_name": "Qwen/Qwen2.5-1.5B-Instruct",
-        "tokenizer_name": "Qwen/Qwen2.5-1.5B-Instruct",
         "max_length": 128,
         "batch_size": 32,
     },

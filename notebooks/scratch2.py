@@ -34,9 +34,9 @@ def extract_data(df, task_name):
     order = np.argsort(layers)
     return acc[order]
 
-dataset    = "ud_gum_dataset"
-tasks      = ["lexeme", "multiclass_inflection"]
-probe_dir  = "../output/probes/"
+dataset = "ud_gum_dataset"
+tasks = ["lexeme", "multiclass_inflection"]
+probe_dir = "../output/probes/"
 
 pattern = re.compile(rf"{dataset}_(.+?)_(?:lexeme|multiclass_inflection|inflection)_reg")
 models = sorted({
@@ -56,7 +56,7 @@ for m in models:
     if set(accs) == set(tasks):
         results[m] = accs
 
-names   = []
+names = []
 lex_avg = []
 inf_avg = []
 for m, accs in results.items():
@@ -65,20 +65,20 @@ for m, accs in results.items():
     inf_avg.append(accs["multiclass_inflection"].mean())
 
 vocab_sizes = {
-    "bert-base-uncased":   30522,
-    "bert-large-uncased":  30000,
-    "gpt2":                50257,
-    "pythia1.4b":          50304,
-    "qwen2":             151936,
-    "gemma2b":           256000
+    "bert-base-uncased": 30522,
+    "bert-large-uncased": 30000,
+    "gpt2": 50257,
+    "pythia1.4b": 50304,
+    "qwen2": 151936,
+    "gemma2b": 256000
 }
 
 model_colors = {
-    "gpt2":               "tab:blue",
-    "pythia1.4b":         "tab:orange",
-    "gemma2b":            "tab:green",
-    "qwen2":              "tab:purple",
-    "bert-base-uncased":  "tab:red",
+    "gpt2": "tab:blue",
+    "pythia1.4b": "tab:orange",
+    "gemma2b": "tab:green",
+    "qwen2": "tab:purple",
+    "bert-base-uncased": "tab:red",
     "bert-large-uncased": "tab:olive"
 }
 
@@ -97,12 +97,8 @@ main_ax = fig.add_axes([0.1, 0.1, 1.0, 1.0])
 
 for m, la, ia, sz in zip(names_filt, lex_avg_filt, inf_avg_filt, sizes):
     color = model_colors[m]
-    main_ax.scatter(sz, la,
-                   marker="o", s=100,
-                   color=color, edgecolor="k")
-    main_ax.scatter(sz, ia,
-                   marker="s", s=100,
-                   color=color, edgecolor="k")
+    main_ax.scatter(sz, la, marker="o", s=100, color=color, edgecolor="k")
+    main_ax.scatter(sz, ia, marker="s", s=100, color=color, edgecolor="k")
 main_ax.set_xscale("log")
 main_ax.set_xlabel("Vocabulary Size", fontsize=16)
 main_ax.set_ylabel("Average Accuracy (%)", fontsize=16)
@@ -110,31 +106,19 @@ main_ax.set_title("Model Vocabulary Size vs. Average Probing Accuracy", fontsize
 main_ax.grid(True, linestyle="--", alpha=0.6)
 
 model_handles = [
-    Line2D([0], [0],
-           marker="o",
-           color=col,
-           linestyle="",
-           markersize=10,
-           markeredgecolor="k",
-           label=m)
+    Line2D([0], [0], marker="o", color=col, linestyle="", markersize=10, markeredgecolor="k", label=m)
     for m, col in model_colors.items()
 ]
-legend1 = main_ax.legend(handles=model_handles,
-                        title="Model",
-                        loc="center left",
-                        bbox_to_anchor=(1, 0.6))
+legend1 = main_ax.legend(handles=model_handles, title="Model", loc="center left", bbox_to_anchor=(1, 0.6))
 main_ax.add_artist(legend1)
 
 task_handles = [
     Line2D([0], [0], marker="o", color="gray", linestyle="", markersize=10, markeredgecolor="k", label="Lexeme"),
     Line2D([0], [0], marker="s", color="gray", linestyle="", markersize=10, markeredgecolor="k", label="Inflection")
 ]
-main_ax.legend(handles=task_handles,
-              title="Task",
-              loc="center left",
-              bbox_to_anchor=(1.05, 0.3))
+main_ax.legend(handles=task_handles, title="Task", loc="center left", bbox_to_anchor=(1.05, 0.3))
 
-plt.savefig("vocab_size_vs_avg_accuracy.png", dpi=300, bbox_inches='tight')
+plt.savefig("figs/vocab_size_vs_avg_accuracy.png", dpi=300, bbox_inches='tight')
 plt.close()
 
 print("Done: saved vocab_size_vs_avg_accuracy.png")

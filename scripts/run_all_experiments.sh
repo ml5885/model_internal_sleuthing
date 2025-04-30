@@ -12,8 +12,8 @@ PYCODE
 
 for MODEL in $MODELS; do
     # if any probe directory matching the pattern exists, skip
-    PATTERN1="output/probes/${DATASET}_${MODEL}_lexeme_$0"
-    PATTERN2="output/probes/${DATASET}_${MODEL}_inflection_$0"
+    PATTERN1="output/probes/${DATASET}_${MODEL}_lexeme_$1"
+    PATTERN2="output/probes/${DATASET}_${MODEL}_inflection_$1"
 
     if [ -d "$PATTERN1" ] || [ -d "$PATTERN2" ]; then
         echo "Skipping ${MODEL}: probe output already exists."
@@ -21,7 +21,7 @@ for MODEL in $MODELS; do
     fi
 
     echo "Running pipeline for ${MODEL}..."
-    python3 -u -m src.experiment --model "$MODEL" --dataset "$DATASET" --no_analysis --probe_type "$0"
+    python3 -u -m src.experiment --model "$MODEL" --dataset "$DATASET" --no_analysis --probe_type "$1"
     echo "Completed ${MODEL}"
 done
 

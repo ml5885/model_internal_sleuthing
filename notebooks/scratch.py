@@ -157,7 +157,7 @@ for i, m in enumerate(valid_models):
         if not np.isnan(val):
             plt.text(j, i, f"{val:.1f}", ha="center", va="center", fontsize=6, color="white" if abs(val) > 5 else "black")
 plt.tight_layout()
-plt.savefig("lexeme_inflection_diff_heatmap.png")
+plt.savefig("figs/lexeme_inflection_diff_heatmap.png")
 plt.close()
 
 print("Done: saved line plots and heatmap for all models.")
@@ -171,14 +171,14 @@ sns.barplot(x=inflection_dist.index, y=inflection_dist.values)
 plt.title('Distribution of Inflection Types')
 plt.xticks(rotation=45)
 plt.tight_layout()
-plt.savefig('inflection_dist.png')
+plt.savefig('figs/inflection_dist.png')
 category_dist = df['Category'].value_counts()
 plt.figure(figsize=(8, 4))
 sns.barplot(x=category_dist.index, y=category_dist.values)
 plt.title('Distribution of Word Categories')
 plt.xticks(rotation=45)
 plt.tight_layout()
-plt.savefig('category_dist.png')
+plt.savefig('figs/category_dist.png')
 print(f"Dataset contains {lemma_count} unique lemmas across {inflection_count} inflection types")
 
 release_dates = {
@@ -255,7 +255,7 @@ ax.legend(
     bbox_to_anchor=(1.02, 0)
 )
 plt.tight_layout()
-plt.savefig("release_date_vs_avg_accuracy_scatter.png", bbox_inches="tight")
+plt.savefig("figs/release_date_vs_avg_accuracy_scatter.png", bbox_inches="tight")
 plt.close()
 
 print("Done: saved wide scatter (model=colour, task=shape) of release date vs. avg accuracy.")
