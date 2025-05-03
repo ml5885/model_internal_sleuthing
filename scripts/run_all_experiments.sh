@@ -3,12 +3,9 @@ set -euo pipefail
 
 DATASET="ud_gum_dataset"
 
-# get all model keys from src/config.py
-MODELS=$(python3 - << 'PYCODE'
-import src.config as c
-print(" ".join(c.MODEL_CONFIGS.keys()))
-PYCODE
-)
+# hardcoded model keys
+MODELS="gpt2 qwen2-instruct qwen2 gemma2b bert-base-uncased bert-large-uncased distilbert-base-uncased deberta-v3-large pythia1.4b"
+# MODELS="qwen2 gpt2"
 
 for MODEL in $MODELS; do
     # if any probe directory matching the pattern exists, skip

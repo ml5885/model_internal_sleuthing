@@ -99,5 +99,6 @@ class ModelWrapper:
 
             for layer_idx, layer_states in enumerate(hidden_states):
                 activations[i, layer_idx, :] = layer_states[i, last_pos, :]
-
+                # activations[i, layer_idx, :] = layer_states[i, positions, :].mean(dim=0)
+                
         return activations.cpu()

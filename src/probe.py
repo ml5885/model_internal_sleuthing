@@ -17,14 +17,19 @@ def get_device():
         return torch.device("mps")
     return torch.device("cpu")
 
-class LinearProbe(nn.Module):
-    """One multi-class softmax layer."""
-    def __init__(self, input_dim, output_dim):
+class MLPProbe(nn.Module):
+    """MLP probe: one hidden ReLU layer, then softmax output."""
+    def __init__(self, input_dim, output_dim, hidden_dim=None):
         super().__init__()
-        self.linear = nn.Linear(input_dim, output_dim)
+        if hidden_dim is None:
+            hidden_dim = 64
+        self.linear1 = nn.Linear(input_dim, hidden_dim)
+        self.relu = nn.ReLU()
+        self.linear2 = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, x):
-        return self.linear(x)
+        h = self.relu(self.linear1(x))
+        return self.linear2(h)
     
     def predict(self, arr, batch_size):
         device = next(self.parameters()).device
@@ -40,7 +45,7 @@ def train_probe(X_train, y_train, X_val, y_val, input_dim, n_classes):
     torch.manual_seed(config.SEED)
     device = get_device()
 
-    model = LinearProbe(input_dim, n_classes).to(device)
+    model = MLPProbe(input_dim, n_classes).to(device)
     optim = torch.optim.AdamW(
         model.parameters(),
         lr=config.TRAIN_PARAMS["learning_rate"],
@@ -164,7 +169,7 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
 
     bs = config.TRAIN_PARAMS["batch_size"]
 
-    if probe_type == "mlp":
+    if probe_type == "mlp" or "nn":
         model = train_probe(
             X_train, y_train,
             X_val, y_val,

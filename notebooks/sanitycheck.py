@@ -1,8 +1,18 @@
-import torch
-from transformers import AutoTokenizer, AutoModel
-import argparse
+from __future__ import annotations
 
+import argparse
+import pathlib
+import sys
+from typing import List
+
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+import torch
 import torch.nn.functional as F
+from transformers import AutoModel, AutoTokenizer, logging as hf_logging
+
+hf_logging.set_verbosity_error()
 
 MODEL_CONFIGS = {
     "gpt2": {
@@ -10,17 +20,21 @@ MODEL_CONFIGS = {
         "tokenizer_name": "gpt2",
     },
     "pythia1.4b": {
-        "model_name": "EleutherAI/pythia-1.4b-v0",
-        "tokenizer_name": "EleutherAI/pythia-1.4b-v0",
+        "model_name": "EleutherAI/pythia-1.4b",
+        "tokenizer_name": "EleutherAI/pythia-1.4b",
     },
     "gemma2b": {
         "model_name": "google/gemma-2-2b",
         "tokenizer_name": "google/gemma-2-2b",
     },
     "qwen2": {
-        "model_name": "Qwen/Qwen2.5-1.5B-Instruct",
-        "tokenizer_name": "Qwen/Qwen2.5-1.5B-Instruct",
+        "model_name": "Qwen/Qwen2.5-1.5B",
+        "tokenizer_name": "Qwen/Qwen2.5-1.5B",
     },
+    # "qwen2-instruct": {
+    #     "model_name": "Qwen/Qwen2.5-1.5B-Instruct",
+    #     "tokenizer_name": "Qwen/Qwen2.5-1.5B-Instruct",
+    # },
     "bert-base-uncased": {
         "model_name": "bert-base-uncased",
         "tokenizer_name": "bert-base-uncased",
@@ -29,107 +43,187 @@ MODEL_CONFIGS = {
         "model_name": "bert-large-uncased",
         "tokenizer_name": "bert-large-uncased",
     },
-    "distilbert-base-uncased": {
-        "model_name": "distilbert-base-uncased",
-        "tokenizer_name": "distilbert-base-uncased",
+    # "distilbert-base-uncased": {
+    #     "model_name": "distilbert-base-uncased",
+    #     "tokenizer_name": "distilbert-base-uncased",
+    # },
+    "deberta-v3-large": {
+        "model_name": "microsoft/deberta-v3-large",
+        "tokenizer_name": "microsoft/deberta-v3-large",
     },
 }
 
-def get_embedding(tokenizer, embeddings, word, method="sum"):
+TESTS = [
+    ("king", "man", "woman", "queen"),
+    ("man", "king", "queen", "woman"),
+    ("walked", "walk", "jump", "jumped"),
+    ("go", "went", "run", "ran"),
+    ("sang", "sing", "ring", "rang"),
+    ("sing", "sang", "rang", "ring"),
+]
+
+def get_embedding(tokenizer, embeddings: torch.Tensor, word: str, method: str) -> torch.Tensor:
+    """Embedding by subtoken averaging (tokenize) or sum (sum)."""
     if method == "tokenize":
         toks = tokenizer.tokenize(word, add_special_tokens=False)
-        ids = tokenizer.convert_tokens_to_ids(toks)
-        vecs = embeddings[ids]
-        return vecs.mean(dim=0)
-    else: # sum
+    else:
         toks = tokenizer.tokenize(" " + word, add_special_tokens=False)
-        ids = tokenizer.convert_tokens_to_ids(toks)
-        vecs = embeddings[ids]
-        return vecs.sum(dim=0)
-    
-def get_word_rank(tokenizer, embeddings, query_vec, word, method="sum"):
+    ids = tokenizer.convert_tokens_to_ids(toks)
+    vecs = embeddings[ids]
+    return vecs.mean(0) if method == "tokenize" else vecs.sum(0)
+
+
+def get_word_rank(tokenizer, embeddings: torch.Tensor, query_vec: torch.Tensor,
+                  word: str, method: str) -> int:
+    """Return 1-based cosine-similarity rank of the expected word."""
     emb_norm = F.normalize(embeddings, dim=1)
     q_norm = F.normalize(query_vec.unsqueeze(0), dim=1)
-    sims = torch.mm(q_norm, emb_norm.t()).squeeze(0)
+    sims = torch.mm(q_norm, emb_norm.T).squeeze(0)
 
     if method == "tokenize":
-        toks = tokenizer.tokenize(word, add_special_tokens=False)
-        ids_for_rank = tokenizer.convert_tokens_to_ids(toks)
-    else:  # sum
-        toks = tokenizer.tokenize(" " + word, add_special_tokens=False)
-        ids_for_rank = tokenizer.convert_tokens_to_ids(toks)
-    
-    sorted_idxs = torch.argsort(sims, descending=True)
-    ranks = []
-    for tid in ids_for_rank:
-        pos = (sorted_idxs == tid).nonzero(as_tuple=True)[0]
-        ranks.append(pos.item() + 1)
-    return sum(ranks) / len(ranks)
+        tok_ids = tokenizer.convert_tokens_to_ids(tokenizer.tokenize(word, add_special_tokens=False))
+    else:
+        tok_ids = tokenizer.convert_tokens_to_ids(
+            tokenizer.tokenize(" " + word, add_special_tokens=False)
+        )
 
-def find_closest(tokenizer, embeddings, query_vec, top_k=5):
-    emb_norm = F.normalize(embeddings, dim=1)
-    q_norm = F.normalize(query_vec.unsqueeze(0), dim=1)
-    sims = torch.mm(q_norm, emb_norm.t()).squeeze(0)
-    vals, idxs = torch.topk(sims, k=top_k*10)
-    results, seen = [], set()
-    
-    for score, idx in zip(vals.tolist(), idxs.tolist()):
-        tok = tokenizer.decode([idx]).strip()
-        # tok = tokenizer.convert_ids_to_tokens([idx])[0].strip()
-        if not tok.isalpha() or tok in seen: # don't include byte-level tokens
-            continue
-        seen.add(tok)
-        results.append((tok, score))
-        if len(results) >= top_k:
-            break
-        
-    return results
+    sorted_idx = torch.argsort(sims, descending=True)
+    ranks = [(sorted_idx == tid).nonzero(as_tuple=True)[0].item() + 1 for tid in tok_ids]
+    return int(sum(ranks) / len(ranks))
 
-def main():
-    parser = argparse.ArgumentParser(description="Run embedding analogy tests.")
-    parser.add_argument("--model", type=str, choices=list(MODEL_CONFIGS.keys()), required=True,
-                        help="Model name to run the tests on.")
-    args = parser.parse_args()
+def run_models(model_keys: List[str]) -> pd.DataFrame:
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    records = []
 
-    tests = [
-        ("king", "man", "woman", "queen"),
-        ("man", "king", "queen", "woman"),
-        ("walked", "walk", "jump", "jumped"),
-        ("go", "went", "run", "ran"),
-        ("sang", "sing", "ring", "rang"),
-        ("sing", "sang", "rang", "ring"),
+    for key in model_keys:
+        print(f"Loading {key}...", file=sys.stderr)
+        tok = AutoTokenizer.from_pretrained(MODEL_CONFIGS[key]["tokenizer_name"])
+        mod = AutoModel.from_pretrained(MODEL_CONFIGS[key]["model_name"]).to(device).eval()
+
+        with torch.no_grad():
+            emb = mod.get_input_embeddings().weight.data.to(device)
+
+            for a, b, c, d in TESTS:
+                for method in ("tokenize", "sum"):
+                    va = get_embedding(tok, emb, a, method)
+                    vb = get_embedding(tok, emb, b, method)
+                    vc = get_embedding(tok, emb, c, method)
+                    query = va - vb + vc
+                    rank = get_word_rank(tok, emb, query, d, method)
+                    records.append(
+                        {"model": key,
+                         "analogy": f"{a}-{b}+{c}->{d}",
+                         "method": method,
+                         "rank": rank}
+                    )
+
+        del mod, emb
+        torch.cuda.empty_cache()
+
+    return pd.DataFrame.from_records(records)
+
+def make_plots(df: pd.DataFrame, outdir: pathlib.Path) -> None:
+    sns.set_theme(style="white", palette="pastel")
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    scatter_df = (
+        df.pivot_table(index=["model", "analogy"], columns="method", values="rank")
+        .dropna()
+        .reset_index()
+    )
+
+    fig_s, ax_s = plt.subplots(figsize=(10, 6))
+    sns.scatterplot(
+        data=scatter_df,
+        x="sum",
+        y="tokenize",
+        hue="model",
+        style="analogy",
+        palette="pastel",
+        ax=ax_s,
+        s=70,
+        edgecolor="black",
+        linewidth=0.3,
+    )
+
+    max_rank = scatter_df[["sum", "tokenize"]].to_numpy().max()
+    ax_s.plot([1, max_rank], [1, max_rank], ls="--", lw=1, color="grey")
+    ax_s.set_xscale("log")
+    ax_s.set_yscale("log")
+    ax_s.tick_params(axis="x", labelsize=16)
+    ax_s.tick_params(axis="y", labelsize=16)
+    ax_s.set_xlabel("No tokenization (subtoken-sum) - rank of correct word")
+    ax_s.set_ylabel("Apply tokenization (subtoken-average) - rank of correct word")
+    ax_s.set_title("Tokenization effect on analogy-completion rank")
+    ax_s.legend(loc="upper left", bbox_to_anchor=(1, 1))
+    fig_s.tight_layout()
+    scatter_path = outdir / "tokenize_vs_sum_scatter.png"
+    fig_s.savefig(scatter_path, dpi=300)
+    print(f"Saved {scatter_path}")
+
+    bar_df = (
+        scatter_df.assign(delta=lambda x: x["tokenize"] - x["sum"])
+        .groupby("model", as_index=False)["delta"]
+        .mean()
+        .sort_values("delta", ascending=False)
+    )
+
+    fig_b, ax_b = plt.subplots(figsize=(0.5 * len(bar_df) + 3, 4))
+    sns.barplot(
+        data=bar_df,
+        x="model",
+        y="delta",
+        hue="model",
+        palette="pastel",
+        legend=False,
+        ax=ax_b,
+    )
+    ax_b.axhline(0, color="grey", linewidth=0.8)
+    ax_b.set_ylabel("Mean rank difference (tokenize - sum)")
+    ax_b.set_xlabel("")
+    ax_b.set_title("Average Impact of Tokenization on Analogy Rank")
+
+    ax_b.set_xticklabels(ax_b.get_xticklabels(), rotation=30, ha="right")
+
+    fig_b.tight_layout()
+    delta_path = outdir / "delta_rank_bar.png"
+    fig_b.savefig(delta_path, dpi=300)
+    print(f"Saved {delta_path}")
+
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        description="Evaluate analogy ranks and create scatter + bar plots."
+    )
+    p.add_argument(
+        "--models",
+        nargs="+",
+        metavar="MODEL",
+        help=f"Subset to evaluate (choices: {', '.join(MODEL_CONFIGS)})"
+    )
+    p.add_argument(
+        "--all",
+        action="store_true",
+        help="Evaluate every model in the registry (overrides --models)."
+    )
+    p.add_argument(
+        "--outdir",
+        type=pathlib.Path,
+        default=".",
+        help="Directory to save figures (default: current directory)."
+    )
+    return p.parse_args()
+
+def main() -> None:
+    args = parse_args()
+    chosen = list(MODEL_CONFIGS) if args.all or not args.models else [
+        m for m in args.models if m in MODEL_CONFIGS
     ]
+    if not chosen:
+        sys.exit("No valid models specified.")
 
-    model_key = args.model
-    print(f"\n\n==================== {model_key} ====================")
-    cfg = MODEL_CONFIGS[model_key]
-    tokenizer = AutoTokenizer.from_pretrained(cfg["tokenizer_name"])
-    model = AutoModel.from_pretrained(cfg["model_name"])
-    embeddings = model.get_input_embeddings().weight.data
-
-    for a, b, c, d in tests:
-        print(f"\n=== Analogy ({a}-{b}+{c}) expecting {d} ===")
-        for method in ("tokenize", "sum"):
-            va = get_embedding(tokenizer, embeddings, a, method=method)
-            vb = get_embedding(tokenizer, embeddings, b, method=method)
-            vc = get_embedding(tokenizer, embeddings, c, method=method)
-            query = va - vb + vc
-
-            rank = get_word_rank(tokenizer, embeddings, query, d)
-            print(f"\n method={method}: rank of '{d}' = {int(rank)}")
-            for tok, sim in find_closest(tokenizer, embeddings, query, top_k=5):
-                print(f"   {tok!r:<10} sim={sim:.4f}")
-                # print(f"   {tok!r}  cos_sim={sim:.4f}")
-
-    print("\n=== E('ed') + E('jump') comparison ===")
-    for method in ("tokenize", "sum"):
-        v_ed = get_embedding(tokenizer, embeddings, "ed",   method=method)
-        v_jump = get_embedding(tokenizer, embeddings, "jump", method=method)
-        query = v_jump+v_ed
-
-        rank = get_word_rank(tokenizer, embeddings, query, "jumped", method=method)
-        print(f"\n method={method}: rank of 'jumped' = {int(rank)}")
-        print("  top-5:", [(tok, f"{score:.4f}") for tok, score in find_closest(tokenizer, embeddings, query, top_k=5)])
+    df = run_models(chosen)
+    make_plots(df, args.outdir)
 
 if __name__ == "__main__":
     main()

@@ -12,15 +12,21 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
-    "qwen2": {
+    "qwen2-instruct": {
         "model_name": "Qwen/Qwen2.5-1.5B-Instruct",
         "tokenizer_name": "Qwen/Qwen2.5-1.5B-Instruct",
         "max_length": 128,
         "batch_size": 32,
     },
+    "qwen2": {
+        "model_name": "Qwen/Qwen2.5-1.5B",
+        "tokenizer_name": "Qwen/Qwen2.5-1.5B",
+        "max_length": 128,
+        "batch_size": 32,
+    },
     "pythia1.4b": {
-        "model_name": "EleutherAI/pythia-1.4b-v0",
-        "tokenizer_name": "EleutherAI/pythia-1.4b-v0",
+        "model_name": "EleutherAI/pythia-1.4b",
+        "tokenizer_name": "EleutherAI/pythia-1.4b",
         "max_length": 128,
         "batch_size": 32,
     },
@@ -58,15 +64,15 @@ MODEL_CONFIGS = {
     },
     
     # Meta Llama models
-    "llama2-7b-chat": {
-        "model_name": "meta-llama/Llama-2-7b-chat-hf",
-        "tokenizer_name": "meta-llama/Llama-2-7b-chat-hf",
+    "llama3-8b": {
+        "model_name": "meta-llama/Llama-3.1-8B",
+        "tokenizer_name": "meta-llama/Llama-3.1-8B",
         "max_length": 128,
         "batch_size": 32,
     },
-    "llama3-1b-instruct": {
-        "model_name": "meta-llama/Llama-3.2-1B-Instruct",
-        "tokenizer_name": "meta-llama/Llama-3.2-1B-Instruct",
+    "llama3-8b-instruct": {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct",
+        "tokenizer_name": "meta-llama/Llama-3.1-8B-Instruct",
         "max_length": 128,
         "batch_size": 32,
     },

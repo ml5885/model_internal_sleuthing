@@ -57,7 +57,7 @@ def main():
     parser.add_argument("--lambda_reg", type=float, default=1e-3,
                         help="Regularization parameter for probes.")
     parser.add_argument("--probe_type", type=str, default="reg",
-                        choices=["reg", "mlp"],
+                        choices=["reg", "mlp", "nn"],
                         help="Type of probe to use (regression or neural network).")
     parser.add_argument("--no_analysis", action="store_true",
                         help="Skip analysis after running experiments.")
