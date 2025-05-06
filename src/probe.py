@@ -69,7 +69,7 @@ def train_probe(X_train, y_train, X_val, y_val, input_dim, n_classes):
     train_loader = make_loader(X_train, y_train, True)
     val_loader = make_loader(X_val, y_val, False)
 
-    best_acc, best_state, wait = 0.0, None, 0
+    best_acc, best_state, wait = float("-inf"), None, 0
     early_stop = config.TRAIN_PARAMS["early_stop"]
 
     for epoch in range(config.TRAIN_PARAMS["epochs"]):
@@ -169,7 +169,7 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
 
     bs = config.TRAIN_PARAMS["batch_size"]
 
-    if probe_type == "mlp" or "nn":
+    if probe_type in ["mlp", "nn"]:
         model = train_probe(
             X_train, y_train,
             X_val, y_val,

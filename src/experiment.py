@@ -59,6 +59,8 @@ def main():
     parser.add_argument("--probe_type", type=str, default="reg",
                         choices=["reg", "mlp", "nn"],
                         help="Type of probe to use (regression or neural network).")
+    parser.add_argument("--pca_dim", type=int, default=0,
+                        help="Dimensionality for PCA reduction.")
     parser.add_argument("--no_analysis", action="store_true",
                         help="Skip analysis after running experiments.")
     args = parser.parse_args()
@@ -75,7 +77,8 @@ def main():
             "--lambda_reg", str(args.lambda_reg),
             "--exp_label", f"{model_key}_inflection",
             "--dataset", dataset,
-            "--probe_type", args.probe_type
+            "--probe_type", args.probe_type,
+            "--pca_dim", str(args.pca_dim)
         ]},
         {"name": "lexeme", "args": [
             "--activations", reps,
@@ -84,7 +87,8 @@ def main():
             "--lambda_reg", str(args.lambda_reg),
             "--exp_label", f"{model_key}_lexeme",
             "--dataset", dataset,
-            "--probe_type", args.probe_type
+            "--probe_type", args.probe_type,
+            "--pca_dim", str(args.pca_dim)
         ]}
     ]
 

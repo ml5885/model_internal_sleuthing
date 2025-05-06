@@ -82,6 +82,7 @@ def get_word_rank(tokenizer, embeddings: torch.Tensor, query_vec: torch.Tensor,
 
     if method == "tokenize":
         tok_ids = tokenizer.convert_tokens_to_ids(tokenizer.tokenize(word, add_special_tokens=False))
+        tok_ids = [tok_ids[-1]] # Get last token
     else:
         tok_ids = tokenizer.convert_tokens_to_ids(
             tokenizer.tokenize(" " + word, add_special_tokens=False)

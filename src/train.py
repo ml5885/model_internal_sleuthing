@@ -97,8 +97,9 @@ def run_probes(activations, labels, task, lambda_reg, exp_label, dataset, probe_
         del X_flat, X_filtered
         results[f"layer_{layer_idx}"] = res
 
+    pca_dim_name = f"pca_{pca_dim}" if pca_dim > 0 else ""
     outdir = os.path.join(
-        config.OUTPUT_DIR, "probes", f"{dataset}_{exp_label}_{probe_type}"
+        config.OUTPUT_DIR, "probes", f"{dataset}_{exp_label}_{probe_type}_{pca_dim_name}"
     )
     os.makedirs(outdir, exist_ok=True)
     

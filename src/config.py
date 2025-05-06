@@ -112,6 +112,10 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
+    
+    
+    # pythia tulu 6.9b
+    # pythia 6.9b and pythia 6.9b chat together
 }
 
 # Training hyperparameters for probing
