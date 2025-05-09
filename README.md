@@ -35,7 +35,7 @@ python -m src.train \
   --probe_type [reg|mlp]
 ```
 
-Results + plots → `output/probes/`
+Results + plots - `output/probes/`
 
 ## 4. Unsupervised analysis
 
@@ -47,7 +47,7 @@ python -m src.analysis \
   --dataset your_dataset
 ```
 
-Outputs → `output/<model>_analysis/`
+Outputs - `output/<model>_analysis/`
 
 ---
 

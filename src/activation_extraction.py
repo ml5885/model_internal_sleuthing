@@ -44,7 +44,7 @@ def extract_and_save(data_path, output_dir, model_key):
 
         batch_array = activations.cpu().numpy()
 
-        # zero‑pad the part index so shard_00001.npz sorts after shard_00002, etc.
+        # zero-pad the part index so shard_00001.npz sorts after shard_00002, etc.
         fname = f"activations_part_{part_idx:05d}.npz"
         path = os.path.join(output_dir, fname)
         np.savez_compressed(path, activations=batch_array)

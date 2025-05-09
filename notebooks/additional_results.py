@@ -83,7 +83,7 @@ def plot_selectivity_comparison(
                         label="Inflection",
                         color=palette[1], linestyle="--", marker="x", markersize=4)
 
-                # symmetric y‑limits with 10% pad
+                # symmetric y-limits with 10% pad
                 allv = np.concatenate([lex_sel.values, inf_sel.values])
                 y_ex = max(abs(allv.min()), abs(allv.max()))
                 pad = y_ex * 0.1 if y_ex > 0 else 0.1
@@ -160,7 +160,7 @@ def plot_probe_advantage(
                        color=palette[2], alpha=0.7, width=0.7)
                 ax.axhline(0, linestyle="--", color="gray")
 
-                # symmetric y‑limits with 10% pad
+                # symmetric y-limits with 10% pad
                 y_ex = max(abs(adv.min()), abs(adv.max()))
                 pad = y_ex * 0.1 if y_ex > 0 else 0.1
                 ax.set_ylim(-y_ex - pad, y_ex + pad)

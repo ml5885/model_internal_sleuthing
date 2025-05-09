@@ -39,7 +39,7 @@ MODEL_CONFIGS = {
         "batch_size": 32,
     },
     
-    # Encoder‑only masked‑LMs
+    # Encoder-only masked-LMs
     "bert-base-uncased": {
         "model_name": "google-bert/bert-base-uncased",
         "tokenizer_name": "google-bert/bert-base-uncased",

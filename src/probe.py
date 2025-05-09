@@ -26,10 +26,12 @@ class MLPProbe(nn.Module):
         self.linear1 = nn.Linear(input_dim, hidden_dim)
         self.relu = nn.ReLU()
         self.linear2 = nn.Linear(hidden_dim, output_dim)
+        self.dropout = nn.Dropout(0.7)
 
     def forward(self, x):
         h = self.relu(self.linear1(x))
-        return self.linear2(h)
+        d = self.dropout(h)
+        return self.linear2(d)
     
     def predict(self, arr, batch_size):
         device = next(self.parameters()).device

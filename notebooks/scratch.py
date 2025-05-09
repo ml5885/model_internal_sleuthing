@@ -145,7 +145,7 @@ delta_df = pd.DataFrame(
 
 plt.figure(figsize=(12, 6))
 plt.imshow(delta_df, aspect="auto", cmap="RdBu_r", vmin=-np.nanmax(abs(diff_matrix)), vmax=np.nanmax(abs(diff_matrix)))
-plt.colorbar(label="Lexeme – Inflection Acc (%)")
+plt.colorbar(label="Lexeme - Inflection Acc (%)")
 plt.xticks(ticks=np.arange(len(all_layers)), labels=all_layers, rotation=45)
 plt.yticks(ticks=np.arange(len(valid_models)), labels=valid_models)
 plt.xlabel("Layer")
