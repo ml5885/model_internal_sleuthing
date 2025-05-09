@@ -7,28 +7,46 @@ def run_activation_extraction(model_key, dataset, output_dir=None):
     utils.log_info(f"Starting activation extraction for {model_key} on dataset {dataset}...")
     dataset_file = os.path.join("data", f"{dataset}.csv")
     
-    base_output_dir = output_dir if output_dir else config.OUTPUT_DIR
-    output_dir = os.path.join(base_output_dir, f"{model_key}_{dataset}_reps")
-    npz_file = output_dir + ".npz"
-
-    if os.path.isfile(npz_file):
-        utils.log_info(f"Using existing activation file: {npz_file}")
-        print(f"Using existing activation file: {npz_file}")
-        return npz_file
-    elif os.path.isdir(output_dir) and any(f.startswith("activations_part") for f in os.listdir(output_dir)):
-        utils.log_info(f"Using existing activation shards: {output_dir}")
-        print(f"Using existing activation shards: {output_dir}")
-        return output_dir
-    else:
-        utils.log_info("Extracting new activations...")
-        print("Extracting new activations...")
-        subprocess.run([
-            "python", "-m", "src.activation_extraction",
-            "--data", dataset_file,
-            "--output-dir", output_dir,
-            "--model", model_key
-        ], check=True)
-        return output_dir
+    locations_to_check = []
+    
+    if output_dir:
+        custom_dir = os.path.join(output_dir, f"{model_key}_{dataset}_reps")
+        custom_npz = custom_dir + ".npz"
+        locations_to_check.append((custom_dir, custom_npz))
+    
+    default_dir = os.path.join(config.OUTPUT_DIR, f"{model_key}_{dataset}_reps")
+    default_npz = default_dir + ".npz"
+    locations_to_check.append((default_dir, default_npz))
+    
+    data_dir = os.path.join("/data/user_data/ml6/probing_outputs", f"{model_key}_{dataset}_reps")
+    data_npz = data_dir + ".npz"
+    locations_to_check.append((data_dir, data_npz))
+    
+    for dir_path, npz_path in locations_to_check:
+        if os.path.isfile(npz_path):
+            utils.log_info(f"Using existing activation file: {npz_path}")
+            print(f"Using existing activation file: {npz_path}")
+            return npz_path
+        elif os.path.isdir(dir_path) and any(f.startswith("activations_part") for f in os.listdir(dir_path)):
+            utils.log_info(f"Using existing activation shards: {dir_path}")
+            print(f"Using existing activation shards: {dir_path}")
+            return dir_path
+    
+    utils.log_info("No existing activations found. Extracting new activations...")
+    print("Extracting new activations...")
+    
+    save_dir = locations_to_check[0][0]
+    
+    os.makedirs(os.path.dirname(save_dir), exist_ok=True)
+    
+    subprocess.run([
+        "python", "-m", "src.activation_extraction",
+        "--data", dataset_file,
+        "--output-dir", save_dir,
+        "--model", model_key
+    ], check=True)
+    
+    return save_dir
 
 def run_probe(exp_args):
     cmd = ["python", "-m", "src.train"] + exp_args

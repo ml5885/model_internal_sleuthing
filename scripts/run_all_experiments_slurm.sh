@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=nlp_probing
+#SBATCH --job-name=llm_probing
 #SBATCH --output=/home/ml6/logs/sbatch/probing_%A_%a.out
 #SBATCH --error=/home/ml6/logs/sbatch/probing_%A_%a.err
 #SBATCH --partition=general
@@ -21,46 +21,41 @@ mkdir -p /data/user_data/ml6/probing_outputs
 
 USER_DATA_OUTPUT="/data/user_data/ml6/probing_outputs"
 LOCAL_OUTPUT="/home/ml6/lexeme-inflection-probing/output"
-mkdir -p $LOCAL_OUTPUT
-mkdir -p $LOCAL_OUTPUT/probes
+
+mkdir -p "$LOCAL_OUTPUT/probes"
 
 eval "$(conda shell.bash hook)"
 conda activate llm_probing
 
 cd /home/ml6/lexeme-inflection-probing
 
-MODELS=("llama3-8b" "llama3-8b-instruct" "pythia-6.9b" "pythia-6.9b-tulu")
+MODELS=("llama3-8b" "llama3-8b-instruct")
 PROBE_TYPES=("reg" "nn")
 DATASET="ud_gum_dataset"
 
 MODEL=${MODELS[$SLURM_ARRAY_TASK_ID]}
-
 echo "Starting experiments for model: $MODEL"
 
-# Run experiments for both probe types
 for PROBE in "${PROBE_TYPES[@]}"; do
-    echo "Running experiment with model=${MODEL}, probe_type=${PROBE}"
-    
+    echo "Running experiment with model=$MODEL, probe_type=$PROBE"
+
     python -m src.experiment \
         --model "$MODEL" \
         --dataset "$DATASET" \
         --probe_type "$PROBE" \
         --output_dir "$USER_DATA_OUTPUT" \
         --no_analysis
-    
-    RESULT_DIR_NAME="${DATASET}_${MODEL}_lexeme_${PROBE}_"
-    RESULT_DIR_NAME2="${DATASET}_${MODEL}_inflection_${PROBE}_"
-    
-    echo "Copying result files back to local directory..."
-    
-    mkdir -p $LOCAL_OUTPUT/probes/
-    
-    find $USER_DATA_OUTPUT/probes -name "*.csv" -path "*${RESULT_DIR_NAME}*" -exec cp {} $LOCAL_OUTPUT/probes/ \;
-    find $USER_DATA_OUTPUT/probes -name "*.csv" -path "*${RESULT_DIR_NAME2}*" -exec cp {} $LOCAL_OUTPUT/probes/ \;
-    
-    find $USER_DATA_OUTPUT/probes -name "*.png" -path "*${RESULT_DIR_NAME}*" -exec cp {} $LOCAL_OUTPUT/probes/ \;
-    find $USER_DATA_OUTPUT/probes -name "*.png" -path "*${RESULT_DIR_NAME2}*" -exec cp {} $LOCAL_OUTPUT/probes/ \;
+
+    TASKS=("lexeme" "inflection")
+    for TASK in "${TASKS[@]}"; do
+        DEST_DIR="$LOCAL_OUTPUT/probes/${DATASET}_${MODEL}_${TASK}_${PROBE}"
+        echo "Copying $TASK results to $DEST_DIR"
+        mkdir -p "$DEST_DIR"
+        find "$USER_DATA_OUTPUT/probes" -type f \( -name "*.csv" -o -name "*.png" \) \
+            -path "*${DATASET}_${MODEL}_${TASK}_${PROBE}_*" \
+            -exec cp {} "$DEST_DIR" \;
+    done
 done
 
-echo "All experiments completed for model ${MODEL}"
-echo "Result files have been copied to $LOCAL_OUTPUT/probes/"
+echo "All experiments completed for model $MODEL"
+echo "Results have been copied to $LOCAL_OUTPUT/probes/"
