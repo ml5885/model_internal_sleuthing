@@ -2,7 +2,9 @@ import os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
-OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
+
+DEFAULT_OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
+OUTPUT_DIR = os.environ.get('OUTPUT_DIR', DEFAULT_OUTPUT_DIR)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 MODEL_CONFIGS = {
@@ -76,6 +78,19 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
+    
+    "pythia-6.9b": {
+        "model_name": "EleutherAI/pythia-6.9b",
+        "tokenizer_name": "EleutherAI/pythia-6.9b",
+        "max_length": 128,
+        "batch_size": 32,
+    },
+    "pythia-6.9b-tulu": {
+        "model_name": "allenai/open-instruct-pythia-6.9b-tulu",
+        "tokenizer_name": "allenai/open-instruct-pythia-6.9b-tulu",
+        "max_length": 128,
+        "batch_size": 32,
+    },
 
     # More open models
     "gpt-neo-2.7b": {
@@ -112,10 +127,6 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
-    
-    
-    # pythia tulu 6.9b
-    # pythia 6.9b and pythia 6.9b chat together
 }
 
 # Training hyperparameters for probing

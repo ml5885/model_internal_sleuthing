@@ -37,7 +37,7 @@ def load_layer(shards, layer_idx):
         parts.append(arr[:, layer_idx, :])
     return np.concatenate(parts, axis=0)
 
-def run_probes(activations, labels, task, lambda_reg, exp_label, dataset, probe_type, pca_dim):
+def run_probes(activations, labels, task, lambda_reg, exp_label, dataset, probe_type, pca_dim, output_dir=None):
     shards = load_shards(activations)
     sample = np.load(shards[0], mmap_mode="r")["activations"]
     n_layers = sample.shape[1]
@@ -97,9 +97,10 @@ def run_probes(activations, labels, task, lambda_reg, exp_label, dataset, probe_
         del X_flat, X_filtered
         results[f"layer_{layer_idx}"] = res
 
+    base_output_dir = output_dir if output_dir else config.OUTPUT_DIR
     pca_dim_name = f"pca_{pca_dim}" if pca_dim > 0 else ""
     outdir = os.path.join(
-        config.OUTPUT_DIR, "probes", f"{dataset}_{exp_label}_{probe_type}_{pca_dim_name}"
+        base_output_dir, "probes", f"{dataset}_{exp_label}_{probe_type}_{pca_dim_name}"
     )
     os.makedirs(outdir, exist_ok=True)
     
@@ -117,6 +118,8 @@ def parse_args():
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--probe_type", choices=["reg", "mlp", "nn"], default="reg")
     parser.add_argument("--pca_dim", type=int, default=0)
+    parser.add_argument("--output_dir", type=str, default=None,
+                        help="Custom output directory for results")
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -130,4 +133,5 @@ if __name__ == "__main__":
         args.dataset,
         args.probe_type,
         args.pca_dim,
+        args.output_dir
     )

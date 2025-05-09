@@ -28,3 +28,9 @@ data/
 output/
 *.log
 *.txt
+*.tex
+
+# images
+*.png
+*.jpg
+*.jpeg

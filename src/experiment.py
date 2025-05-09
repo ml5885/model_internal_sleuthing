@@ -3,10 +3,12 @@ import subprocess
 import argparse
 from src import config, utils
 
-def run_activation_extraction(model_key, dataset):
+def run_activation_extraction(model_key, dataset, output_dir=None):
     utils.log_info(f"Starting activation extraction for {model_key} on dataset {dataset}...")
     dataset_file = os.path.join("data", f"{dataset}.csv")
-    output_dir = os.path.join("output", f"{model_key}_{dataset}_reps")
+    
+    base_output_dir = output_dir if output_dir else config.OUTPUT_DIR
+    output_dir = os.path.join(base_output_dir, f"{model_key}_{dataset}_reps")
     npz_file = output_dir + ".npz"
 
     if os.path.isfile(npz_file):
@@ -32,9 +34,12 @@ def run_probe(exp_args):
     cmd = ["python", "-m", "src.train"] + exp_args
     subprocess.run(cmd, check=True)
 
-def run_analysis(model_key, dataset):
+def run_analysis(model_key, dataset, output_dir=None):
     utils.log_info("Running analysis on activations...")
-    activations_dir = os.path.join("output", f"{model_key}_{dataset}_reps")
+    
+    base_output_dir = output_dir if output_dir else config.OUTPUT_DIR
+    activations_dir = os.path.join(base_output_dir, f"{model_key}_{dataset}_reps")
+    
     subprocess.run([
         "python", "-m", "src.analysis",
         "--activations-dir", activations_dir,
@@ -63,11 +68,20 @@ def main():
                         help="Dimensionality for PCA reduction.")
     parser.add_argument("--no_analysis", action="store_true",
                         help="Skip analysis after running experiments.")
+    parser.add_argument("--output_dir", type=str, default=None,
+                        help="Custom output directory for results and activations")
     args = parser.parse_args()
 
     model_key = args.model
     dataset = args.dataset
-    reps = run_activation_extraction(model_key, dataset)
+    output_dir = args.output_dir
+    
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        original_output_dir = config.OUTPUT_DIR
+        config.OUTPUT_DIR = output_dir
+    
+    reps = run_activation_extraction(model_key, dataset, output_dir)
 
     experiments = [
         {"name": "inflection", "args": [
@@ -97,13 +111,17 @@ def main():
         if not experiments:
             raise ValueError(f"Unknown experiment name: {args.experiment}")
 
+    if output_dir:
+        for exp in experiments:
+            exp["args"].extend(["--output_dir", output_dir])
+
     for exp in experiments:
         utils.log_info(f"Running experiment: {exp['name']}")
         print(f"Running experiment: {exp['name']}")
         run_probe(exp["args"])
 
     if not args.experiment and not args.no_analysis:
-        run_analysis(model_key, dataset)
+        run_analysis(model_key, dataset, output_dir)
         
     utils.log_info("All experiments and analysis completed.")
 

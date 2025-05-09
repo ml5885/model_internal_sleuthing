@@ -1,62 +1,56 @@
 #!/bin/bash
-#SBATCH --job-name=all_gpt2_experiments
-#SBATCH --output=logs/all_gpt2_experiments_%j.out
-#SBATCH --error=logs/all_gpt2_experiments_%j.err
-#SBATCH --partition=swl_general
-#SBATCH --nodes=1
+#SBATCH --job-name=nlp_probing
+#SBATCH --output=/home/ml6/logs/sbatch/probing_%A_%a.out
+#SBATCH --error=/home/ml6/logs/sbatch/probing_%A_%a.err
+#SBATCH --partition=general
+#SBATCH --time=2-00:00:00
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
-#SBATCH --gres=gpu:1
-#SBATCH --time=12:00:00
+#SBATCH --cpus-per-task=4
+#SBATCH --gres=gpu:a100:1
+#SBATCH --mem=64G
+#SBATCH --array=0-3  # 4 jobs: one per model
 
-# Set Hugging Face environment variables as needed.
-export HF_HOME=/data/user_data/$USER/.hf_cache
+# Set up Hugging Face environment variables
+export HF_HOME=/data/user_data/ml6/.hf_cache
 export HF_HUB_CACHE=/data/hf_cache/hub
 export HF_DATASETS_CACHE=/data/hf_cache/datasets
+export HF_HUB_OFFLINE=0
 
-# Activate the virtual environment.
-source ~/venv/bin/activate
+# Create output directories
+mkdir -p /home/ml6/logs/sbatch
+mkdir -p /data/user_data/ml6/.hf_cache
+mkdir -p /data/user_data/ml6/probing_outputs
 
-echo "=================================================="
-echo "Starting activation extraction using forward hooks for GPT-2..."
-echo "=================================================="
-python -m src.activation_extraction --data data/controlled_sentences.csv --output output/gpt2_reps.npz --model gpt2
+# Define output directory
+USER_DATA_OUTPUT="/data/user_data/ml6/probing_outputs"
 
-echo "=================================================="
-echo "Running dense inflection probe (real labels) with control experiment..."
-echo "=================================================="
-python -m src.probe_training --activations output/gpt2_reps.npz --labels data/controlled_sentences.csv --task inflection --sparse_k 0 --control_inflection
+# Activate conda environment
+eval "$(conda shell.bash hook)"
+conda activate llm_probing
 
-echo "=================================================="
-echo "Running sparse (k=10) inflection probe with control experiment..."
-echo "=================================================="
-python -m src.probe_training --activations output/gpt2_reps.npz --labels data/controlled_sentences.csv --task inflection --sparse_k 10 --control_inflection
+# Change to project directory
+cd /home/ml6/lexeme-inflection-probing
 
-echo "=================================================="
-echo "Running dense lexeme probe (real labels) with control experiment..."
-echo "=================================================="
-python -m src.probe_training --activations output/gpt2_reps.npz --labels data/controlled_sentences.csv --task lexeme --sparse_k 0 --control_lexeme
+# Define experiment configurations with exact model keys from config.py
+MODELS=("llama3-8b" "llama3-8b-instruct" "pythia-6.9b" "pythia-6.9b-tulu")
+PROBE_TYPES=("reg" "nn")
+DATASET="ud_gum_dataset"
 
-echo "=================================================="
-echo "Running sparse (k=10) lexeme probe with control experiment..."
-echo "=================================================="
-python -m src.probe_training --activations output/gpt2_reps.npz --labels data/controlled_sentences.csv --task lexeme --sparse_k 10 --control_lexeme
+# Get model based on array task ID
+MODEL=${MODELS[$SLURM_ARRAY_TASK_ID]}
 
-echo "=================================================="
-echo "Running combined dense probe (both tasks) with control experiments..."
-echo "=================================================="
-python -m src.probe_training --activations output/gpt2_reps.npz --labels data/controlled_sentences.csv --task both --sparse_k 0 --control_inflection --control_lexeme
+echo "Starting experiments for model: $MODEL"
 
-echo "=================================================="
-echo "Running combined sparse (k=10) probe (both tasks) with control experiments..."
-echo "=================================================="
-python -m src.probe_training --activations output/gpt2_reps.npz --labels data/controlled_sentences.csv --task both --sparse_k 10 --control_inflection --control_lexeme
+# Run experiments for both probe types
+for PROBE in "${PROBE_TYPES[@]}"; do
+    echo "Running experiment with model=${MODEL}, probe_type=${PROBE}"
+    
+    python -u -m src.experiment \
+        --model "$MODEL" \
+        --dataset "$DATASET" \
+        --probe_type "$PROBE" \
+        --output_dir "$USER_DATA_OUTPUT" \
+        --no_analysis
+done
 
-echo "=================================================="
-echo "Running unsupervised analysis on GPT-2 activations..."
-echo "=================================================="
-python -m src.unsupervised_analysis --activations output/gpt2_reps.npz --labels data/controlled_sentences.csv
-
-echo "=================================================="
-echo "All GPT-2 experiments completed."
-echo "=================================================="
+echo "All experiments completed for model ${MODEL}"
