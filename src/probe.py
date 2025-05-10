@@ -76,7 +76,6 @@ def train_probe(X_train, y_train, X_val, y_val, input_dim, n_classes):
     early_stop = config.TRAIN_PARAMS["early_stop"]
 
     for epoch in range(config.TRAIN_PARAMS["epochs"]):
-        model.train()
         for xb, yb in train_loader:
             xb, yb = xb.to(device), yb.to(device)
             optim.zero_grad(set_to_none=True)
@@ -125,7 +124,7 @@ def predict(arr, model):
             out.append(model(chunk).cpu())
     return torch.cat(out, dim=0).numpy()
 
-def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type, layer, pca_dim, outdir=None, indices=None):
+def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type, layer, pca_dim):
     X_train, X_temp, y_train, y_temp, yc_train, yc_temp = train_test_split(
         X_flat, y_true, y_control,
         train_size = config.SPLIT_RATIOS["train"],
@@ -194,18 +193,6 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
 
     preds = scores.argmax(1)
     preds_control = control_scores.argmax(1)
-
-    # Save predictions if outdir is provided
-    if outdir is not None:
-        pred_df = pd.DataFrame({
-            "Index": np.arange(len(y_test)) if indices is None else indices,
-            "y_true": y_test,
-            "y_pred": preds,
-            "y_control_true": yc_test_m,
-            "y_control_pred": preds_control,
-        })
-        pred_path = os.path.join(outdir, f"predictions_layer_{layer}.csv")
-        pred_df.to_csv(pred_path, index=False)
 
     accuracy = (preds == y_test).mean()
     control_acc = (preds_control == yc_test_m).mean()

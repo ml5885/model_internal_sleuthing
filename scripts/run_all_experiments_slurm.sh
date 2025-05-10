@@ -59,7 +59,7 @@ if [ $? -eq 0 ]; then
         echo "Copying $TASK results to $DEST_DIR"
         mkdir -p "$DEST_DIR"
         
-        RESULT_FILES=$(find "$USER_DATA_OUTPUT/probes" -type f \( -name "*.csv" -o -name "*.png" -o -name "*results.npz" \) \
+        RESULT_FILES=$(find "$USER_DATA_OUTPUT/probes" -type f \( -name "*.csv" -o -name "*.png" -o -name "*results.npz" -o -name "predictions_layer_*.csv" \) \
             -path "*${DATASET}_${MODEL}_${TASK}_${PROBE}*" 2>/dev/null || echo "")
         
         if [ -n "$RESULT_FILES" ]; then
