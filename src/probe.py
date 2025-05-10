@@ -124,7 +124,7 @@ def predict(arr, model):
             out.append(model(chunk).cpu())
     return torch.cat(out, dim=0).numpy()
 
-def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type, layer, pca_dim):
+def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type, layer, pca_dim, outdir=None, indices=None):
     X_train, X_temp, y_train, y_temp, yc_train, yc_temp = train_test_split(
         X_flat, y_true, y_control,
         train_size = config.SPLIT_RATIOS["train"],
