@@ -19,17 +19,19 @@ def get_device():
     return torch.device("cpu")
 
 class MLPProbe(nn.Module):
-    """MLP probe: one hidden ReLU layer, then softmax output."""
+    """MLP probe: one hidden ReLU layer, then softmax output, with input LayerNorm."""
     def __init__(self, input_dim, output_dim, hidden_dim=None):
         super().__init__()
         if hidden_dim is None:
             hidden_dim = 64
+        self.norm = nn.LayerNorm(input_dim)
         self.linear1 = nn.Linear(input_dim, hidden_dim)
         self.relu = nn.ReLU()
         self.linear2 = nn.Linear(hidden_dim, output_dim)
         self.dropout = nn.Dropout(0.7)
 
     def forward(self, x):
+        x = self.norm(x)
         h = self.relu(self.linear1(x))
         d = self.dropout(h)
         return self.linear2(d)
@@ -124,7 +126,7 @@ def predict(arr, model):
             out.append(model(chunk).cpu())
     return torch.cat(out, dim=0).numpy()
 
-def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type, layer, pca_dim, outdir=None, indices=None):
+def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type, layer, pca_dim, outdir=None, indices=None, label_map=None, control_label_map=None):
     X_train, X_temp, y_train, y_temp, yc_train, yc_temp = train_test_split(
         X_flat, y_true, y_control,
         train_size = config.SPLIT_RATIOS["train"],
@@ -194,6 +196,25 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
     preds = scores.argmax(1)
     preds_control = control_scores.argmax(1)
 
+    # Map indices to string labels if mappings are provided
+    y_true_str = [label_map[y] if label_map is not None else y for y in y_test]
+    y_pred_str = [label_map[y] if label_map is not None else y for y in preds]
+    y_control_true_str = [control_label_map[y] if control_label_map is not None else y for y in yc_test_m]
+    y_control_pred_str = [control_label_map[y] if control_label_map is not None else y for y in preds_control]
+
+    pred_df = pd.DataFrame({
+        "Index": np.arange(len(y_test)) if indices is None else indices,
+        "y_true": y_test,
+        "y_true_str": y_true_str,
+        "y_pred": preds,
+        "y_pred_str": y_pred_str,
+        "y_control_true": yc_test_m,
+        "y_control_true_str": y_control_true_str,
+        "y_control_pred": preds_control,
+        "y_control_pred_str": y_control_pred_str,
+        "layer": layer
+    })
+
     accuracy = (preds == y_test).mean()
     control_acc = (preds_control == yc_test_m).mean()
 
@@ -238,7 +259,7 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
         "pca_explained_variance": pca_explained_variance
     }
         
-    return seed, result
+    return seed, result, pred_df
 
 def plot_probe_results(results: dict, outdir: str, task: str):
     os.makedirs(outdir, exist_ok=True)

@@ -133,7 +133,7 @@ MODEL_CONFIGS = {
 TRAIN_PARAMS = {
     "epochs": 50,
     "learning_rate": 3e-4,
-    "weight_decay": 1e-5,
+    "weight_decay": 1e-2,
     "batch_size": 4096,
     "early_stop": 7,
     "workers": min(4, os.cpu_count() or 2),

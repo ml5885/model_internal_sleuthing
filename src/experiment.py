@@ -6,46 +6,38 @@ from src import config, utils
 def run_activation_extraction(model_key, dataset, output_dir=None):
     utils.log_info(f"Starting activation extraction for {model_key} on dataset {dataset}...")
     dataset_file = os.path.join("data", f"{dataset}.csv")
-    
-    locations_to_check = []
-    
+
+    checks = []
     if output_dir:
-        custom_dir = os.path.join(output_dir, f"{model_key}_{dataset}_reps")
-        custom_npz = custom_dir + ".npz"
-        locations_to_check.append((custom_dir, custom_npz))
-    
-    default_dir = os.path.join(config.OUTPUT_DIR, f"{model_key}_{dataset}_reps")
-    default_npz = default_dir + ".npz"
-    locations_to_check.append((default_dir, default_npz))
-    
-    data_dir = os.path.join("/data/user_data/ml6/probing_outputs", f"{model_key}_{dataset}_reps")
-    data_npz = data_dir + ".npz"
-    locations_to_check.append((data_dir, data_npz))
-    
-    for dir_path, npz_path in locations_to_check:
-        if os.path.isfile(npz_path):
-            utils.log_info(f"Using existing activation file: {npz_path}")
-            print(f"Using existing activation file: {npz_path}")
-            return npz_path
-        elif os.path.isdir(dir_path) and any(f.startswith("activations_part") for f in os.listdir(dir_path)):
-            utils.log_info(f"Using existing activation shards: {dir_path}")
-            print(f"Using existing activation shards: {dir_path}")
-            return dir_path
-    
+        custom = os.path.join(output_dir, f"{model_key}_{dataset}_reps")
+        checks.append((custom, custom + ".npz"))
+    default = os.path.join(config.OUTPUT_DIR, f"{model_key}_{dataset}_reps")
+    checks.append((default, default + ".npz"))
+    external = os.path.join("/data/user_data/ml6/probing_outputs", f"{model_key}_{dataset}_reps")
+    checks.append((external, external + ".npz"))
+
+    for d, f in checks:
+        if os.path.isfile(f):
+            utils.log_info(f"Using existing activation file: {f}")
+            print(f"Using existing activation file: {f}")
+            return f
+        if os.path.isdir(d) and any(fn.startswith("activations_part") for fn in os.listdir(d)):
+            utils.log_info(f"Using existing activation shards: {d}")
+            print(f"Using existing activation shards: {d}")
+            return d
+
     utils.log_info("No existing activations found. Extracting new activations...")
-    print("Extracting new activations...")
-    
-    save_dir = locations_to_check[0][0]
-    
-    os.makedirs(os.path.dirname(save_dir), exist_ok=True)
-    
+    print("No existing activations found. Extracting new activations...")
+    save_dir = checks[0][0]
+    os.makedirs(save_dir, exist_ok=True)
+
     subprocess.run([
         "python", "-m", "src.activation_extraction",
         "--data", dataset_file,
         "--output-dir", save_dir,
         "--model", model_key
     ], check=True)
-    
+
     return save_dir
 
 def run_probe(exp_args):
@@ -54,10 +46,10 @@ def run_probe(exp_args):
 
 def run_analysis(model_key, dataset, output_dir=None):
     utils.log_info("Running analysis on activations...")
-    
+
     base_output_dir = output_dir if output_dir else config.OUTPUT_DIR
     activations_dir = os.path.join(base_output_dir, f"{model_key}_{dataset}_reps")
-    
+
     subprocess.run([
         "python", "-m", "src.analysis",
         "--activations-dir", activations_dir,
@@ -67,9 +59,7 @@ def run_analysis(model_key, dataset, output_dir=None):
     ], check=True)
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Run experiment pipeline for probing tasks."
-    )
+    parser = argparse.ArgumentParser(description="Run experiment pipeline for probing tasks.")
     parser.add_argument("--model", type=str, default="gpt2",
                         help="Model key (e.g. 'gpt2').")
     parser.add_argument("--dataset", type=str, required=True,
@@ -92,55 +82,55 @@ def main():
 
     model_key = args.model
     dataset = args.dataset
-    output_dir = args.output_dir
-    
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
-        original_output_dir = config.OUTPUT_DIR
-        config.OUTPUT_DIR = output_dir
-    
-    reps = run_activation_extraction(model_key, dataset, output_dir)
+    probe_type = args.probe_type
+    pca_dim = args.pca_dim
+    pca = pca_dim > 0
 
-    experiments = [
-        {"name": "inflection", "args": [
-            "--activations", reps,
-            "--labels", os.path.join("data", f"{dataset}.csv"),
-            "--task", "inflection",
-            "--lambda_reg", str(args.lambda_reg),
-            "--exp_label", f"{model_key}_inflection",
-            "--dataset", dataset,
-            "--probe_type", args.probe_type,
-            "--pca_dim", str(args.pca_dim)
-        ]},
-        {"name": "lexeme", "args": [
-            "--activations", reps,
-            "--labels", os.path.join("data", f"{dataset}.csv"),
-            "--task", "lexeme",
-            "--lambda_reg", str(args.lambda_reg),
-            "--exp_label", f"{model_key}_lexeme",
-            "--dataset", dataset,
-            "--probe_type", args.probe_type,
-            "--pca_dim", str(args.pca_dim)
-        ]}
-    ]
+    # this is the root under which each task folder will live
+    base_probe_dir = args.output_dir if args.output_dir else config.OUTPUT_DIR
 
+    # build exact final paths for each task
+    probe_output_dirs = {
+        task: utils.get_probe_output_dir(
+            dataset, model_key, task, probe_type,
+            pca=pca, pca_dim=pca_dim,
+            base_dir=base_probe_dir
+        )
+        for task in ["inflection", "lexeme"]
+    }
+
+    reps = run_activation_extraction(model_key, dataset, args.output_dir)
+
+    experiments = []
+    for task in ["inflection", "lexeme"]:
+        experiments.append({
+            "name": task,
+            "args": [
+                "--activations", reps,
+                "--labels", os.path.join("data", f"{dataset}.csv"),
+                "--task", task,
+                "--lambda_reg", str(args.lambda_reg),
+                "--exp_label", f"{model_key}_{task}",
+                "--dataset", dataset,
+                "--probe_type", probe_type,
+                "--pca_dim", str(pca_dim),
+                "--output_dir", probe_output_dirs[task]
+            ]
+        })
+
+    # filter by --experiment if given
     if args.experiment:
         experiments = [e for e in experiments if e["name"] == args.experiment]
         if not experiments:
             raise ValueError(f"Unknown experiment name: {args.experiment}")
 
-    if output_dir:
-        for exp in experiments:
-            exp["args"].extend(["--output_dir", output_dir])
-
     for exp in experiments:
         utils.log_info(f"Running experiment: {exp['name']}")
-        print(f"Running experiment: {exp['name']}")
-        run_probe(exp["args"])
+        subprocess.run(["python", "-m", "src.train"] + exp["args"], check=True)
 
     if not args.experiment and not args.no_analysis:
-        run_analysis(model_key, dataset, output_dir)
-        
+        run_analysis(model_key, dataset, args.output_dir)
+
     utils.log_info("All experiments and analysis completed.")
 
 if __name__ == "__main__":

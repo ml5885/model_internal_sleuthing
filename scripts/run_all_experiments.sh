@@ -2,23 +2,30 @@
 set -euo pipefail
 
 DATASET="ud_gum_dataset"
+MODELS="gpt2"  # you can add more here
 
-# hardcoded model keys
-# MODELS="gpt2 qwen2-instruct qwen2 gemma2b pythia1.4b bert-base-uncased bert-large-uncased distilbert-base-uncased deberta-v3-large"
-MODELS="gpt2"
 for MODEL in $MODELS; do
-    # if any probe directory matching the pattern exists, skip
-    PATTERN1="output/probes/${DATASET}_${MODEL}_lexeme_$1_$2"
-    PATTERN2="output/probes/${DATASET}_${MODEL}_inflection_$1_$2"
+    PROBE_TYPE="$1"
+    PCA_DIM="$2"
+    PCA_SUFFIX=""
+    if [ "$PCA_DIM" -gt 0 ]; then
+        PCA_SUFFIX="_pca$PCA_DIM"
+    fi
 
-    if [ -d "$PATTERN1" ] || [ -d "$PATTERN2" ]; then
-        echo "Skipping ${MODEL}: probe output already exists."
+    OUT_LEX="output/probes/${DATASET}_${MODEL}_lexeme_${PROBE_TYPE}${PCA_SUFFIX}"
+    OUT_INF="output/probes/${DATASET}_${MODEL}_inflection_${PROBE_TYPE}${PCA_SUFFIX}"
+    if [ -d "$OUT_LEX" ] || [ -d "$OUT_INF" ]; then
+        echo "Skipping $MODEL/$PROBE_TYPE: already done."
         continue
     fi
 
-    echo "Running pipeline for ${MODEL}..."
-    python3 -u -m src.experiment --model "$MODEL" --dataset "$DATASET" --no_analysis --probe_type "$1" --pca_dim "$2"
-    echo "Completed ${MODEL}"
+    echo "Running pipeline for $MODEL ($PROBE_TYPE, pca=$PCA_DIM)"
+    python3 -u -m src.experiment \
+        --model "$MODEL" \
+        --dataset "$DATASET" \
+        --probe_type "$PROBE_TYPE" \
+        --pca_dim "$PCA_DIM" \
+        --no_analysis
 done
 
-echo "Done with all models."
+echo "All done."
