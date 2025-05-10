@@ -6,9 +6,9 @@
 #SBATCH --time=2-00:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --gres=gpu:A6000:1
+#SBATCH --gres=gpu:L40S:1
 #SBATCH --mem=64G
-#SBATCH --array=0-3
+#SBATCH --array=0-1
 
 export HF_HOME=/data/user_data/ml6/.hf_cache
 export HF_HUB_CACHE=/data/hf_cache/hub
@@ -33,16 +33,12 @@ conda activate llm_probing
 cd /home/ml6/lexeme-inflection-probing
 
 MODELS=("llama3-8b" "llama3-8b-instruct")
-PROBE_TYPES=("reg" "nn")
-
-MODEL_IDX=$((SLURM_ARRAY_TASK_ID / 2))
-PROBE_IDX=$((SLURM_ARRAY_TASK_ID % 2))
-
+PROBE="nn"
+MODEL_IDX=$SLURM_ARRAY_TASK_ID
 MODEL=${MODELS[$MODEL_IDX]}
-PROBE=${PROBE_TYPES[$PROBE_IDX]}
 DATASET="ud_gum_dataset"
 
-PCA_DIM=0  # Set this to your desired PCA dimension or pass as an argument
+PCA_DIM=0
 PCA_SUFFIX=""
 if [ "$PCA_DIM" -gt 0 ]; then
     PCA_SUFFIX="_pca$PCA_DIM"
@@ -50,11 +46,6 @@ fi
 
 OUTDIR_LEX="$USER_DATA_OUTPUT/probes/${DATASET}_${MODEL}_lexeme_${PROBE}${PCA_SUFFIX}"
 OUTDIR_INF="$USER_DATA_OUTPUT/probes/${DATASET}_${MODEL}_inflection_${PROBE}${PCA_SUFFIX}"
-
-if [ -d "$OUTDIR_LEX" ] || [ -d "$OUTDIR_INF" ]; then
-    echo "Skipping ${MODEL}: probe output already exists."
-    exit 0
-fi
 
 OUTDIR="$USER_DATA_OUTPUT/probes/${DATASET}_${MODEL}_${PROBE}${PCA_SUFFIX}"
 mkdir -p "$OUTDIR"

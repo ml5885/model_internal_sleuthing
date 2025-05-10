@@ -19,7 +19,7 @@ def get_device():
     return torch.device("cpu")
 
 class MLPProbe(nn.Module):
-    """MLP probe: one hidden ReLU layer, then softmax output, with input LayerNorm."""
+    """MLP probe: one hidden ReLU layer, then softmax output."""
     def __init__(self, input_dim, output_dim, hidden_dim=None):
         super().__init__()
         if hidden_dim is None:
