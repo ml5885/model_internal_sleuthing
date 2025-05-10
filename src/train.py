@@ -68,6 +68,14 @@ def run_probes(activations, labels, task, lambda_reg, exp_label, dataset, probe_
     
     results = {}
 
+    base_output_dir = output_dir if output_dir else config.OUTPUT_DIR
+    pca_dim_suffix = f"_pca_{pca_dim}" if pca_dim > 0 else ""
+    outdir_name = f"{dataset}_{exp_label}_{probe_type}{pca_dim_suffix}"
+    outdir = os.path.join(
+        base_output_dir, "probes", outdir_name
+    )
+    os.makedirs(outdir, exist_ok=True)
+
     for layer_idx in tqdm(range(n_layers), desc="Layers"):
         X_flat = load_layer(shards, layer_idx)
         
@@ -91,19 +99,13 @@ def run_probes(activations, labels, task, lambda_reg, exp_label, dataset, probe_
         utils.log_info(f"Layer {layer_idx}: y_true size after filtering: {len(y_true_layer)}")
 
         seed = config.SEED + layer_idx
-        _, res = process_layer(seed, X_filtered, y_true_layer, y_control_layer, lambda_reg, 
-                              task, probe_type, layer_idx, pca_dim)
+        _, res = process_layer(
+            seed, X_filtered, y_true_layer, y_control_layer, lambda_reg,
+            task, probe_type, layer_idx, pca_dim, outdir=outdir
+        )
         
         del X_flat, X_filtered
         results[f"layer_{layer_idx}"] = res
-
-    base_output_dir = output_dir if output_dir else config.OUTPUT_DIR
-    pca_dim_suffix = f"_pca_{pca_dim}" if pca_dim > 0 else ""
-    outdir_name = f"{dataset}_{exp_label}_{probe_type}{pca_dim_suffix}"
-    outdir = os.path.join(
-        base_output_dir, "probes", outdir_name
-    )
-    os.makedirs(outdir, exist_ok=True)
     
     np.savez_compressed(os.path.join(outdir, "probe_results.npz"), results=results)
     utils.log_info(f"Saved probe results to {outdir}")

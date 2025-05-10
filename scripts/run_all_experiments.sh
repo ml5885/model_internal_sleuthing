@@ -4,8 +4,8 @@ set -euo pipefail
 DATASET="ud_gum_dataset"
 
 # hardcoded model keys
-MODELS="gpt2 qwen2-instruct qwen2 gemma2b pythia1.4b bert-base-uncased bert-large-uncased distilbert-base-uncased deberta-v3-large"
-# MODELS="qwen2 gpt2"
+# MODELS="gpt2 qwen2-instruct qwen2 gemma2b pythia1.4b bert-base-uncased bert-large-uncased distilbert-base-uncased deberta-v3-large"
+MODELS="gpt2"
 for MODEL in $MODELS; do
     # if any probe directory matching the pattern exists, skip
     PATTERN1="output/probes/${DATASET}_${MODEL}_lexeme_$1_$2"
