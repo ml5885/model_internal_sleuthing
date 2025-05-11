@@ -73,6 +73,14 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
     results = {}
     all_preds = []
 
+    use_llama3_norm = (
+        exp_label in ["llama3-8b", "llama3-8b-instruct"] and probe_type in ["mlp", "nn"]
+    )
+    model_wrapper = None
+    if use_llama3_norm:
+        from src.model_wrapper import ModelWrapper
+        model_wrapper = ModelWrapper(exp_label)
+
     for layer_idx in tqdm(range(n_layers), desc="Layers"):
         X_flat = load_layer(shards, layer_idx)
 
@@ -93,13 +101,29 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
             y_control_layer = y_control_filtered
 
         seed = config.SEED + layer_idx
-        _, res, pred_df = process_layer(
-            seed, X_filtered, y_true_layer, y_control_layer,
-            lambda_reg, task, probe_type, layer_idx,
-            pca_dim, outdir=outdir,
-            label_map=uniq_infl if task == "inflection" else uniq,
-            control_label_map=uniq_words
-        )
+        if use_llama3_norm:
+            norm_weight, norm_bias = None, None
+            try:
+                norm_weight, norm_bias = model_wrapper.get_layernorm_params(layer_idx)
+            except Exception as e:
+                utils.log_info(f"Could not extract LayerNorm params for layer {layer_idx+1}: {e}")
+            _, res, pred_df = process_layer(
+                seed, X_filtered, y_true_layer, y_control_layer,
+                lambda_reg, task, probe_type, layer_idx,
+                pca_dim, outdir=outdir,
+                label_map=uniq_infl if task == "inflection" else uniq,
+                control_label_map=uniq_words,
+                norm_weight=norm_weight,
+                norm_bias=norm_bias
+            )
+        else:
+            _, res, pred_df = process_layer(
+                seed, X_filtered, y_true_layer, y_control_layer,
+                lambda_reg, task, probe_type, layer_idx,
+                pca_dim, outdir=outdir,
+                label_map=uniq_infl if task == "inflection" else uniq,
+                control_label_map=uniq_words
+            )
         results[f"layer_{layer_idx}"] = res
         all_preds.append(pred_df)
         del X_flat, X_filtered

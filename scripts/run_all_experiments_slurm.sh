@@ -6,7 +6,7 @@
 #SBATCH --time=2-00:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --gres=gpu:L40S:1
+#SBATCH --gres=gpu:A6000:1
 #SBATCH --mem=64G
 #SBATCH --array=0-1
 
@@ -44,9 +44,6 @@ if [ "$PCA_DIM" -gt 0 ]; then
     PCA_SUFFIX="_pca$PCA_DIM"
 fi
 
-OUTDIR_LEX="$USER_DATA_OUTPUT/probes/${DATASET}_${MODEL}_lexeme_${PROBE}${PCA_SUFFIX}"
-OUTDIR_INF="$USER_DATA_OUTPUT/probes/${DATASET}_${MODEL}_inflection_${PROBE}${PCA_SUFFIX}"
-
 OUTDIR="$USER_DATA_OUTPUT/probes/${DATASET}_${MODEL}_${PROBE}${PCA_SUFFIX}"
 mkdir -p "$OUTDIR"
 
@@ -67,7 +64,7 @@ if [ $? -eq 0 ]; then
         DEST_DIR="$LOCAL_OUTPUT/probes/${DATASET}_${MODEL}_${TASK}_${PROBE}${PCA_SUFFIX}"
         echo "Copying $TASK results to $DEST_DIR"
         mkdir -p "$DEST_DIR"
-        RESULT_FILES=$(find "$OUTDIR" -type f \( -name "*.csv" -o -name "*.png" -o -name "*results.npz" \) -path "*${DATASET}_${MODEL}_${TASK}_${PROBE}${PCA_SUFFIX}*" 2>/dev/null || echo "")
+        RESULT_FILES=$(find "$OUTDIR" -type f \( -name "*.csv" -o -name "*.png" -o -name "*results.npz" \) -path "*_${TASK}_${PROBE}${PCA_SUFFIX}*" 2>/dev/null || echo "")
         if [ -n "$RESULT_FILES" ]; then
             for FILE in $RESULT_FILES; do
                 cp "$FILE" "$DEST_DIR/"

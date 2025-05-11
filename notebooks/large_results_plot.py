@@ -10,9 +10,10 @@ sns.set_style("white")
 mpl.rcParams["figure.dpi"] = 150
 plt.rcParams.update({"font.size": 12})
 
-models = ["bert-base-uncased", "bert-large-uncased", "deberta-v3-large",
-          "gpt2", "qwen2", "qwen2-instruct", "gemma2b", "pythia1.4b"]
-# models = ["llama3-8b", "llama3-8b-instruct", "pythia-6.9b", "pythia-6.9b-tulu"]
+# models = ["bert-base-uncased", "bert-large-uncased", "deberta-v3-large",
+#           "gpt2", "qwen2", "qwen2-instruct", "gemma2b", "pythia1.4b",
+#           "llama3-8b", "llama3-8b-instruct", "pythia-6.9b", "pythia-6.9b-tulu"]
+models = ["llama3-8b", "llama3-8b-instruct"]
 
 model_names = {
     "gpt2": "GPT 2",
@@ -102,6 +103,9 @@ def plot_all_probes(
         for row, (task, probe_type) in enumerate(combos):
             ax = axes[row, col]
             ax_pca = axes_pca[row, col]
+            
+            ax.tick_params(axis="both", which="both", length=8, width=2)
+            ax_pca.tick_params(axis="both", which="both", length=8, width=2)
 
             probe_dir = os.path.join("..", "output", "probes",
                         f"{dataset}_{model}_{task}_{probe_type}")
@@ -163,8 +167,9 @@ def plot_all_probes(
             ax_pca.tick_params(axis="x", rotation=45, labelsize=14)
             ax_pca.tick_params(axis="y", labelsize=14)
 
-    fig.text(-0.04, 0.75, "Linear probe", va="center", rotation="vertical", fontsize=22)
-    fig.text(-0.04, 0.29, "MLP probe", va="center", rotation="vertical", fontsize=22)
+    left_pad = -0.15
+    fig.text(left_pad, 0.75, "Linear probe", va="center", rotation="vertical", fontsize=22)
+    fig.text(left_pad, 0.29, "MLP probe", va="center", rotation="vertical", fontsize=22)
 
     handles = [
         mpl.lines.Line2D([], [], color=colors["task"], marker="o", linestyle="-", markersize=10, linewidth=4, label="Linguistic accuracy"),
