@@ -51,6 +51,31 @@ MODEL_CONFIGS = {
         "model_name": "microsoft/deberta-v3-large",
         "tokenizer_name": "microsoft/deberta-v3-large",
     },
+    # "llama3-8b": {
+    #     "model_name": "meta-llama/Llama-3.1-8B",
+    #     "tokenizer_name": "meta-llama/Llama-3.1-8B",
+    #     "max_length": 128,
+    #     "batch_size": 32,
+    # },
+    # "llama3-8b-instruct": {
+    #     "model_name": "meta-llama/Llama-3.1-8B-Instruct",
+    #     "tokenizer_name": "meta-llama/Llama-3.1-8B-Instruct",
+    #     "max_length": 128,
+    #     "batch_size": 32,
+    # },
+    
+    # "pythia-6.9b": {
+    #     "model_name": "EleutherAI/pythia-6.9b",
+    #     "tokenizer_name": "EleutherAI/pythia-6.9b",
+    #     "max_length": 128,
+    #     "batch_size": 32,
+    # },
+    # "pythia-6.9b-tulu": {
+    #     "model_name": "allenai/open-instruct-pythia-6.9b-tulu",
+    #     "tokenizer_name": "allenai/open-instruct-pythia-6.9b-tulu",
+    #     "max_length": 128,
+    #     "batch_size": 32,
+    # },
 }
 
 TESTS = [

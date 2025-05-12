@@ -27,14 +27,11 @@ logger.addHandler(console_handler)
 def log_info(message):
     logger.info(message)
 
-def get_probe_output_dir(dataset, model, task, probe_type, pca=False, pca_dim=None, base_dir=None):
-    """
-    Construct the final output directory for probe results.
-    e.g. <base_dir>/probes/ud_gum_dataset_gpt2_inflection_reg_pca50
-    """
+def get_probe_output_dir(dataset, model, task, probe_type, *, pca=False,
+                         pca_dim=None, base_dir=None):
     if base_dir is None:
         base_dir = config.OUTPUT_DIR
-    dir_name = f"{dataset}_{model}_{task}_{probe_type}"
-    if pca and pca_dim is not None:
-        dir_name += f"_pca{pca_dim}"
-    return os.path.join(base_dir, "probes", dir_name)
+    name = f"{dataset}_{model}_{task}_{probe_type}"
+    if pca and pca_dim:
+        name += f"_pca_{pca_dim}"
+    return os.path.join(base_dir, name)

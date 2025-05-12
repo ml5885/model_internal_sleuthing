@@ -5,21 +5,15 @@ import pandas as pd
 import os
 import numpy as np
 
-# Style and DPI
 sns.set_style("white")
 mpl.rcParams["figure.dpi"] = 150
 plt.rcParams.update({"font.size": 12})
 
 palette = sns.color_palette("Set2")
 
-models = [
-    "gpt2",
-    "qwen2", "qwen2-instruct",
-    "pythia1.4b",
-    "gemma2b",
-    "bert-base-uncased", "bert-large-uncased",
-    "deberta-v3-large"
-]
+models = ["bert-base-uncased", "bert-large-uncased", "deberta-v3-large",
+          "gpt2", "qwen2", "qwen2-instruct", "gemma2b", "pythia1.4b",
+          "llama3-8b", "llama3-8b-instruct", "pythia-6.9b", "pythia-6.9b-tulu"]
 
 model_names = {
     "gpt2": "GPT 2",
@@ -30,10 +24,13 @@ model_names = {
     "bert-base-uncased": "BERT Base Uncased",
     "bert-large-uncased": "BERT Large Uncased",
     "deberta-v3-large": "DeBERTa v3 Large",
+    "llama3-8b": "Llama 3 8B",
+    "llama3-8b-instruct": "Llama 3 8B Instruct",
+    "pythia-6.9b": "Pythia 6.9B",
+    "pythia-6.9b-tulu": "Pythia 6.9B Tulu",
 }
 
 def get_acc_columns(df, prefix):
-    # same as before
     if f"{prefix}_Accuracy" in df.columns and f"{prefix}_ControlAccuracy" in df.columns:
         return f"{prefix}_Accuracy", f"{prefix}_ControlAccuracy"
     if "Acc" in df.columns and "controlAcc" in df.columns:
@@ -59,10 +56,16 @@ def plot_selectivity_comparison(
     axes = axes.flatten()
     plt.subplots_adjust(top=0.93, wspace=0.3, hspace=0.35)
 
+    handles, labels = None, None
+    
+    global_min = float('inf')
+    global_max = float('-inf')
+    
+    data_for_plots = []
+    
     for idx, model in enumerate(model_list):
         ax = axes[idx]
 
-        # file paths
         lex_csv = os.path.join(f"../output/probes/{dataset}_{model}_lexeme_{probe_type}", "lexeme_results.csv")
         inf_csv = os.path.join(f"../output/probes/{dataset}_{model}_inflection_{probe_type}", "inflection_results.csv")
 
@@ -74,29 +77,56 @@ def plot_selectivity_comparison(
                 iac, icc = get_acc_columns(inf_df, "inflection")
                 lex_sel = lex_df[lac] - lex_df[lcc]
                 inf_sel = inf_df[iac] - inf_df[icc]
-
-                # line plots
-                ax.plot(lex_df["Layer"], lex_sel,
-                        label="Lexeme",
-                        color=palette[0], linestyle="-", marker="o", markersize=3)
-                ax.plot(inf_df["Layer"], inf_sel,
-                        label="Inflection",
-                        color=palette[1], linestyle="--", marker="x", markersize=4)
-
-                # symmetric y-limits with 10% pad
-                allv = np.concatenate([lex_sel.values, inf_sel.values])
-                y_ex = max(abs(allv.min()), abs(allv.max()))
-                pad = y_ex * 0.1 if y_ex > 0 else 0.1
-                ax.set_ylim(-y_ex - pad, y_ex + pad)
-                # horizontal pad
-                ax.margins(x=0.05)
+                
+                global_min = min(global_min, lex_sel.min(), inf_sel.min())
+                global_max = max(global_max, lex_sel.max(), inf_sel.max())
+                
+                data_for_plots.append({
+                    'lex_df': lex_df,
+                    'inf_df': inf_df,
+                    'lex_sel': lex_sel,
+                    'inf_sel': inf_sel,
+                    'valid': True
+                })
             except Exception as e:
-                ax.text(0.5, 0.5, f"Error: {e}",
-                        ha="center", va="center", transform=ax.transAxes)
+                data_for_plots.append({
+                    'error': str(e),
+                    'valid': False
+                })
         else:
-            ax.text(0.5, 0.5, "Missing data",
+            data_for_plots.append({
+                'error': "Missing data",
+                'valid': False
+            })
+    
+    if global_min != float('inf') and global_max != float('-inf'):
+        y_range = global_max - global_min
+        y_padding = y_range * 0.1
+        y_min = global_min - y_padding
+        y_max = global_max + y_padding
+    else:
+        y_min, y_max = -0.5, 1.0
+    
+    for idx, (model, plot_data) in enumerate(zip(model_list, data_for_plots)):
+        ax = axes[idx]
+        
+        if plot_data['valid']:
+            ax.plot(plot_data['lex_df']["Layer"], plot_data['lex_sel'],
+                    label="Lexeme",
+                    color=palette[0], linestyle="-", marker="o", markersize=3)
+            ax.plot(plot_data['inf_df']["Layer"], plot_data['inf_sel'],
+                    label="Inflection",
+                    color=palette[1], linestyle="--", marker="x", markersize=4)
+            
+            ax.set_ylim(y_min, y_max)
+            ax.margins(x=0.05)
+            
+            if handles is None and labels is None:
+                handles, labels = ax.get_legend_handles_labels()
+        else:
+            ax.text(0.5, 0.5, plot_data['error'],
                     ha="center", va="center", transform=ax.transAxes)
-
+        
         ax.set_xlabel("Layer")
         ax.set_ylabel("Selectivity")
         ax.set_title(model_names.get(model, model), fontsize=26)
@@ -105,20 +135,15 @@ def plot_selectivity_comparison(
         if ax.get_legend():
             ax.legend_.remove()
 
-    # Hide unused axes (e.g., bottom right if not enough models)
     for idx in range(len(model_list), len(axes)):
         axes[idx].set_visible(False)
 
-    # consolidated legend in last valid subplot
-    legend_ax = axes[len(model_list)-1]
-    for ax in axes[:len(model_list)][::-1]:
-        h, l = ax.get_legend_handles_labels()
-        if h:
-            legend_ax.legend(h, l, loc="center", frameon=False, fontsize=12)
-            break
+    fig.legend(handles, labels, loc="lower center",
+               ncol=2,
+               bbox_to_anchor=(0.5, 0.01),
+               frameon=False, fontsize=12)
 
-    # fig.suptitle("Comparison of Lexeme vs Inflection Selectivity", fontsize=16)
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.tight_layout(rect=[0, 0.04, 1, 0.96])
     os.makedirs(output_dir, exist_ok=True)
     out = os.path.join(output_dir, f"selectivity_comparison_{probe_type}.png")
     fig.savefig(out, dpi=300, bbox_inches="tight")
@@ -138,11 +163,24 @@ def plot_probe_advantage(
     axes = axes.flatten()
     plt.subplots_adjust(top=0.93, wspace=0.3, hspace=0.35)
 
+    global_min = float('inf')
+    global_max = float('-inf')
+    
+    plot_data_list = []
+    
     for idx, model in enumerate(model_list):
         ax = axes[idx]
 
         lin_csv = os.path.join(f"../output/probes/{dataset}_{model}_{task}_reg", f"{task}_results.csv")
         mlp_csv = os.path.join(f"../output/probes/{dataset}_{model}_{task}_mlp", f"{task}_results.csv")
+        
+        if not os.path.exists(lin_csv):
+            lin_csv = os.path.join(f"../output/probes/{dataset}_{model}_{task}_linear", f"{task}_results.csv")
+        if not os.path.exists(mlp_csv):
+            mlp_csv = os.path.join(f"../output/probes/{dataset}_{model}_{task}_nonlinear", f"{task}_results.csv")
+            
+        if not os.path.exists(mlp_csv):
+            mlp_csv = os.path.join(f"../output/probes/{dataset}_{model}_{task}_nn", f"{task}_results.csv")
 
         if os.path.exists(lin_csv) and os.path.exists(mlp_csv):
             lin_df = pd.read_csv(lin_csv)
@@ -156,32 +194,71 @@ def plot_probe_advantage(
                 mf = mlp_df[mlp_df["Layer"].isin(common)].sort_values("Layer")
                 adv = mf[mac].values - lf[lac].values
 
-                ax.bar(common, adv,
-                       color=palette[2], alpha=0.7, width=0.7)
-                ax.axhline(0, linestyle="--", color="gray")
-
-                # symmetric y-limits with 10% pad
-                y_ex = max(abs(adv.min()), abs(adv.max()))
-                pad = y_ex * 0.1 if y_ex > 0 else 0.1
-                ax.set_ylim(-y_ex - pad, y_ex + pad)
+                global_min = min(global_min, adv.min())
+                global_max = max(global_max, adv.max())
+                
+                plot_data_list.append({
+                    'common': common,
+                    'adv': adv,
+                    'valid': True
+                })
             except Exception as e:
-                ax.text(0.5, 0.5, f"Error: {e}",
-                        ha="center", va="center", transform=ax.transAxes)
+                plot_data_list.append({
+                    'error': f"Error: {e}",
+                    'valid': False
+                })
         else:
-            ax.text(0.5, 0.5, "Missing data",
-                    ha="center", va="center", transform=ax.transAxes)
+            missing_files = []
+            if not os.path.exists(lin_csv):
+                missing_files.append(f"Linear: {os.path.basename(lin_csv)}")
+            if not os.path.exists(mlp_csv):
+                missing_files.append(f"MLP: {os.path.basename(mlp_csv)}")
+            
+            plot_data_list.append({
+                'error': f"Missing files:\n{chr(10).join(missing_files)}",
+                'valid': False
+            })
+
+    if global_min != float('inf') and global_max != float('-inf'):
+        y_range = global_max - global_min
+        if y_range == 0:
+            pad = 0.1
+        else:
+            pad_factor = 0.1
+            pad = y_range * pad_factor
+            if global_min > 0:
+                global_min = min(0, global_min - pad)
+            elif global_max < 0:
+                global_max = max(0, global_max + pad)
+        
+        y_min = global_min - pad
+        y_max = global_max + pad
+    else:
+        y_min, y_max = -0.2, 0.2
+
+    for idx, (model, plot_data) in enumerate(zip(model_list, plot_data_list)):
+        ax = axes[idx]
+        
+        if plot_data['valid']:
+            ax.bar(plot_data['common'], plot_data['adv'],
+                   color=palette[2], alpha=0.7, width=0.7)
+            ax.axhline(0, linestyle="--", color="gray")
+            ax.set_ylim(y_min, y_max)
+        else:
+            ax.text(0.5, 0.5, plot_data['error'],
+                    ha="center", va="center", transform=ax.transAxes,
+                    fontsize=10)
+            ax.set_ylim(-0.1, 0.1)
 
         ax.set_xlabel("Layer")
-        ax.set_ylabel("MLP Advantage (pp)")
+        ax.set_ylabel("MLP Advantage")
         ax.set_title(model_names.get(model, model), fontsize=26)
         ax.grid(True, linestyle="--", alpha=0.3)
         ax.tick_params(axis="x", rotation=45)
 
-    # Hide unused axes (e.g., bottom right if not enough models)
     for idx in range(len(model_list), len(axes)):
         axes[idx].set_visible(False)
 
-    # fig.suptitle(f"MLP vs Linear Probe Advantage for {task.capitalize()} Prediction", fontsize=16)
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     os.makedirs(output_dir, exist_ok=True)
     out = os.path.join(output_dir, f"mlp_advantage_{task}.png")
@@ -191,11 +268,9 @@ def plot_probe_advantage(
 def create_peak_layer_table(
     model_list, dataset, probe_type="reg", output_dir="figures2"
 ):
-    # identical to yours
     results = []
     for model in model_list:
         mr = {"Model": model_names.get(model, model)}
-        # lexeme
         lex_csv = os.path.join(f"../output/probes/{dataset}_{model}_lexeme_{probe_type}", "lexeme_results.csv")
         if os.path.exists(lex_csv):
             df = pd.read_csv(lex_csv)
@@ -210,7 +285,6 @@ def create_peak_layer_table(
         else:
             mr["Lexeme Peak Layer"] = "N/A"
             mr["Lexeme Peak Acc"] = "N/A"
-        # inflection
         inf_csv = os.path.join(f"../output/probes/{dataset}_{model}_inflection_{probe_type}", "inflection_results.csv")
         if os.path.exists(inf_csv):
             df = pd.read_csv(inf_csv)
@@ -225,7 +299,6 @@ def create_peak_layer_table(
         else:
             mr["Inflection Peak Layer"] = "N/A"
             mr["Inflection Peak Acc"] = "N/A"
-        # gap
         if (
             mr["Lexeme Peak Layer"] != "N/A"
             and mr["Inflection Peak Layer"] != "N/A"
@@ -240,11 +313,14 @@ def create_peak_layer_table(
     csv_path = os.path.join(output_dir, f"peak_layer_summary_{probe_type}.csv")
     df.to_csv(csv_path, index=False)
 
-    # format
     for col in ["Lexeme Peak Acc", "Inflection Peak Acc"]:
-        df[col] = pd.to_numeric(df[col], errors="ignore")
-        mask = df[col] != "N/A"
-        df.loc[mask, col] = df.loc[mask, col].map(lambda x: f"{float(x):.3f}")
+        try:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+            mask = ~df[col].isna()
+            df[col] = df[col].astype(object)
+            df.loc[mask, col] = df.loc[mask, col].map(lambda x: f"{float(x):.3f}")
+        except ValueError:
+            pass
 
     tex_path = os.path.join(output_dir, f"peak_layer_summary_{probe_type}.tex")
     with open(tex_path, "w") as f:
@@ -267,12 +343,11 @@ def create_peak_layer_table(
     print(f"Saved table to {csv_path} and {tex_path}")
     return df
 
-# Run all
 dataset = "ud_gum_dataset"
 os.makedirs("figures2", exist_ok=True)
 
 plot_selectivity_comparison(models, dataset, probe_type="reg")
-plot_selectivity_comparison(models, dataset, probe_type="mlp")
+plot_selectivity_comparison(models, dataset, probe_type="nn")
 plot_probe_advantage("lexeme", models, dataset)
 plot_probe_advantage("inflection", models, dataset)
-create_peak_layer_table(models, dataset, probe_type="mlp")
+create_peak_layer_table(models, dataset, probe_type="nn")

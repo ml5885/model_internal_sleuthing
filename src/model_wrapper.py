@@ -16,7 +16,7 @@ class ModelWrapper:
 
         self.model = AutoModel.from_pretrained(
             self.model_config["model_name"],
-            output_hidden_states=True, # enable hidden states
+            output_hidden_states=True,
             trust_remote_code=self.model_config.get("trust_remote_code", False) # for deepseek
         )
 
@@ -43,7 +43,6 @@ class ModelWrapper:
                 utils.log_info(f"Slow tokenizer load failed for '{model_key}' ({slow_err}).")
                 raise ImportError("Failed to load tokenizer.") from slow_err
 
-        # Ensure a pad token is defined
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
@@ -102,3 +101,22 @@ class ModelWrapper:
                 # activations[i, layer_idx, :] = layer_states[i, positions, :].mean(dim=0)
                 
         return activations.cpu()
+
+    def get_layernorm_params(self, layer_idx):
+        ln_name = f'model.layers.{layer_idx+1}.input_layernorm'
+        state_dict = self.model.state_dict()
+        weight, bias = None, None
+        for k in state_dict:
+            if k.endswith(f'layers.{layer_idx+1}.input_layernorm.weight'):
+                weight = state_dict[k]
+            if k.endswith(f'layers.{layer_idx+1}.input_layernorm.bias'):
+                bias = state_dict[k]
+        if weight is None or bias is None:
+            for k in state_dict:
+                if k.endswith(f'layers.{layer_idx+1}.input_layernorm.weight'):
+                    weight = state_dict[k]
+                if k.endswith(f'layers.{layer_idx+1}.input_layernorm.bias'):
+                    bias = state_dict[k]
+        if weight is None or bias is None:
+            raise ValueError(f"Could not find LayerNorm params for layer {layer_idx+1}")
+        return weight, bias
