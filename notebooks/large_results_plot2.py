@@ -216,7 +216,6 @@ def plot_combined_probes(
         title_fontsize=22  # Increased title font size
     )
 
-
     regression_df = pd.DataFrame(all_regression_results)
     os.makedirs(output_dir, exist_ok=True)
     regression_filename = "all_regression_results.csv"
