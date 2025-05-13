@@ -15,7 +15,9 @@ plt.rcParams.update({"font.size": 12})
 
 models = ["bert-base-uncased", "bert-large-uncased", "deberta-v3-large",
           "gpt2", "qwen2", "qwen2-instruct", "gemma2b", "pythia1.4b",
-          "llama3-8b", "llama3-8b-instruct", "pythia-6.9b", "pythia-6.9b-tulu"]
+          "llama3-8b", "llama3-8b-instruct", "pythia-6.9b", "pythia-6.9b-tulu",
+          "olmo2-7b-instruct", # "olmo2-7b", "gemma2b-it",
+        ]
 
 model_names = {
     "gpt2": "GPT 2",

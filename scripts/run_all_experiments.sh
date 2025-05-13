@@ -3,7 +3,8 @@ set -euo pipefail
 
 DATASET="ud_gum_dataset"
 # MODELS="gpt2 qwen2-instruct qwen2 pythia1.4b gemma2b bert-base-uncased bert-large-uncased distilbert-base-uncased deberta-v3-large"
-MODELS="gpt2-large gpt2-xl"
+# MODELS="gpt2-large gpt2-xl"
+MODELS="gpt2-large gpt2-xl gemma2b-it"
 PROBE_TYPES="nn reg"
 
 for MODEL in $MODELS; do
@@ -24,12 +25,15 @@ for MODEL in $MODELS; do
         fi
 
         echo "Running pipeline for $MODEL ($PROBE_TYPE, pca=$PCA_DIM)"
-        python3 -u -m src.experiment \
-            --model "$MODEL" \
-            --dataset "$DATASET" \
-            --probe_type "$PROBE_TYPE" \
-            --pca_dim "$PCA_DIM" \
-            --no_analysis
+        CMD="python3 -u -m src.experiment \
+            --model \"$MODEL\" \
+            --dataset \"$DATASET\" \
+            --probe_type \"$PROBE_TYPE\""
+        if [ "$PCA_DIM" -gt 0 ]; then
+            CMD="$CMD --pca_dim \"$PCA_DIM\""
+        fi
+        CMD="$CMD --no_analysis"
+        eval "$CMD"
     done
 done
 
