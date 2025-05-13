@@ -44,11 +44,26 @@ def extract_and_save(data_path, output_dir, model_key):
 
         batch_array = activations.cpu().numpy()
 
-        # zero-pad the part index so shard_00001.npz sorts after shard_00002, etc.
+        # write to a temp file first, then atomically rename
         fname = f"activations_part_{part_idx:05d}.npz"
         path = os.path.join(output_dir, fname)
-        np.savez_compressed(path, activations=batch_array)
-        shard_paths.append(path)
+        tmp_path = path + ".tmp"
+        try:
+            # save to .tmp
+            np.savez_compressed(tmp_path, activations=batch_array)
+            # quick self-check: can we reopen it and see the right key?
+            with np.load(tmp_path) as data:
+                assert "activations" in data
+            # atomic replace
+            os.replace(tmp_path, path)
+            shard_paths.append(path)
+        except Exception as e:
+            # cleanup any bad temp file
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            raise RuntimeError(
+                f"Failed to write shard {fname}: {e}"
+            ) from e
 
     utils.log_info(f"Saved {len(shard_paths)} activation shards to {output_dir}")
     

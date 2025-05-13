@@ -25,9 +25,14 @@ def load_layer(shards, layer_idx):
     parts = []
     for shard in shards:
         try:
-            arr = np.load(shard, mmap_mode="r")["activations"]
+            with np.load(shard, mmap_mode="r") as data:
+                arr = data["activations"]
+        except EOFError:
+            raise RuntimeError(f"Corrupt or empty shard: {shard}")
         except Exception:
-            arr = np.load(shard)["activations"]
+            # fallback if mmap fails for another reason
+            with np.load(shard) as data:
+                arr = data["activations"]
         parts.append(arr[:, layer_idx, :])
     return np.concatenate(parts, axis=0)
 
