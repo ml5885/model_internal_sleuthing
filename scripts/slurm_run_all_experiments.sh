@@ -8,7 +8,7 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:L40S:1
 #SBATCH --mem=64G
-#SBATCH --array=0-5
+#SBATCH --array=0
 
 export HF_HOME=/data/user_data/ml6/.hf_cache
 export HF_HUB_CACHE=/data/hf_cache/hub
@@ -31,7 +31,7 @@ conda activate llm_probing
 cd /home/ml6/lexeme-inflection-probing
 
 # MODELS=("llama3-8b" "llama3-8b-instruct" "pythia-6.9b" "pythia-6.9b-tulu" "qwen2" "qwen2-instruct")
-MODELS=("olmo2-7b" "olmo2-7b-instruct" "gemma2b-it")
+MODELS=("olmo2-7b")
 PROBES=("reg" "nn")
 
 MODEL_IDX=$((SLURM_ARRAY_TASK_ID / ${#PROBES[@]}))
@@ -40,9 +40,10 @@ PROBE_IDX=$((SLURM_ARRAY_TASK_ID % ${#PROBES[@]}))
 MODEL=${MODELS[$MODEL_IDX]}
 PROBE=${PROBES[$PROBE_IDX]}
 
+MODEL=${MODELS[0]}
+PROBE=${PROBES[$SLURM_ARRAY_TASK_ID]}
+
 DATASET="ud_gum_dataset"
-# PCA_DIM=50
-# PCA_SUFFIX="_pca_${PCA_DIM}"
 
 echo "=== model=${MODEL}, probe_type=${PROBE} ==="
 
