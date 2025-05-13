@@ -13,10 +13,7 @@
 export HF_HOME=/data/user_data/ml6/.hf_cache
 export HF_HUB_CACHE=/data/hf_cache/hub
 export HF_DATASETS_CACHE=/data/hf_cache/datasets
-# export HF_HUB_OFFLINE=1
-
-export HUGGINGFACE_HUB_CACHE=/data/hf_cache/hub
-export TRANSFORMERS_CACHE=/data/hf_cache/hub
+export HF_HUB_OFFLINE=0
 
 mkdir -p /home/ml6/logs/sbatch
 mkdir -p /data/user_data/ml6/.hf_cache
