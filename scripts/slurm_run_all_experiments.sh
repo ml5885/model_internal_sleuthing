@@ -8,7 +8,7 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:A6000:1
 #SBATCH --mem=64G
-#SBATCH --array=0-1
+#SBATCH --array=0-3
 
 export HF_HOME=/data/user_data/ml6/.hf_cache
 export HF_HUB_CACHE=/data/hf_cache/hub
@@ -31,7 +31,7 @@ conda activate llm_probing
 cd /home/ml6/lexeme-inflection-probing
 
 # MODELS=("llama3-8b" "llama3-8b-instruct" "pythia-6.9b" "pythia-6.9b-tulu" "qwen2" "qwen2-instruct")
-MODELS=("llama3-8b")
+MODELS=("olmo2-7b" "olmo2-7b-instruct")
 PROBES=("reg" "nn")
 
 MODEL_IDX=$((SLURM_ARRAY_TASK_ID / ${#PROBES[@]}))
@@ -41,16 +41,16 @@ MODEL=${MODELS[$MODEL_IDX]}
 PROBE=${PROBES[$PROBE_IDX]}
 
 DATASET="ud_gum_dataset"
-PCA_DIM=50
-PCA_SUFFIX="_pca_${PCA_DIM}"
+# PCA_DIM=50
+# PCA_SUFFIX="_pca_${PCA_DIM}"
 
-echo "=== model=${MODEL}, probe_type=${PROBE}, pca_dim=${PCA_DIM} ==="
+echo "=== model=${MODEL}, probe_type=${PROBE} ==="
 
 python -m src.experiment \
     --model "${MODEL}" \
     --dataset "${DATASET}" \
     --probe_type "${PROBE}" \
-    --pca_dim "${PCA_DIM}" \
+#    --pca_dim "${PCA_DIM}" \
     --activations_dir "${REMOTE_ACTIVATIONS}" \
     --output_dir "${LOCAL_PROBES}" \
     --no_analysis

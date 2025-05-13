@@ -2,7 +2,8 @@
 set -euo pipefail
 
 DATASET="ud_gum_dataset"
-MODELS="gpt2 qwen2-instruct qwen2 pythia1.4b gemma2b bert-base-uncased bert-large-uncased distilbert-base-uncased deberta-v3-large"
+# MODELS="gpt2 qwen2-instruct qwen2 pythia1.4b gemma2b bert-base-uncased bert-large-uncased distilbert-base-uncased deberta-v3-large"
+MODELS="gpt2-large gpt2-xl gemma2b-it"
 
 for MODEL in $MODELS; do
     PROBE_TYPE="$1"

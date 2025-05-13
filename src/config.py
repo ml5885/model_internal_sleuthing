@@ -52,8 +52,8 @@ MODEL_CONFIGS = {
     },
     
     "gemma2b-it": {
-        "model_name": "google/gemma-2b-it",
-        "tokenizer_name": "google/gemma-2b-it",
+        "model_name": "google/gemma-2-2b-it",
+        "tokenizer_name": "google/gemma-2-2b-it",
         "max_length": 128,
         "batch_size": 32,
     },
