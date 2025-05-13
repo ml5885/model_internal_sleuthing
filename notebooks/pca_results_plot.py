@@ -220,9 +220,10 @@ def plot_pca_results(
 
             if not isinstance(explained_var, list):
                 explained_var = [explained_var]
-            components = np.arange(1, len(explained_var) + 1)
+            # components = np.arange(1, len(explained_var) + 1)
+            layers = df["Layer"].tolist()
             ax2.plot(
-                components, explained_var[:pca_dim],
+                layers[:pca_dim], explained_var[:pca_dim],
                 label=model_names.get(model, model),
                 linewidth=2,
                 color=pastel_colors[i]
@@ -233,7 +234,7 @@ def plot_pca_results(
         except Exception as e:
             print(f"Error plotting PCA_ExplainedVar for {model}: {e}")
             continue
-    ax2.set_xlabel("PCA Component", fontsize=18)
+    ax2.set_xlabel("Layer", fontsize=18)
     ax2.set_ylabel("Explained Variance Ratio", fontsize=18)
     ax2.set_title(f"PCA Explained Variance (Top {pca_dim} Components)", fontsize=20)
     ax2.legend(fontsize=14, ncol=len(model_list) // 2, loc='upper center', bbox_to_anchor=(0.5, -0.15))

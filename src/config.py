@@ -14,6 +14,18 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
+    "gpt2-xl": {
+        "model_name": "openai-community/gpt2-xl",
+        "tokenizer_name": "openai-community/gpt2-xl",
+        "max_length": 128,
+        "batch_size": 32,
+    },
+    "gpt2-large": {
+        "model_name": "openai-community/gpt2-large",
+        "tokenizer_name": "openai-community/gpt2-large",
+        "max_length": 128,
+        "batch_size": 32,
+    },
     "qwen2-instruct": {
         "model_name": "Qwen/Qwen2.5-1.5B-Instruct",
         "tokenizer_name": "Qwen/Qwen2.5-1.5B-Instruct",
@@ -38,6 +50,25 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
+    
+    "gemma2b-it": {
+        "model_name": "google/gemma-2b-it",
+        "tokenizer_name": "google/gemma-2b-it",
+        "max_length": 128,
+        "batch_size": 32,
+    },
+    "olmo2-7b": {
+          "model_name": "allenai/OLMo-2-1124-7B",
+          "tokenizer_name": "allenai/OLMo-2-1124-7B",
+          "max_length": 128,
+          "batch_size": 32,
+     },
+     "olmo2-7b-instruct": {
+          "model_name": "allenai/OLMo-2-1124-7B-Instruct",
+          "tokenizer_name": "allenai/OLMo-2-1124-7B-Instruct",
+          "max_length": 128,
+          "batch_size": 32,
+     },
     
     # Encoder-only masked-LMs
     "bert-base-uncased": {

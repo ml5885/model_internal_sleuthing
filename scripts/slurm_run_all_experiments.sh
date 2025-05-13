@@ -8,23 +8,19 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:A6000:1
 #SBATCH --mem=64G
-#SBATCH --array=0-3
+#SBATCH --array=0-1
 
 export HF_HOME=/data/user_data/ml6/.hf_cache
 export HF_HUB_CACHE=/data/hf_cache/hub
 export HF_DATASETS_CACHE=/data/hf_cache/datasets
 export HF_HUB_OFFLINE=1
 
-# prepare log & cache dirs
 mkdir -p /home/ml6/logs/sbatch
 mkdir -p /data/user_data/ml6/.hf_cache
 
-# where activations should go
-REMOTE_ACTIVATIONS="/data/user_data/ml6/probing_outputs/activations"
-# where we want probe CSVs locally
+REMOTE_ACTIVATIONS="/data/user_data/ml6/probing_outputs"
 LOCAL_PROBES="/home/ml6/lexeme-inflection-probing/output/probes"
 
-mkdir -p "${REMOTE_ACTIVATIONS}"
 mkdir -p "${LOCAL_PROBES}"
 
 export CUDA_VISIBLE_DEVICES=0
@@ -64,4 +60,4 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "Done. Probe results are in ${LOCAL_PROBES}."
+echo "Done. Probe CSVs are in ${LOCAL_PROBES}."
