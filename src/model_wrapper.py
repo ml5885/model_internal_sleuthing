@@ -17,7 +17,7 @@ class ModelWrapper:
         self.model = AutoModel.from_pretrained(
             self.model_config["model_name"],
             output_hidden_states=True,
-            local_files_only="false", # hardcode 
+            local_files_only=False, # hardcode 
             trust_remote_code=self.model_config.get("trust_remote_code", False) # for deepseek
         )
 
@@ -26,7 +26,7 @@ class ModelWrapper:
                 self.model_config["tokenizer_name"],
                 add_prefix_space=True,
                 use_fast=True,
-                local_files_only="false", # hardcode
+                local_files_only=False, # hardcode
                 trust_remote_code=self.model_config.get("trust_remote_code", False)
             )
         except Exception as fast_err:
@@ -39,7 +39,7 @@ class ModelWrapper:
                     self.model_config["tokenizer_name"],
                     add_prefix_space=True,
                     use_fast=False,
-                    local_files_only="false", # hardcode
+                    local_files_only=False, # hardcode
                     trust_remote_code=self.model_config.get("trust_remote_code", False)
                 )
             except Exception as slow_err:
