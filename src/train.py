@@ -158,7 +158,7 @@ def parse_args():
     parser.add_argument("--lambda_reg", type=float, default=1e-3)
     parser.add_argument("--exp_label", default="exp")
     parser.add_argument("--dataset", required=True)
-    parser.add_argument("--probe_type", choices=["reg", "mlp", "nn"], default="reg")
+    parser.add_argument("--probe_type", choices=["reg", "mlp", "nn", "rf"], default="reg")
     parser.add_argument("--pca_dim", type=int, default=0)
     parser.add_argument("--output_dir", type=str, default=None,
                         help="Custom output directory for results")

@@ -7,6 +7,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score, top_k_accuracy_score
 from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestClassifier
 from src import config, utils
 from sklearn.model_selection import train_test_split
 import pandas as pd
@@ -195,6 +196,14 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
             n_classes=n_classes,
         )
         control_scores = control_model.predict(X_test, batch_size=bs)
+    elif probe_type == "rf":
+        rf = RandomForestClassifier(n_estimators=100, random_state=seed)
+        rf.fit(X_train, y_train)
+        scores = rf.predict_proba(X_test)
+
+        rf_control = RandomForestClassifier(n_estimators=100, random_state=seed)
+        rf_control.fit(X_train, yc_train_m)
+        control_scores = rf_control.predict_proba(X_test)
     else:
         scores = solve_ridge(X_train, y_train, X_test, lambda_reg, n_classes)
         control_scores = solve_ridge(X_train, yc_train_m, X_test, lambda_reg, n_classes)

@@ -67,8 +67,8 @@ def main():
     parser.add_argument("--lambda_reg", type=float, default=1e-3,
                         help="Regularization parameter for probes.")
     parser.add_argument("--probe_type", type=str, default="reg",
-                        choices=["reg", "mlp", "nn"],
-                        help="Type of probe to use (regression or neural network).")
+                        choices=["reg", "mlp", "nn", "rf"],
+                        help="Type of probe to use (regression, neural network or random forest).")
     parser.add_argument("--pca_dim", type=int, default=0,
                         help="Dimensionality for PCA reduction.")
     parser.add_argument("--no_analysis", action="store_true",

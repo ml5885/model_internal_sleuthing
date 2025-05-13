@@ -12,22 +12,27 @@ plt.rcParams.update({"font.size": 12})
 palette = sns.color_palette("Set2")
 
 models = ["bert-base-uncased", "bert-large-uncased", "deberta-v3-large",
-          "gpt2", "qwen2", "qwen2-instruct", "gemma2b", "pythia1.4b",
-          "llama3-8b", "llama3-8b-instruct", "pythia-6.9b", "pythia-6.9b-tulu"]
+          "gpt2", "qwen2", "qwen2-instruct", "gemma2b", # "pythia1.4b",
+          "llama3-8b", "llama3-8b-instruct", "pythia-6.9b", "pythia-6.9b-tulu",
+          "olmo2-7b-instruct", # "olmo2-7b", "gemma2b-it",
+        ]
 
 model_names = {
-    "gpt2": "GPT 2",
-    "qwen2": "Qwen 2.5 1.5B",
-    "qwen2-instruct": "Qwen 2.5 1.5B-Instruct",
-    "pythia1.4b": "Pythia 1.4B",
-    "gemma2b": "Gemma 2 2B",
-    "bert-base-uncased": "BERT Base Uncased",
-    "bert-large-uncased": "BERT Large Uncased",
-    "deberta-v3-large": "DeBERTa v3 Large",
-    "llama3-8b": "Llama 3 8B",
-    "llama3-8b-instruct": "Llama 3 8B Instruct",
-    "pythia-6.9b": "Pythia 6.9B",
-    "pythia-6.9b-tulu": "Pythia 6.9B Tulu",
+    "gpt2": "GPT-2",
+    "qwen2": "Qwen2.5-1.5B",
+    "qwen2-instruct": "Qwen2.5-1.5B-Instruct",
+    "pythia1.4b": "Pythia-1.4B",
+    "gemma2b": "Gemma-2-2B",
+    "gemma2b-it": "Gemma-2-2B-Instruct",
+    "bert-base-uncased": "BERT-Base-Uncased",
+    "bert-large-uncased": "BERT-Large-Uncased",
+    "deberta-v3-large": "DeBERTa-v3-Large",
+    "llama3-8b": "Llama-3-8B",
+    "llama3-8b-instruct": "Llama-3-8B-Instruct",
+    "pythia-6.9b": "Pythia-6.9B",
+    "pythia-6.9b-tulu": "Pythia-6.9B-Tulu",
+    "olmo2-7b-instruct": "OLMo-2-1124-7B-Instruct",
+    "olmo2-7b": "OLMo-2-1124-7B",
 }
 
 def get_acc_columns(df, prefix):

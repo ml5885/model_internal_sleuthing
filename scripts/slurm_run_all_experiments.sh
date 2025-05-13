@@ -32,7 +32,7 @@ cd /home/ml6/lexeme-inflection-probing
 
 # MODELS=("llama3-8b" "llama3-8b-instruct" "pythia-6.9b" "pythia-6.9b-tulu" "qwen2" "qwen2-instruct")
 MODELS=("olmo2-7b")
-PROBES=("reg" "nn")
+PROBES=("reg" "nn" "rf")
 
 MODEL_IDX=$((SLURM_ARRAY_TASK_ID / ${#PROBES[@]}))
 PROBE_IDX=$((SLURM_ARRAY_TASK_ID % ${#PROBES[@]}))

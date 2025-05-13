@@ -2,10 +2,10 @@
 set -euo pipefail
 
 DATASET="ud_gum_dataset"
-# MODELS="gpt2 qwen2-instruct qwen2 pythia1.4b gemma2b bert-base-uncased bert-large-uncased distilbert-base-uncased deberta-v3-large"
+# MODELS="gpt2 gpt2-large gpt2-xl qwen2-instruct qwen2 pythia1.4b gemma2b gemma2b-it bert-base-uncased bert-large-uncased deberta-v3-large"
 # MODELS="gpt2-large gpt2-xl"
 MODELS="gpt2-large gpt2-xl gemma2b-it"
-PROBE_TYPES="nn reg"
+PROBE_TYPES="nn reg rf"
 
 for MODEL in $MODELS; do
     PCA_DIM="$1"
