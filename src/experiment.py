@@ -84,6 +84,8 @@ def main():
     probe_type = args.probe_type
     pca_dim = args.pca_dim
     pca = pca_dim > 0
+    
+    
 
     # 1) extract (or re-use) activations
     reps = run_activation_extraction(model_key, dataset, args.activations_dir)
