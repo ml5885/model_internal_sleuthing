@@ -13,7 +13,7 @@
 export HF_HOME=/data/user_data/ml6/.hf_cache
 export HF_HUB_CACHE=/data/hf_cache/hub
 export HF_DATASETS_CACHE=/data/hf_cache/datasets
-export HF_HUB_OFFLINE=0
+export HF_HUB_OFFLINE=0-3
 
 mkdir -p /home/ml6/logs/sbatch
 mkdir -p /data/user_data/ml6/.hf_cache
@@ -31,8 +31,9 @@ conda activate llm_probing
 cd /home/ml6/lexeme-inflection-probing
 
 # MODELS=("llama3-8b" "llama3-8b-instruct" "pythia-6.9b" "pythia-6.9b-tulu" "qwen2" "qwen2-instruct")
-MODELS=("olmo2-7b")
-PROBES=("reg" "nn" "rf")
+# PROBES=("reg" "nn" "rf")
+MODELS=("gpt2-xl" "gemma2b-it")
+PROBES=("nn" "reg")
 
 MODEL_IDX=$((SLURM_ARRAY_TASK_ID / ${#PROBES[@]}))
 PROBE_IDX=$((SLURM_ARRAY_TASK_ID % ${#PROBES[@]}))
@@ -40,8 +41,8 @@ PROBE_IDX=$((SLURM_ARRAY_TASK_ID % ${#PROBES[@]}))
 MODEL=${MODELS[$MODEL_IDX]}
 PROBE=${PROBES[$PROBE_IDX]}
 
-MODEL=${MODELS[0]}
-PROBE=${PROBES[$SLURM_ARRAY_TASK_ID]}
+# MODEL=${MODELS[0]}
+# PROBE=${PROBES[$SLURM_ARRAY_TASK_ID]}
 
 DATASET="ud_gum_dataset"
 

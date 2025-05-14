@@ -7,7 +7,7 @@ from transformers import PreTrainedTokenizerFast
 import json
 
 class ModelWrapper:
-    def __init__(self, model_key: str):
+    def __init__(self, model_key: str, revision: str = None):
         if model_key not in config.MODEL_CONFIGS:
             raise ValueError(f"Unknown model key: {model_key}")
 
@@ -16,32 +16,30 @@ class ModelWrapper:
 
         self.model = AutoModel.from_pretrained(
             self.model_config["model_name"],
+            revision=revision,
             output_hidden_states=True,
-            trust_remote_code=self.model_config.get("trust_remote_code", False) # for deepseek
+            trust_remote_code=self.model_config.get("trust_remote_code", False)
         )
 
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(
                 self.model_config["tokenizer_name"],
+                revision=revision,
                 add_prefix_space=True,
                 use_fast=True,
                 trust_remote_code=self.model_config.get("trust_remote_code", False)
             )
         except Exception as fast_err:
             utils.log_info(
-                f"Fast tokenizer load failed for '{model_key}' ({fast_err}); "
-                "falling back to slow Python tokenizer."
+                f"Fast tokenizer load failed for '{model_key}' ({fast_err}); falling back to slow Python tokenizer."
             )
-            try:
-                self.tokenizer = AutoTokenizer.from_pretrained(
-                    self.model_config["tokenizer_name"],
-                    add_prefix_space=True,
-                    use_fast=False,
-                    trust_remote_code=self.model_config.get("trust_remote_code", False)
-                )
-            except Exception as slow_err:
-                utils.log_info(f"Slow tokenizer load failed for '{model_key}' ({slow_err}).")
-                raise ImportError("Failed to load tokenizer.") from slow_err
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.model_config["tokenizer_name"],
+                revision=revision,
+                add_prefix_space=True,
+                use_fast=False,
+                trust_remote_code=self.model_config.get("trust_remote_code", False)
+            )
 
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token

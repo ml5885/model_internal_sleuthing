@@ -43,6 +43,13 @@ MODEL_CONFIGS = {
         "tokenizer_name": "EleutherAI/pythia-1.4b",
         "max_length": 128,
         "batch_size": 32,
+        # Representative snapshots: initial, end of log-spaced, start of uniform checkpoints, final 
+        "checkpoints": [
+            "step0",
+            "step512",
+            "step1000",
+            "step143000",
+        ],
     },
     "gemma2b": {
         "model_name": "google/gemma-2-2b",
@@ -50,7 +57,6 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
-    
     "gemma2b-it": {
         "model_name": "google/gemma-2-2b-it",
         "tokenizer_name": "google/gemma-2-2b-it",
@@ -58,18 +64,24 @@ MODEL_CONFIGS = {
         "batch_size": 32,
     },
     "olmo2-7b": {
-          "model_name": "allenai/OLMo-2-1124-7B",
-          "tokenizer_name": "allenai/OLMo-2-1124-7B",
-          "max_length": 128,
-          "batch_size": 32,
-     },
-     "olmo2-7b-instruct": {
-          "model_name": "allenai/OLMo-2-1124-7B-Instruct",
-          "tokenizer_name": "allenai/OLMo-2-1124-7B-Instruct",
-          "max_length": 128,
-          "batch_size": 32,
-     },
-    
+        "model_name": "allenai/OLMo-2-1124-7B",
+        "tokenizer_name": "allenai/OLMo-2-1124-7B",
+        "max_length": 128,
+        "batch_size": 32,
+        # Checkpoints every 1000 steps, naming: stepXXX-tokensYYYB; picking early, mid, late, final 
+        "checkpoints": [
+            "step1000-tokens5B",
+            "step286000-tokens1200B",
+            "step600000-tokens2500B",
+            "main",
+        ],
+    },
+    "olmo2-7b-instruct": {
+        "model_name": "allenai/OLMo-2-1124-7B-Instruct",
+        "tokenizer_name": "allenai/OLMo-2-1124-7B-Instruct",
+        "max_length": 128,
+        "batch_size": 32,
+    },
     # Encoder-only masked-LMs
     "bert-base-uncased": {
         "model_name": "google-bert/bert-base-uncased",
@@ -95,7 +107,6 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
-    
     # Meta Llama models
     "llama3-8b": {
         "model_name": "meta-llama/Llama-3.1-8B",
@@ -109,52 +120,21 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
-    
     "pythia-6.9b": {
         "model_name": "EleutherAI/pythia-6.9b",
         "tokenizer_name": "EleutherAI/pythia-6.9b",
         "max_length": 128,
         "batch_size": 32,
+        "checkpoints": [
+            "step0",
+            "step512",
+            "step1000",
+            "step143000",
+        ],
     },
     "pythia-6.9b-tulu": {
         "model_name": "allenai/open-instruct-pythia-6.9b-tulu",
         "tokenizer_name": "allenai/open-instruct-pythia-6.9b-tulu",
-        "max_length": 128,
-        "batch_size": 32,
-    },
-
-    # More open models
-    "gpt-neo-2.7b": {
-        "model_name": "EleutherAI/gpt-neo-2.7B",
-        "tokenizer_name": "EleutherAI/gpt-neo-2.7B",
-        "max_length": 128,
-        "batch_size": 32,
-    },
-    "opt-2.7b": {
-        "model_name": "facebook/opt-2.7b",
-        "tokenizer_name": "facebook/opt-2.7b",
-        "max_length": 128,
-        "batch_size": 32,
-    },
-    "pythia2.8b": {
-        "model_name": "EleutherAI/pythia-2.8b-v0",
-        "tokenizer_name": "EleutherAI/pythia-2.8b-v0",
-        "max_length": 128,
-        "batch_size": 32,
-    },
-
-    # Reasoning models
-    "deepseek-r1-distill-qwen-7b": {
-        "model_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
-        "tokenizer_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
-        "trust_remote_code": True,
-        "max_length": 128,
-        "batch_size": 32,
-    },
-    "deepseek-r1-distill-llama-8b": {
-        "model_name": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
-        "tokenizer_name": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
-        "trust_remote_code": True,
         "max_length": 128,
         "batch_size": 32,
     },
