@@ -38,19 +38,12 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
-    "pythia1.4b": {
-        "model_name": "EleutherAI/pythia-1.4b",
-        "tokenizer_name": "EleutherAI/pythia-1.4b",
-        "max_length": 128,
-        "batch_size": 32,
-        # Representative snapshots: initial, end of log-spaced, start of uniform checkpoints, final 
-        "checkpoints": [
-            "step0",
-            "step512",
-            "step1000",
-            "step143000",
-        ],
-    },
+    # "pythia1.4b": {
+    #     "model_name": "EleutherAI/pythia-1.4b",
+    #     "tokenizer_name": "EleutherAI/pythia-1.4b",
+    #     "max_length": 128,
+    #     "batch_size": 32
+    # },
     "gemma2b": {
         "model_name": "google/gemma-2-2b",
         "tokenizer_name": "google/gemma-2-2b",
@@ -68,7 +61,6 @@ MODEL_CONFIGS = {
         "tokenizer_name": "allenai/OLMo-2-1124-7B",
         "max_length": 128,
         "batch_size": 32,
-        # Checkpoints every 1000 steps, naming: stepXXX-tokensYYYB; picking early, mid, late, final 
         "checkpoints": [
             "step1000-tokens5B",
             "step286000-tokens1200B",

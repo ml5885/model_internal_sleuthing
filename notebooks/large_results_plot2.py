@@ -13,11 +13,15 @@ sns.set_style("white")
 mpl.rcParams["figure.dpi"] = 150
 plt.rcParams.update({"font.size": 12})
 
-models = ["bert-base-uncased", "bert-large-uncased", "deberta-v3-large",
-          "gpt2", "gpt2-large", "gpt2-xl", "qwen2", "qwen2-instruct", "gemma2b",
-          "llama3-8b", "llama3-8b-instruct", "pythia-6.9b", "pythia-6.9b-tulu",
-          "olmo2-7b-instruct", # "olmo2-7b", "gemma2b-it",
+models = ["bert-base", "bert-large", "deberta-v3-large",
+          "gpt2", "gpt2-large", "gpt2-xl", 
+          "pythia-6.9b", "pythia-6.9b-tulu", 
+          "olmo2-7b-instruct", "olmo2-7b",
+          "gemma2b", "gemma2b-it", 
+          "qwen2", "qwen2-instruct",
+          "llama3-8b", "llama3-8b-instruct", 
         ]
+# models = ["gpt2", "gpt2-large", "gpt2-xl", "gemma2b", "gemma2b-it", "olmo2-7b-instruct", "olmo2-7b"]
 
 model_names = {
     "gpt2": "GPT-2-Small",
@@ -28,8 +32,8 @@ model_names = {
     "pythia1.4b": "Pythia-1.4B",
     "gemma2b": "Gemma-2-2B",
     "gemma2b-it": "Gemma-2-2B-Instruct",
-    "bert-base-uncased": "BERT-Base-Uncased",
-    "bert-large-uncased": "BERT-Large-Uncased",
+    "bert-base-uncased": "BERT-Base",
+    "bert-large-uncased": "BERT-Large",
     "deberta-v3-large": "DeBERTa-v3-Large",
     "llama3-8b": "Llama-3-8B",
     "llama3-8b-instruct": "Llama-3-8B-Instruct",
@@ -184,6 +188,7 @@ def plot_combined_probes(
             if row == n_rows - 1:
                 axes[row, col].set_xlabel("Layer (relative % of model)", fontsize=20, labelpad=15)
                 axes[row, col].set_xticks(np.arange(0.2, 1.1, 0.2))
+                axes[row, col].set_xticklabels([f"{x*100:.0f}" for x in np.arange(0.2, 1.1, 0.2)])
                 axes[row, col].tick_params(axis="x", labelsize=18, width=2, length=10)
             else:
                 axes[row, col].set_xticklabels([])
@@ -215,12 +220,12 @@ def plot_combined_probes(
         loc="upper center",
         fontsize=20,
         frameon=True,
-        ncol=6,  # Increased number of columns for a wider legend
+        ncol=6,
         bbox_to_anchor=(0.5, 0.02),
         borderaxespad=2.0,
         fancybox=True,
         title="Models",
-        title_fontsize=22  # Increased title font size
+        title_fontsize=22
     )
 
     regression_df = pd.DataFrame(all_regression_results)

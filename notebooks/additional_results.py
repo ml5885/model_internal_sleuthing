@@ -12,13 +12,15 @@ plt.rcParams.update({"font.size": 12})
 palette = sns.color_palette("Set2")
 
 models = ["bert-base-uncased", "bert-large-uncased", "deberta-v3-large",
-          "gpt2", "qwen2", "qwen2-instruct", "gemma2b", # "pythia1.4b",
-          "llama3-8b", "llama3-8b-instruct", "pythia-6.9b", "pythia-6.9b-tulu",
-          "olmo2-7b-instruct", # "olmo2-7b", "gemma2b-it",
+          "gpt2", "gpt2-large", "gpt2-xl", "qwen2", "qwen2-instruct", "gemma2b",
+          "gemma2b-it", "llama3-8b", "llama3-8b-instruct", "pythia-6.9b", 
+          "pythia-6.9b-tulu", "olmo2-7b-instruct", "olmo2-7b"
         ]
 
 model_names = {
-    "gpt2": "GPT-2",
+    "gpt2": "GPT-2-Small",
+    "gpt2-large": "GPT-2-Large",
+    "gpt2-xl": "GPT-2-XL",
     "qwen2": "Qwen2.5-1.5B",
     "qwen2-instruct": "Qwen2.5-1.5B-Instruct",
     "pythia1.4b": "Pythia-1.4B",
@@ -53,7 +55,7 @@ def plot_selectivity_comparison(
     probe_type: str = "reg",
     output_dir: str = "figures2",
 ):
-    n_cols = 3
+    n_cols = 4
     n_rows = (len(model_list) + n_cols - 1) // n_cols
     fig, axes = plt.subplots(n_rows, n_cols,
                              figsize=(4 * n_cols, 6 * n_rows // 2),
@@ -160,7 +162,7 @@ def plot_probe_advantage(
     dataset: str,
     output_dir: str = "figures2",
 ):
-    n_cols = 3
+    n_cols = 4
     n_rows = (len(model_list) + n_cols - 1) // n_cols
     fig, axes = plt.subplots(n_rows, n_cols,
                              figsize=(4 * n_cols, 6 * n_rows // 2),

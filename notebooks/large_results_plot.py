@@ -10,25 +10,31 @@ sns.set_style("white")
 mpl.rcParams["figure.dpi"] = 150
 plt.rcParams.update({"font.size": 12})
 
-# models = ["bert-base-uncased", "bert-large-uncased", "deberta-v3-large",
+# models = ["bert-base", "bert-large", "deberta-v3-large",
 #           "gpt2", "qwen2", "qwen2-instruct", "gemma2b", "pythia1.4b",
 #           "llama3-8b", "llama3-8b-instruct", "pythia-6.9b", "pythia-6.9b-tulu"]
-models = ["llama3-8b", "llama3-8b-instruct"]
+models = ["gpt2", "gpt2-large", "gpt2-xl", "gemma2b", "gemma2b-it", "olmo2-7b-instruct", "olmo2-7b"]
 
 model_names = {
-    "gpt2": "GPT 2",
-    "qwen2": "Qwen 2.5 1.5B",
-    "qwen2-instruct": "Qwen 2.5 1.5B-Instruct",
-    "pythia1.4b": "Pythia 1.4B",
-    "gemma2b": "Gemma 2 2B",
-    "bert-base-uncased": "BERT Base Uncased",
-    "bert-large-uncased": "BERT Large Uncased",
-    "deberta-v3-large": "DeBERTa v3 Large",
-    "llama3-8b": "Llama 3 8B",
-    "llama3-8b-instruct": "Llama 3 8B Instruct",
-    "pythia-6.9b": "Pythia 6.9B",
-    "pythia-6.9b-tulu": "Pythia 6.9B Tulu",
+    "gpt2": "GPT-2-Small",
+    "gpt2-large": "GPT-2-Large",
+    "gpt2-xl": "GPT-2-XL",
+    "qwen2": "Qwen2.5-1.5B",
+    "qwen2-instruct": "Qwen2.5-1.5B-Instruct",
+    "pythia1.4b": "Pythia-1.4B",
+    "gemma2b": "Gemma-2-2B",
+    "gemma2b-it": "Gemma-2-2B-Instruct",
+    "bert-base-uncased": "BERT-Base",
+    "bert-large-uncased": "BERT-Large",
+    "deberta-v3-large": "DeBERTa-v3-Large",
+    "llama3-8b": "Llama-3-8B",
+    "llama3-8b-instruct": "Llama-3-8B-Instruct",
+    "pythia-6.9b": "Pythia-6.9B",
+    "pythia-6.9b-tulu": "Pythia-6.9B-Tulu",
+    "olmo2-7b-instruct": "OLMo-2-1124-7B-Instruct",
+    "olmo2-7b": "OLMo-2-1124-7B",
 }
+
 
 def get_acc_columns(df, prefix):
     if f"{prefix}_Accuracy" in df.columns and f"{prefix}_ControlAccuracy" in df.columns:
@@ -167,7 +173,7 @@ def plot_all_probes(
             ax_pca.tick_params(axis="x", rotation=45, labelsize=14)
             ax_pca.tick_params(axis="y", labelsize=14)
 
-    left_pad = -0.15
+    left_pad = -0.02
     fig.text(left_pad, 0.75, "Linear probe", va="center", rotation="vertical", fontsize=22)
     fig.text(left_pad, 0.29, "MLP probe", va="center", rotation="vertical", fontsize=22)
 

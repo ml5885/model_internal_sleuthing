@@ -8,12 +8,12 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:L40S:1
 #SBATCH --mem=64G
-#SBATCH --array=0
+#SBATCH --array=0-5
 
 export HF_HOME=/data/user_data/ml6/.hf_cache
 export HF_HUB_CACHE=/data/hf_cache/hub
 export HF_DATASETS_CACHE=/data/hf_cache/datasets
-export HF_HUB_OFFLINE=0-3
+export HF_HUB_OFFLINE=0
 
 mkdir -p /home/ml6/logs/sbatch
 mkdir -p /data/user_data/ml6/.hf_cache
@@ -30,10 +30,8 @@ conda activate llm_probing
 
 cd /home/ml6/lexeme-inflection-probing
 
-# MODELS=("llama3-8b" "llama3-8b-instruct" "pythia-6.9b" "pythia-6.9b-tulu" "qwen2" "qwen2-instruct")
-# PROBES=("reg" "nn" "rf")
-MODELS=("gpt2-xl" "gemma2b-it")
-PROBES=("nn" "reg")
+MODELS=("llama3-8b" "llama3-8b-instruct" "pythia-6.9b" "pythia-6.9b-tulu" "olmo2-7b" "olmo2-7b-instruct")
+PROBES=("rf")
 
 MODEL_IDX=$((SLURM_ARRAY_TASK_ID / ${#PROBES[@]}))
 PROBE_IDX=$((SLURM_ARRAY_TASK_ID % ${#PROBES[@]}))

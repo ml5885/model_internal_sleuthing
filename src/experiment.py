@@ -24,13 +24,15 @@ def run_activation_extraction(model_key, dataset, revision=None, activations_dir
 
     utils.log_info("No existing activations found; extracting new ones...")
     print("No existing activations found; extracting new ones...")
-    subprocess.run([
+    cmd = [
         "python", "-m", "src.activation_extraction",
         "--data", dataset_file,
         "--output-dir", save_dir,
         "--model", model_key,
-        "--revision", revision
-    ], check=True)
+    ]
+    if revision is not None:
+        cmd += ["--revision", revision]
+    subprocess.run(cmd, check=True)
 
     return save_dir
 
@@ -109,8 +111,9 @@ def main():
             "--probe_type", probe_type,
             "--pca_dim", str(pca_dim),
             "--output_dir", probe_output_dirs[task],
-            "--revision", revision
         ]
+        if revision is not None:
+            exp_args += ["--revision", revision]
         utils.log_info(f"Running probe for task={task}")
         subprocess.run(["python", "-m", "src.train"] + exp_args, check=True)
 
