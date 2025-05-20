@@ -27,6 +27,6 @@ cd /home/ml6/lexeme-inflection-probing
 set -e
 
 OUTDIR="notebooks/figures5"
-MODELS="bert-base-uncased bert-large-uncased deberta-v3-large gpt2 gpt2-large gpt2-xl pythia-6.9b pythia-6.9b-tulu olmo2-7b olmo2-7b-instruct gemma2b gemma2b-it qwen2 qwen2-instruct llama3-8b llama3-8b-instruct"
+MODELS="pythia-6.9b pythia-6.9b-tulu olmo2-7b olmo2-7b-instruct llama3-8b llama3-8b-instruct"
 
 python notebooks/sanitycheck.py --models $MODELS --outdir $OUTDIR
