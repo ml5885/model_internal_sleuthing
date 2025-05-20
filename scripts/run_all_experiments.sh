@@ -12,12 +12,13 @@ for MODEL in $MODELS; do
         PCA_SUFFIX="_pca$PCA_DIM"
     fi
 
-    echo "=== model=${MODEL}, pca_dim=${PCA_DIM} ==="
+    echo "=== model=${MODEL}, pca_dim=${PCA_DIM}, probe_type=${PROBE_TYPES} ==="
 
     for PROBE_TYPE in $PROBE_TYPES; do
         OUT_LEX="output/probes/${DATASET}_${MODEL}_lexeme_${PROBE_TYPE}${PCA_SUFFIX}"
-        OUT_INF="output/probes/${DATASET}_${MODEL}_inflection_${PROBE_TYPE}${PCA_SUFFIX}"
-        if [ -d "$OUT_LEX" ] || [ -d "$OUT_INF" ]; then
+        # OUT_INF="output/probes/${DATASET}_${MODEL}_inflection_${PROBE_TYPE}${PCA_SUFFIX}"
+        # if [ -d "$OUT_LEX" ] || [ -d "$OUT_INF" ]; then
+        if [ -d "$OUT_LEX" ]; then
             echo "Skipping $MODEL/$PROBE_TYPE: already done."
             continue
         fi
@@ -26,7 +27,8 @@ for MODEL in $MODELS; do
         CMD="python3 -u -m src.experiment \
             --model \"$MODEL\" \
             --dataset \"$DATASET\" \
-            --probe_type \"$PROBE_TYPE\""
+            --probe_type \"$PROBE_TYPE\" \
+            --experiment \"lexeme\""
         if [ "$PCA_DIM" -gt 0 ]; then
             CMD="$CMD --pca_dim \"$PCA_DIM\""
         fi

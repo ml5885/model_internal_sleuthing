@@ -52,6 +52,7 @@ python -m src.experiment \
     --probe_type "${PROBE}" \
     --activations_dir "${REMOTE_ACTIVATIONS}" \
     --output_dir "${LOCAL_PROBES}" \
+    --experiment "lexeme" \
     --no_analysis
 
 if [ $? -ne 0 ]; then

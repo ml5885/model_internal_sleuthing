@@ -7,10 +7,14 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score, top_k_accuracy_score
 from sklearn.decomposition import PCA
-from sklearn.ensemble import RandomForestClassifier
-from src import config, utils
 from sklearn.model_selection import train_test_split
 import pandas as pd
+
+import h2o
+from h2o.estimators import H2ORandomForestEstimator
+
+from src import config, utils
+
 
 def get_device():
     if torch.cuda.is_available():
@@ -18,6 +22,7 @@ def get_device():
     if torch.backends.mps.is_available():
         return torch.device("mps")
     return torch.device("cpu")
+
 
 class MLPProbe(nn.Module):
     """MLP probe: one hidden ReLU layer, then softmax output."""
@@ -52,6 +57,7 @@ class MLPProbe(nn.Module):
                 chunk = torch.from_numpy(arr[i:i + batch_size]).float().to(device)
                 out.append(self(chunk).cpu())
         return torch.cat(out, dim=0).numpy()
+
 
 def train_probe(X_train, y_train, X_val, y_val, input_dim, n_classes, norm_weight=None, norm_bias=None):
     torch.manual_seed(config.SEED)
@@ -115,11 +121,13 @@ def train_probe(X_train, y_train, X_val, y_val, input_dim, n_classes, norm_weigh
     model.load_state_dict(best_state)
     return model
 
+
 def solve_ridge(X_train, y_train, X_test, lambda_reg, n_classes):
     d = X_train.shape[1]
     cov = X_train.T.dot(X_train) + lambda_reg * np.eye(d)
     W = np.linalg.solve(cov, X_train.T.dot(np.eye(n_classes)[y_train]))
     return X_test.dot(W)
+
 
 def predict(arr, model):
     bs = config.TRAIN_PARAMS["batch_size"]
@@ -133,47 +141,49 @@ def predict(arr, model):
             out.append(model(chunk).cpu())
     return torch.cat(out, dim=0).numpy()
 
+
 def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type, layer, pca_dim, outdir=None, indices=None, label_map=None, control_label_map=None):
+    uniq, counts = np.unique(y_true, return_counts=True)
+    keep_classes = uniq[counts >= 2]
+    keep_mask = np.isin(y_true, keep_classes)
+
+    X_flat = X_flat[keep_mask]
+    y_true = y_true[keep_mask]
+    y_control = y_control[keep_mask]
+
     X_train, X_temp, y_train, y_temp, yc_train, yc_temp = train_test_split(
         X_flat, y_true, y_control,
-        train_size = config.SPLIT_RATIOS["train"],
-        random_state = seed,
-        stratify = y_true
+        train_size=config.SPLIT_RATIOS["train"],
+        random_state=seed,
+        stratify=y_true
     )
 
     val_frac = config.SPLIT_RATIOS["val"] / (
         config.SPLIT_RATIOS["val"] + config.SPLIT_RATIOS["test"]
     )
-    
     temp_counts = np.bincount(y_temp)
     stratify_val = y_temp if temp_counts.min() > 1 else None
-    
+
     X_val, X_test, y_val, y_test, yc_val, yc_test = train_test_split(
         X_temp, y_temp, yc_temp,
-        train_size = val_frac,
-        random_state = seed,
-        stratify = stratify_val
+        train_size=val_frac,
+        random_state=seed,
+        stratify=stratify_val
     )
 
     pca_explained_variance = -1
-    
     if pca_dim and pca_dim < X_train.shape[1]:
         pca = PCA(n_components=pca_dim, random_state=config.SEED)
         X_train = pca.fit_transform(X_train)
         X_val = pca.transform(X_val)
         X_test = pca.transform(X_test)
-        
         pca_explained_variance = sum(pca.explained_variance_ratio_)
 
     n_classes = int(np.max(y_true) + 1)
-
     rng = np.random.RandomState(seed)
-    
     unique_controls = sorted(set(yc_train.tolist() + yc_val.tolist() + yc_test.tolist()))
-    
     perm = rng.permutation(len(unique_controls))
     control_map = {unique_controls[i]: perm[i] % n_classes for i in range(len(unique_controls))}
-    
     yc_train_m = np.array([control_map[v] for v in yc_train])
     yc_val_m = np.array([control_map[v] for v in yc_val])
     yc_test_m = np.array([control_map[v] for v in yc_test])
@@ -181,41 +191,80 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
     bs = config.TRAIN_PARAMS["batch_size"]
 
     if probe_type in ["mlp", "nn"]:
-        model = train_probe(
-            X_train, y_train,
-            X_val, y_val,
-            input_dim=X_train.shape[1],
-            n_classes=n_classes,
-        )
+        model = train_probe(X_train, y_train, X_val, y_val, input_dim=X_train.shape[1], n_classes=n_classes)
         scores = model.predict(X_test, batch_size=bs)
-
-        control_model = train_probe(
-            X_train, yc_train_m,
-            X_val, yc_val_m,
-            input_dim=X_train.shape[1],
-            n_classes=n_classes,
-        )
+        control_model = train_probe(X_train, yc_train_m, X_val, yc_val_m, input_dim=X_train.shape[1], n_classes=n_classes)
         control_scores = control_model.predict(X_test, batch_size=bs)
-    elif probe_type == "rf":
-        rf = RandomForestClassifier(n_estimators=100, random_state=seed)
-        rf.fit(X_train, y_train)
-        scores = rf.predict_proba(X_test)
 
-        rf_control = RandomForestClassifier(n_estimators=100, random_state=seed)
-        rf_control.fit(X_train, yc_train_m)
-        control_scores = rf_control.predict_proba(X_test)
+    elif probe_type == "rf":
+        # start H2O if needed
+        try:
+            h2o.cluster_info()
+        except:
+            h2o.init(nthreads=config.TRAIN_PARAMS["workers"])
+
+        # task data via CSV + import_file(header=1)
+        train_csv = os.path.join(outdir, f"train_{task}_{layer}.csv")
+        df_train = pd.DataFrame(X_train)
+        df_train["target"] = y_train
+        df_train.to_csv(train_csv, index=False)
+        hf_train = h2o.import_file(train_csv, header=1)
+        hf_train["target"] = hf_train["target"].asfactor()
+
+        test_csv = os.path.join(outdir, f"test_{task}_{layer}.csv")
+        df_test = pd.DataFrame(X_test)
+        df_test.to_csv(test_csv, index=False)
+        hf_test = h2o.import_file(test_csv, header=1)
+
+        rf_model = H2ORandomForestEstimator(
+            ntrees=config.TRAIN_PARAMS["rf_n_estimators"],
+            max_depth=config.TRAIN_PARAMS["rf_max_depth"],
+            min_rows=config.TRAIN_PARAMS["rf_min_samples_leaf"],
+            balance_classes=True,
+            seed=seed,
+            model_id=f"rf_{task}_{layer}"
+        )
+        rf_model.train(x=list(df_train.columns[:-1]), y="target", training_frame=hf_train)
+
+        pred_task = rf_model.predict(hf_test).as_data_frame()
+        prob_cols = [c for c in pred_task.columns if c.startswith("p")]
+        scores = pred_task[prob_cols].values
+        preds = pred_task["predict"].astype(int).values
+
+        # control data via CSV + import_file(header=1)
+        ctrl_csv = os.path.join(outdir, f"ctrl_{task}_{layer}.csv")
+        df_ctrl = pd.DataFrame(X_train)
+        df_ctrl["target"] = yc_train_m
+        df_ctrl.to_csv(ctrl_csv, index=False)
+        hf_ctrl_train = h2o.import_file(ctrl_csv, header=1)
+        hf_ctrl_train["target"] = hf_ctrl_train["target"].asfactor()
+
+        rf_ctrl = H2ORandomForestEstimator(
+            ntrees=config.TRAIN_PARAMS["rf_n_estimators"],
+            max_depth=config.TRAIN_PARAMS["rf_max_depth"],
+            min_rows=config.TRAIN_PARAMS["rf_min_samples_leaf"],
+            balance_classes=True,
+            seed=seed,
+            model_id=f"rf_ctrl_{task}_{layer}"
+        )
+        rf_ctrl.train(x=list(df_ctrl.columns[:-1]), y="target", training_frame=hf_ctrl_train)
+
+        pred_ctrl = rf_ctrl.predict(hf_test).as_data_frame()
+        ctrl_prob_cols = [c for c in pred_ctrl.columns if c.startswith("p")]
+        control_scores = pred_ctrl[ctrl_prob_cols].values
+        preds_control = pred_ctrl["predict"].astype(int).values
+
     else:
         scores = solve_ridge(X_train, y_train, X_test, lambda_reg, n_classes)
         control_scores = solve_ridge(X_train, yc_train_m, X_test, lambda_reg, n_classes)
+        preds = scores.argmax(1)
+        preds_control = control_scores.argmax(1)
 
-    preds = scores.argmax(1)
-    preds_control = control_scores.argmax(1)
-
-    # Map indices to string labels if mappings are provided
-    y_true_str = [label_map[y] if label_map is not None else y for y in y_test]
-    y_pred_str = [label_map[y] if label_map is not None else y for y in preds]
-    y_control_true_str = [control_label_map[y] if control_label_map is not None else y for y in yc_test_m]
-    y_control_pred_str = [control_label_map[y] if control_label_map is not None else y for y in preds_control]
+    # map back to labels
+    y_true_str = [label_map[y] if label_map else y for y in y_test]
+    y_pred_str = [label_map[y] if label_map else y for y in preds]
+    y_ctrl_str = [control_label_map[y] if control_label_map else y for y in yc_test_m]
+    y_ctrl_pred_str = [control_label_map[y] if control_label_map else y for y in preds_control]
 
     pred_df = pd.DataFrame({
         "Index": np.arange(len(y_test)) if indices is None else indices,
@@ -224,42 +273,40 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
         "y_pred": preds,
         "y_pred_str": y_pred_str,
         "y_control_true": yc_test_m,
-        "y_control_true_str": y_control_true_str,
+        "y_control_true_str": y_ctrl_str,
         "y_control_pred": preds_control,
-        "y_control_pred_str": y_control_pred_str,
+        "y_control_pred_str": y_ctrl_pred_str,
         "layer": layer
     })
 
     accuracy = (preds == y_test).mean()
     control_acc = (preds_control == yc_test_m).mean()
-
     f1 = f1_score(y_test, preds, average="macro")
     cf1 = f1_score(yc_test_m, preds_control, average="macro")
 
+    # compute top-5
     top5 = -1
     ctop5 = -1
-    
     try:
-        unique_test_classes = np.unique(y_test)
-        scores_subset = scores[:, unique_test_classes]
-        class_map = {original: new for new, original in enumerate(unique_test_classes)}
-        mapped_y_test = np.array([class_map[y] for y in y_test])
-        top5 = top_k_accuracy_score(mapped_y_test, scores_subset, k=min(5, len(unique_test_classes)))
+        uniq_test = np.unique(y_test)
+        subs = scores[:, uniq_test]
+        cmap = {orig: new for new, orig in enumerate(uniq_test)}
+        mapped = np.array([cmap[y] for y in y_test])
+        top5 = top_k_accuracy_score(mapped, subs, k=min(5, len(uniq_test)))
     except Exception as e:
-        utils.log_info(f"Warning: Could not calculate top5 accuracy for task {task}: {e}")
-    
+        utils.log_info(f"Warning top5 task {task}: {e}")
     try:
-        unique_control_classes = np.unique(yc_test_m)
-        control_scores_subset = control_scores[:, unique_control_classes]
-        control_class_map = {original: new for new, original in enumerate(unique_control_classes)}
-        mapped_yc_test = np.array([control_class_map[y] for y in yc_test_m])
-        ctop5 = top_k_accuracy_score(mapped_yc_test, control_scores_subset, k=min(5, len(unique_control_classes)))
+        uniq_ctrl = np.unique(yc_test_m)
+        subs_c = control_scores[:, uniq_ctrl]
+        cmap_c = {orig: new for new, orig in enumerate(uniq_ctrl)}
+        mapped_c = np.array([cmap_c[y] for y in yc_test_m])
+        ctop5 = top_k_accuracy_score(mapped_c, subs_c, k=min(5, len(uniq_ctrl)))
     except Exception as e:
-        utils.log_info(f"Warning: Could not calculate top5 accuracy for control task: {e}")
+        utils.log_info(f"Warning top5 control: {e}")
 
-    utils.log_info(f"[layer {layer}] {task} {probe_type}  acc {accuracy:.3f}  f1 {f1:.3f}  "
-                   f"control_acc {control_acc:.3f}  control_f1 {cf1:.3f}")
-    
+    utils.log_info(f"[layer {layer}] {task} {probe_type} acc {accuracy:.3f} f1 {f1:.3f} "
+                   f"ctrl_acc {control_acc:.3f} ctrl_f1 {cf1:.3f}")
+
     result = {
         f"{task}_acc": accuracy,
         f"{task}_control_acc": control_acc,
@@ -273,8 +320,9 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
         f"{task}_control_acc_ci_high": -1,
         "pca_explained_variance": pca_explained_variance
     }
-        
+
     return seed, result, pred_df
+
 
 def plot_probe_results(results: dict, outdir: str, task: str):
     os.makedirs(outdir, exist_ok=True)

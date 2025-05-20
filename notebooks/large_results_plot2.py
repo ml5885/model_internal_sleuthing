@@ -10,7 +10,7 @@ from sklearn.metrics import r2_score
 import numpy as np
 
 sns.set_style("white")
-mpl.rcParams["figure.dpi"] = 150
+mpl.rcParams["figure.dpi"] = 100
 plt.rcParams.update({"font.size": 12})
 
 models = ["bert-base", "bert-large", "deberta-v3-large",
@@ -93,8 +93,10 @@ def plot_combined_probes(
     combos = [
         ("lexeme", "reg"),
         ("lexeme", probe_type),
+        ("lexeme", "rf"),
         ("inflection", "reg"),
         ("inflection", probe_type),
+        ("inflection", "rf"),
     ]
     n_rows = len(combos)
     n_cols = 3  # linguistic, control, selectivity
@@ -180,9 +182,13 @@ def plot_combined_probes(
         elif row == 1:
             axes[row, 0].set_ylabel("MLP", fontsize=20, labelpad=15)
         elif row == 2:
-            axes[row, 0].set_ylabel("Linear", fontsize=20, labelpad=15)
+            axes[row, 0].set_ylabel("Random Forest", fontsize=20, labelpad=15)
         elif row == 3:
+            axes[row, 0].set_ylabel("Linear", fontsize=20, labelpad=15)
+        elif row == 4:
             axes[row, 0].set_ylabel("MLP", fontsize=20, labelpad=15)
+        elif row == 5:
+            axes[row, 0].set_ylabel("Random Forest", fontsize=20, labelpad=15)
             
         for col in range(n_cols):
             if row == n_rows - 1:
@@ -201,7 +207,12 @@ def plot_combined_probes(
             else:
                 axes[row, col].set_ylim(0, 1)
                 if col == 0:
-                    axes[row, col].set_ylabel(f"{'Linear' if row % 2 == 0 else 'MLP'} Accuracy", fontsize=20, labelpad=15)
+                    if row in [0, 3]:
+                        axes[row, col].set_ylabel("Linear Accuracy", fontsize=20, labelpad=15)
+                    elif row in [1, 4]:
+                        axes[row, col].set_ylabel("MLP Accuracy", fontsize=20, labelpad=15)
+                    else:
+                        axes[row, col].set_ylabel("RF Accuracy", fontsize=20, labelpad=15)
                 else:
                     axes[row, col].set_yticks([], [])
                     axes[row, col].set_ylabel("")

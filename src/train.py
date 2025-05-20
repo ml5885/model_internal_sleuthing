@@ -30,7 +30,6 @@ def load_layer(shards, layer_idx):
         except EOFError:
             raise RuntimeError(f"Corrupt or empty shard: {shard}")
         except Exception:
-            # fallback if mmap fails for another reason
             with np.load(shard) as data:
                 arr = data["activations"]
         parts.append(arr[:, layer_idx, :])
@@ -69,10 +68,13 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
     uniq_words = sorted(set(word_forms))
     y_control = np.array([uniq_words.index(w) for w in word_forms], dtype=int)
 
-    counts = np.bincount(y_true)
-    keep_mask = counts[y_true] >= 2
+    true_counts    = np.bincount(y_true)
+    ctrl_counts    = np.bincount(y_control)
+    keep_true_mask = true_counts[y_true] >= 2
+    keep_ctrl_mask = ctrl_counts[y_control] >= 2
+    keep_mask      = keep_true_mask & keep_ctrl_mask
 
-    y_true_filtered = y_true[keep_mask]
+    y_true_filtered    = y_true[keep_mask]
     y_control_filtered = y_control[keep_mask]
 
     results = {}

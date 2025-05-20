@@ -38,12 +38,6 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
-    # "pythia1.4b": {
-    #     "model_name": "EleutherAI/pythia-1.4b",
-    #     "tokenizer_name": "EleutherAI/pythia-1.4b",
-    #     "max_length": 128,
-    #     "batch_size": 32
-    # },
     "gemma2b": {
         "model_name": "google/gemma-2-2b",
         "tokenizer_name": "google/gemma-2-2b",
@@ -139,7 +133,13 @@ TRAIN_PARAMS = {
     "weight_decay": 1e-2,
     "batch_size": 4096,
     "early_stop": 7,
-    "workers": min(4, os.cpu_count() or 2),
+    
+    # For RF probes
+    "rf_n_estimators": 10,
+    "rf_max_depth": 10,
+    "rf_min_samples_leaf": 10,
+    # use all but one of your allocated cores
+    "workers": max(1, os.cpu_count() - 1),
 }
 
 # Data split ratios

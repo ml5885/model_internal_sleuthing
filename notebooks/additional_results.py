@@ -134,8 +134,8 @@ def plot_selectivity_comparison(
             ax.text(0.5, 0.5, plot_data['error'],
                     ha="center", va="center", transform=ax.transAxes)
         
-        ax.set_xlabel("Layer")
-        ax.set_ylabel("Selectivity")
+        ax.set_xlabel("Layer", fontsize=18)
+        ax.set_ylabel("Selectivity", fontsize=18)
         ax.set_title(model_names.get(model, model), fontsize=26)
         ax.grid(True, linestyle="--", alpha=0.3)
         ax.tick_params(axis="x", rotation=45)
@@ -147,13 +147,13 @@ def plot_selectivity_comparison(
 
     fig.legend(handles, labels, loc="lower center",
                ncol=2,
-               bbox_to_anchor=(0.5, 0.01),
-               frameon=False, fontsize=12)
+               bbox_to_anchor=(0.5, -0.02),
+               frameon=True, fontsize=20)
 
     plt.tight_layout(rect=[0, 0.04, 1, 0.96])
     os.makedirs(output_dir, exist_ok=True)
     out = os.path.join(output_dir, f"selectivity_comparison_{probe_type}.png")
-    fig.savefig(out, dpi=300, bbox_inches="tight")
+    fig.savefig(out, dpi=150, bbox_inches="tight")
     print(f"Saved figure to {out}")
 
 def plot_probe_advantage(
@@ -254,11 +254,11 @@ def plot_probe_advantage(
         else:
             ax.text(0.5, 0.5, plot_data['error'],
                     ha="center", va="center", transform=ax.transAxes,
-                    fontsize=10)
+                    fontsize=14)
             ax.set_ylim(-0.1, 0.1)
 
-        ax.set_xlabel("Layer")
-        ax.set_ylabel("MLP Advantage")
+        ax.set_xlabel("Layer", fontsize=18)
+        ax.set_ylabel("MLP Advantage", fontsize=18)
         ax.set_title(model_names.get(model, model), fontsize=26)
         ax.grid(True, linestyle="--", alpha=0.3)
         ax.tick_params(axis="x", rotation=45)
@@ -269,7 +269,7 @@ def plot_probe_advantage(
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     os.makedirs(output_dir, exist_ok=True)
     out = os.path.join(output_dir, f"mlp_advantage_{task}.png")
-    fig.savefig(out, dpi=300, bbox_inches="tight")
+    fig.savefig(out, dpi=150, bbox_inches="tight")
     print(f"Saved figure to {out}")
 
 def create_peak_layer_table(

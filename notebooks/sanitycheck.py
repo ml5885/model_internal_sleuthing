@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import pathlib
 import sys
@@ -10,73 +8,41 @@ import pandas as pd
 import seaborn as sns
 import torch
 import torch.nn.functional as F
+from matplotlib.lines import Line2D
 from transformers import AutoModel, AutoTokenizer, logging as hf_logging
 
 hf_logging.set_verbosity_error()
 
-MODEL_CONFIGS = {
-    "gpt2": {
-        "model_name": "gpt2",
-        "tokenizer_name": "gpt2",
-    },
-    "pythia1.4b": {
-        "model_name": "EleutherAI/pythia-1.4b",
-        "tokenizer_name": "EleutherAI/pythia-1.4b",
-    },
-    "gemma2b": {
-        "model_name": "google/gemma-2-2b",
-        "tokenizer_name": "google/gemma-2-2b",
-    },
-    "qwen2": {
-        "model_name": "Qwen/Qwen2.5-1.5B",
-        "tokenizer_name": "Qwen/Qwen2.5-1.5B",
-    },
-    # "qwen2-instruct": {
-    #     "model_name": "Qwen/Qwen2.5-1.5B-Instruct",
-    #     "tokenizer_name": "Qwen/Qwen2.5-1.5B-Instruct",
-    # },
-    "bert-base-uncased": {
-        "model_name": "bert-base-uncased",
-        "tokenizer_name": "bert-base-uncased",
-    },
-    "bert-large-uncased": {
-        "model_name": "bert-large-uncased",
-        "tokenizer_name": "bert-large-uncased",
-    },
-    # "distilbert-base-uncased": {
-    #     "model_name": "distilbert-base-uncased",
-    #     "tokenizer_name": "distilbert-base-uncased",
-    # },
-    "deberta-v3-large": {
-        "model_name": "microsoft/deberta-v3-large",
-        "tokenizer_name": "microsoft/deberta-v3-large",
-    },
-    # "llama3-8b": {
-    #     "model_name": "meta-llama/Llama-3.1-8B",
-    #     "tokenizer_name": "meta-llama/Llama-3.1-8B",
-    #     "max_length": 128,
-    #     "batch_size": 32,
-    # },
-    # "llama3-8b-instruct": {
-    #     "model_name": "meta-llama/Llama-3.1-8B-Instruct",
-    #     "tokenizer_name": "meta-llama/Llama-3.1-8B-Instruct",
-    #     "max_length": 128,
-    #     "batch_size": 32,
-    # },
-    
-    # "pythia-6.9b": {
-    #     "model_name": "EleutherAI/pythia-6.9b",
-    #     "tokenizer_name": "EleutherAI/pythia-6.9b",
-    #     "max_length": 128,
-    #     "batch_size": 32,
-    # },
-    # "pythia-6.9b-tulu": {
-    #     "model_name": "allenai/open-instruct-pythia-6.9b-tulu",
-    #     "tokenizer_name": "allenai/open-instruct-pythia-6.9b-tulu",
-    #     "max_length": 128,
-    #     "batch_size": 32,
-    # },
+models = [
+    "bert-base-uncased", "bert-large-uncased", "deberta-v3-large",
+    "gpt2", "gpt2-large", "gpt2-xl",
+    "pythia-6.9b", "pythia-6.9b-tulu",
+    "olmo2-7b-instruct", "olmo2-7b",
+    "gemma2b", "gemma2b-it",
+    "qwen2", "qwen2-instruct",
+    "llama3-8b", "llama3-8b-instruct",
+]
+
+model_names = {
+    "bert-base-uncased": "BERT-Base",
+    "bert-large-uncased": "BERT-Large",
+    "deberta-v3-large": "DeBERTa-v3-Large",
+    "gpt2": "GPT-2-Small",
+    "gpt2-large": "GPT-2-Large",
+    "gpt2-xl": "GPT-2-XL",
+    "pythia-6.9b": "Pythia-6.9B",
+    "pythia-6.9b-tulu": "Pythia-6.9B-Tulu",
+    "olmo2-7b-instruct": "OLMo-2-1124-7B-Instruct",
+    "olmo2-7b": "OLMo-2-1124-7B",
+    "gemma2b": "Gemma-2-2B",
+    "gemma2b-it": "Gemma-2-2B-Instruct",
+    "qwen2": "Qwen2.5-1.5B",
+    "qwen2-instruct": "Qwen2.5-1.5B-Instruct",
+    "llama3-8b": "Llama-3-8B",
+    "llama3-8b-instruct": "Llama-3-8B-Instruct",
 }
+
+palette_map = dict(zip(models, sns.color_palette("pastel", len(models))))
 
 TESTS = [
     ("king", "man", "woman", "queen"),
@@ -87,169 +53,259 @@ TESTS = [
     ("sing", "sang", "rang", "ring"),
 ]
 
-def get_embedding(tokenizer, embeddings: torch.Tensor, word: str, method: str) -> torch.Tensor:
-    """Embedding by subtoken averaging (tokenize) or sum (sum)."""
-    if method == "tokenize":
-        toks = tokenizer.tokenize(word, add_special_tokens=False)
-    else:
-        toks = tokenizer.tokenize(" " + word, add_special_tokens=False)
+def get_embedding(tokenizer, embeddings, word, method):
+    prefix = "" if method == "tokenize" else " "
+    toks = tokenizer.tokenize(prefix + word, add_special_tokens=False)
     ids = tokenizer.convert_tokens_to_ids(toks)
     vecs = embeddings[ids]
     return vecs.mean(0) if method == "tokenize" else vecs.sum(0)
 
-
-def get_word_rank(tokenizer, embeddings: torch.Tensor, query_vec: torch.Tensor,
-                  word: str, method: str) -> int:
-    """Return 1-based cosine-similarity rank of the expected word."""
+def get_word_rank(tokenizer, embeddings, query_vec, word, method):
     emb_norm = F.normalize(embeddings, dim=1)
     q_norm = F.normalize(query_vec.unsqueeze(0), dim=1)
     sims = torch.mm(q_norm, emb_norm.T).squeeze(0)
 
+    prefix = "" if method == "tokenize" else " "
+    toks = tokenizer.tokenize(prefix + word, add_special_tokens=False)
+    tok_ids = tokenizer.convert_tokens_to_ids(toks)
     if method == "tokenize":
-        tok_ids = tokenizer.convert_tokens_to_ids(tokenizer.tokenize(word, add_special_tokens=False))
-        tok_ids = [tok_ids[-1]] # Get last token
-    else:
-        tok_ids = tokenizer.convert_tokens_to_ids(
-            tokenizer.tokenize(" " + word, add_special_tokens=False)
-        )
+        tok_ids = tok_ids[-1:]
 
     sorted_idx = torch.argsort(sims, descending=True)
     ranks = [(sorted_idx == tid).nonzero(as_tuple=True)[0].item() + 1 for tid in tok_ids]
     return int(sum(ranks) / len(ranks))
 
-def run_models(model_keys: List[str]) -> pd.DataFrame:
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    records = []
-
-    for key in model_keys:
-        print(f"Loading {key}...", file=sys.stderr)
-        tok = AutoTokenizer.from_pretrained(MODEL_CONFIGS[key]["tokenizer_name"])
-        mod = AutoModel.from_pretrained(MODEL_CONFIGS[key]["model_name"]).to(device).eval()
-
+def run_models(keys: List[str]) -> pd.DataFrame:
+    if torch.cuda.is_available():
+        n_gpus = torch.cuda.device_count()
+        device = "cuda"
+        print(f"Using {n_gpus} GPU(s): {[torch.cuda.get_device_name(i) for i in range(n_gpus)]}", file=sys.stderr)
+    else:
+        device = "cpu"
+        print("Using CPU", file=sys.stderr)
+    recs: list[dict] = []
+    for k in keys:
+        print(f"Loading {k}...", file=sys.stderr)
+        tok = AutoTokenizer.from_pretrained(k)
+        mod = AutoModel.from_pretrained(k).to(device).eval()
         with torch.no_grad():
             emb = mod.get_input_embeddings().weight.data.to(device)
-
             for a, b, c, d in TESTS:
                 for method in ("tokenize", "sum"):
                     va = get_embedding(tok, emb, a, method)
                     vb = get_embedding(tok, emb, b, method)
                     vc = get_embedding(tok, emb, c, method)
-                    query = va - vb + vc
-                    rank = get_word_rank(tok, emb, query, d, method)
-                    records.append(
-                        {"model": key,
-                         "analogy": f"{a}-{b}+{c}->{d}",
-                         "method": method,
-                         "rank": rank}
-                    )
-
+                    qv = va - vb + vc
+                    recs.append({
+                        "model": k,
+                        "analogy": f"{a}-{b}+{c}->{d}",
+                        "method": method,
+                        "rank": get_word_rank(tok, emb, qv, d, method),
+                    })
         del mod, emb
-        torch.cuda.empty_cache()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    return pd.DataFrame.from_records(recs)
 
-    return pd.DataFrame.from_records(records)
+def run_or_load_model(key: str, outdir: pathlib.Path) -> pd.DataFrame:
+    outdir.mkdir(parents=True, exist_ok=True)
+    path = outdir / f"{key}_results.csv"
+    if path.exists():
+        return pd.read_csv(path)
+    df = run_models([key])
+    df.to_csv(path, index=False)
+    return df
 
-def make_plots(df: pd.DataFrame, outdir: pathlib.Path) -> None:
-    sns.set_theme(style="white", palette="pastel")
+def make_plots(df: pd.DataFrame, outdir: pathlib.Path):
+    sns.set_style("white")  # no grid
     outdir.mkdir(parents=True, exist_ok=True)
 
-    scatter_df = (
+    sd = (
         df.pivot_table(index=["model", "analogy"], columns="method", values="rank")
-        .dropna()
-        .reset_index()
+          .dropna()
+          .reset_index()
     )
 
-    fig_s, ax_s = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(6, 5.5))
+    ana_list = [f"{a}-{b}+{c}->{d}" for a, b, c, d in TESTS]
+    markers = ["o", "X", "s", "P", "D", "*"]
+
     sns.scatterplot(
-        data=scatter_df,
+        data=sd,
         x="sum",
         y="tokenize",
         hue="model",
+        hue_order=models,
+        palette=palette_map,
         style="analogy",
-        palette="pastel",
-        ax=ax_s,
-        s=70,
+        style_order=ana_list,
+        markers=markers,
+        s=80,
         edgecolor="black",
-        linewidth=0.3,
+        linewidth=1,
+        alpha=0.9,
+        ax=ax,
+        legend=False,
     )
 
-    max_rank = scatter_df[["sum", "tokenize"]].to_numpy().max()
-    ax_s.plot([1, max_rank], [1, max_rank], ls="--", lw=1, color="grey")
-    ax_s.set_xscale("log")
-    ax_s.set_yscale("log")
-    ax_s.tick_params(axis="x", labelsize=16)
-    ax_s.tick_params(axis="y", labelsize=16)
-    ax_s.set_xlabel("No tokenization (subtoken-sum) - rank of correct word")
-    ax_s.set_ylabel("Apply tokenization (subtoken-average) - rank of correct word")
-    ax_s.set_title("Tokenization effect on analogy-completion rank")
-    ax_s.legend(loc="upper left", bbox_to_anchor=(1, 1))
-    fig_s.tight_layout()
+    mx = sd[["sum", "tokenize"]].to_numpy().max()
+    ax.plot([1, mx], [1, mx], ls="--", lw=1, color="gray", zorder=0)
+
+    ax.set_xscale("log", base=10)
+    ax.set_yscale("log", base=10)
+    ax.set_xlabel(
+        "No tokenization (subtoken-sum) - rank of correct word",
+        fontsize=12,
+        labelpad=6,
+    )
+    ax.set_ylabel(
+        "Apply tokenization (subtoken-average) - rank of correct word",
+        fontsize=12,
+        labelpad=6,
+    )
+    ax.tick_params(axis="x", labelsize=10, length=4, width=1)
+    ax.tick_params(axis="y", labelsize=10, length=4, width=1)
+    for sp in ax.spines.values():
+        sp.set_linewidth(1)
+
+    # build combined legend with two sections
+    model_handles = [
+        Line2D(
+            [0], [0],
+            marker="o",
+            color=palette_map[m],
+            markeredgecolor="black",
+            linestyle="",
+            markersize=7,
+        )
+        for m in models
+    ]
+    model_labels = [model_names[m] for m in models]
+
+    ana_handles = [
+        Line2D(
+            [0], [0],
+            marker=markers[i],
+            color="black",
+            linestyle="",
+            markersize=7,
+        )
+        for i in range(len(ana_list))
+    ]
+    ana_labels = ana_list
+
+    # insert section headers as empty proxies
+    handles = []
+    labels = []
+    handles.append(Line2D([], [], linestyle="", label="Models:"))
+    labels.append("Models:")
+    handles.extend(model_handles)
+    labels.extend(model_labels)
+    handles.append(Line2D([], [], linestyle="", label=" "))
+    labels.append(" ")
+    handles.append(Line2D([], [], linestyle="", label="Analogies:"))
+    labels.append("Analogies:")
+    handles.extend(ana_handles)
+    labels.extend(ana_labels)
+
+    ax.legend(
+        handles,
+        labels,
+        loc="lower right",
+        bbox_to_anchor=(0.98, 0.05),
+        frameon=True,
+        framealpha=1.0,
+        fontsize=8,
+        handletextpad=0.3,
+        labelspacing=0.3,
+        borderpad=0.4,
+        ncol=1,
+    )
+
+    fig.tight_layout()
     scatter_path = outdir / "tokenize_vs_sum_scatter.png"
-    fig_s.savefig(scatter_path, dpi=300)
+    fig.savefig(scatter_path, dpi=300)
     print(f"Saved {scatter_path}")
 
+    # bar plot with hue to avoid warning
     bar_df = (
-        scatter_df.assign(delta=lambda x: x["tokenize"] - x["sum"])
-        .groupby("model", as_index=False)["delta"]
-        .mean()
-        .sort_values("delta", ascending=False)
+        sd.assign(delta=lambda x: x["tokenize"] - x["sum"])
+          .groupby("model", as_index=False)["delta"].mean()
+          .set_index("model")
+          .loc[models]
+          .reset_index()
     )
-
-    fig_b, ax_b = plt.subplots(figsize=(0.5 * len(bar_df) + 3, 4))
+    fig_b, ax_b = plt.subplots(figsize=(6, 3.5))
     sns.barplot(
         data=bar_df,
         x="model",
         y="delta",
         hue="model",
-        palette="pastel",
-        legend=False,
+        hue_order=models,
+        palette=palette_map,
+        dodge=False,
         ax=ax_b,
+        legend=False,
     )
-    ax_b.axhline(0, color="grey", linewidth=0.8)
-    ax_b.set_ylabel("Mean rank difference (tokenize - sum)")
+    ax_b.axhline(0, color="gray", linewidth=1)
+    ax_b.set_ylabel("Mean rank difference (tokenize - sum)", fontsize=12)
     ax_b.set_xlabel("")
-    ax_b.set_title("Average Impact of Tokenization on Analogy Rank")
-
-    ax_b.set_xticklabels(ax_b.get_xticklabels(), rotation=30, ha="right")
+    ax_b.tick_params(axis="x", labelsize=10, length=4, width=1)
+    ax_b.tick_params(axis="y", labelsize=10, length=4, width=1)
+    plt.setp(ax_b.get_xticklabels(), rotation=30, ha="right")
+    for sp in ax_b.spines.values():
+        sp.set_linewidth(1)
 
     fig_b.tight_layout()
     delta_path = outdir / "delta_rank_bar.png"
     fig_b.savefig(delta_path, dpi=300)
     print(f"Saved {delta_path}")
 
+def generate_mock_data():
+    import numpy as np
+    rng = np.random.default_rng(42)
+    ana_list = [f"{a}-{b}+{c}->{d}" for a, b, c, d in TESTS]
+    return pd.DataFrame([
+        {"model": m, "analogy": ana, "method": meth, "rank": int(rng.integers(1, 100))}
+        for m in models for ana in ana_list for meth in ("tokenize", "sum")
+    ])
 
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(
-        description="Evaluate analogy ranks and create scatter + bar plots."
-    )
+def main():
+    p = argparse.ArgumentParser(description="Evaluate analogy ranks and plot.")
     p.add_argument(
         "--models",
         nargs="+",
         metavar="MODEL",
-        help=f"Subset to evaluate (choices: {', '.join(MODEL_CONFIGS)})"
+        help=f"Subset (choices: {', '.join(models)})",
     )
-    p.add_argument(
-        "--all",
-        action="store_true",
-        help="Evaluate every model in the registry (overrides --models)."
-    )
+    p.add_argument("--all", action="store_true", help="Evaluate all models.")
     p.add_argument(
         "--outdir",
         type=pathlib.Path,
-        default=".",
-        help="Directory to save figures (default: current directory)."
+        default="notebooks/figures5",
+        help="Directory for figures.",
     )
-    return p.parse_args()
+    p.add_argument("--mock", action="store_true", help="Use mock data.")
+    args = p.parse_args()
 
-def main() -> None:
-    args = parse_args()
-    chosen = list(MODEL_CONFIGS) if args.all or not args.models else [
-        m for m in args.models if m in MODEL_CONFIGS
+    outdir = args.outdir
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    chosen = models if args.all or not args.models else [
+        m for m in args.models if m in models
     ]
     if not chosen:
         sys.exit("No valid models specified.")
 
-    df = run_models(chosen)
-    make_plots(df, args.outdir)
+    if args.mock:
+        df = generate_mock_data()
+        df.to_csv(outdir / "mock_data.csv", index=False)
+        print("Saved mock data.")
+        make_plots(df, outdir)
+    else:
+        dfs = [run_or_load_model(m, outdir) for m in chosen]
+        df = pd.concat(dfs, ignore_index=True)
+        make_plots(df, outdir)
 
 if __name__ == "__main__":
     main()

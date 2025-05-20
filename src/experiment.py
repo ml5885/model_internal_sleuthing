@@ -87,7 +87,7 @@ def main():
     reps = run_activation_extraction(model_key, dataset, revision, args.activations_dir)
 
     # 2) build per-task probe output dirs
-    base_probe_dir = args.output_dir if args.output_dir else config.OUTPUT_DIR
+    base_probe_dir = args.output_dir if args.output_dir else os.path.join(config.OUTPUT_DIR, "probes")
     probe_output_dirs = {
         task: utils.get_probe_output_dir(
             dataset, model_key, task, probe_type,
