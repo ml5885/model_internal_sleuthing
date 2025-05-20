@@ -1,11 +1,13 @@
 #!/bin/bash
-#SBATCH --job-name=analogy_large_models
-#SBATCH --output=logs/analogy_large_models_%j.out
-#SBATCH --error=logs/analogy_large_models_%j.err
-#SBATCH --partition=compute
-#SBATCH --gres=L40S:2
-#SBATCH --mem=32G
+#SBATCH --job-name=llm_probing
+#SBATCH --output=/home/ml6/logs/sbatch/probing_%j.out
+#SBATCH --error=/home/ml6/logs/sbatch/probing_%j.err
+#SBATCH --partition=general
 #SBATCH --time=2-00:00:00
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --gres=gpu:L40S:1
+#SBATCH --mem=64G
 
 export HF_HOME=/data/user_data/ml6/.hf_cache
 export HF_HUB_CACHE=/data/hf_cache/hub
@@ -15,7 +17,7 @@ export HF_HUB_OFFLINE=0
 mkdir -p logs
 mkdir -p /data/user_data/ml6/.hf_cache
 
-export CUDA_VISIBLE_DEVICES=0,1
+export CUDA_VISIBLE_DEVICES=0
 
 eval "$(conda shell.bash hook)"
 conda activate llm_probing
