@@ -14,7 +14,7 @@ export HF_HUB_CACHE=/data/hf_cache/hub
 export HF_DATASETS_CACHE=/data/hf_cache/datasets
 export HF_HUB_OFFLINE=0
 
-mkdir -p logs
+mkdir -p /home/ml6/logs/sbatch
 mkdir -p /data/user_data/ml6/.hf_cache
 
 export CUDA_VISIBLE_DEVICES=0
@@ -22,7 +22,7 @@ export CUDA_VISIBLE_DEVICES=0
 eval "$(conda shell.bash hook)"
 conda activate llm_probing
 
-cd /Users/michaelli/Desktop/Research/lexeme-inflection-probing
+cd /home/ml6/lexeme-inflection-probing
 
 set -e
 
