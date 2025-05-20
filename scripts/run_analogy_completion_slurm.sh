@@ -6,7 +6,7 @@
 #SBATCH --time=2-00:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --gres=gpu:L40S:1
+#SBATCH --gres=gpu:L40S:2
 #SBATCH --mem=64G
 
 export HF_HOME=/data/user_data/ml6/.hf_cache
@@ -17,7 +17,8 @@ export HF_HUB_OFFLINE=0
 mkdir -p /home/ml6/logs/sbatch
 mkdir -p /data/user_data/ml6/.hf_cache
 
-export CUDA_VISIBLE_DEVICES=0
+# Do not restrict CUDA_VISIBLE_DEVICES so both GPUs are available
+# export CUDA_VISIBLE_DEVICES=0
 
 eval "$(conda shell.bash hook)"
 conda activate llm_probing

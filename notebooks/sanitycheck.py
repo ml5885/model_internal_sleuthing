@@ -78,14 +78,15 @@ def get_word_rank(tokenizer, embeddings, query_vec, word, method):
 def run_models(keys: List[str]) -> pd.DataFrame:
     if torch.cuda.is_available():
         n_gpus = torch.cuda.device_count()
-        device = "cuda"
+        device_list = [f"cuda:{i}" for i in range(n_gpus)]
         print(f"Using {n_gpus} GPU(s): {[torch.cuda.get_device_name(i) for i in range(n_gpus)]}", file=sys.stderr)
     else:
-        device = "cpu"
+        device_list = ["cpu"]
         print("Using CPU", file=sys.stderr)
     recs: list[dict] = []
-    for k in keys:
-        print(f"Loading {k}...", file=sys.stderr)
+    for idx, k in enumerate(keys):
+        device = device_list[idx % len(device_list)]
+        print(f"Loading {k} on {device}...", file=sys.stderr)
         tok = AutoTokenizer.from_pretrained(k)
         mod = AutoModel.from_pretrained(k).to(device).eval()
         with torch.no_grad():
@@ -108,8 +109,11 @@ def run_models(keys: List[str]) -> pd.DataFrame:
     return pd.DataFrame.from_records(recs)
 
 def run_or_load_model(key: str, outdir: pathlib.Path) -> pd.DataFrame:
-    outdir.mkdir(parents=True, exist_ok=True)
-    path = outdir / f"{key}_results.csv"
+    # Ensure subdirectory for each model exists
+    safe_key = key.replace("/", "-")
+    model_dir = outdir / safe_key
+    model_dir.mkdir(parents=True, exist_ok=True)
+    path = model_dir / "results.csv"
     if path.exists():
         return pd.read_csv(path)
     df = run_models([key])
