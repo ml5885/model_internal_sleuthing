@@ -1,6 +1,6 @@
 #!/bin/bash
 
 OUTDIR="notebooks/figures5"
-MODELS="bert-base-uncased bert-large-uncased deberta-v3-large gpt2 gpt2-large gpt2-xl gemma2b gemma2b-it qwen2 qwen2-instruct"
+MODELS="google-bert/bert-base-uncased bert-large-uncased microsoft/deberta-v3-large gpt2 openai-community/gpt2-large openai-community/gpt2-xl google/gemma-2-2b google/gemma-2-2b-it Qwen/Qwen2.5-1.5B Qwen/Qwen2.5-1.5B-Instruct"
 
 python notebooks/sanitycheck.py --models $MODELS --outdir $OUTDIR
