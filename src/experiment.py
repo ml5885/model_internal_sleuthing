@@ -110,8 +110,6 @@ def main():
             "--pca_dim", str(pca_dim),
             "--output_dir", probe_output_dirs[task],
         ]
-        if revision is not None:
-            exp_args += ["--revision", revision]
         
         utils.log_info(f"Running probe for task={task}, model_config={effective_model_key_for_paths}, dataset={dataset}")
         subprocess.run(["python", "-m", "src.train"] + exp_args, check=True)
