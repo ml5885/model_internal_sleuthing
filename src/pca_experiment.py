@@ -129,7 +129,6 @@ def extract_layer_values(df, column):
     return str(first), str(mid), str(final)
 
 def generate_latex_table(dfs_dict, table_model_mapping, out_dir):
-    # ---------- header ----------
     latex = r"""\begin{table*}[t]
 \centering
 \small
@@ -145,14 +144,12 @@ def generate_latex_table(dfs_dict, table_model_mapping, out_dir):
       & & First & Mid & Final & First & Mid & Final & First & Mid & Final \\
     \midrule
 """
-    # ---------- rows ----------
     for display_name, model_key in table_model_mapping.items():
-        df = dfs_dict.get(model_key)          # may be None
+        df = dfs_dict.get(model_key)
         id50_first, id50_mid, id50_final = extract_layer_values(df, "dim_50")
         id70_first, id70_mid, id70_final = extract_layer_values(df, "dim_70")
         id90_first, id90_mid, id90_final = extract_layer_values(df, "dim_90")
 
-        # Extract d_model and remove it from display name
         m = re.match(r"(.+?)\s*\((\d+)\)", display_name)
         if m:
             model_disp = m.group(1).strip()
@@ -168,42 +165,17 @@ def generate_latex_table(dfs_dict, table_model_mapping, out_dir):
             f"{id90_first} & {id90_mid} & {id90_final} \\\\\n"
         )
 
-    # ---------- footer ----------
     latex += r"""    \bottomrule
   \end{tabular}}%
 \caption{Number of principal-component axes required to reach 50\% (ID$_{50}$), 70\% (ID$_{70}$) and 90\% (ID$_{90}$) explained variance in the first, middle and last layers of each model.}
 \label{fig:intrinsic_dim_table}
 \end{table*}
 """
-
-    # ---------- save ----------
     out_path = os.path.join(out_dir, "intrinsic_dimensions_table.tex")
     with open(out_path, "w") as f:
         f.write(latex)
     print(f"Saved LaTeX table to {out_path}")
 
-def generate_full_thresholds_csv(dfs_dict, out_dir, thresholds):
-    """
-    Generate a CSV with all thresholds for each model and each layer.
-    Columns: Model, Layer, dim_50, dim_60, ..., dim_100
-    """
-    rows = []
-    for model_key, df in dfs_dict.items():
-        if df is None or df.empty:
-            continue
-        for _, row in df.iterrows():
-            entry = {
-                'Model': model_key,
-                'Layer': int(row['layer']),
-            }
-            for th in thresholds + [1.0]:
-                col = f'dim_{int(th*100)}'
-                entry[col] = row.get(col, "")
-            rows.append(entry)
-    out_path = os.path.join(out_dir, 'intrinsic_dimensions_full.csv')
-    pd.DataFrame(rows).to_csv(out_path, index=False)
-    print(f'Saved full thresholds CSV to {out_path}')
-    
 MODEL_COLORS = [
     "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728",
     "#9467bd", "#8c564b", "#e377c2", "#7f7f7f",
@@ -223,11 +195,11 @@ def plot_components_by_threshold_multiplot(dfs, models, thresholds, out_base, no
     steps = thresholds + [1.0]
     pct_vals = [int(th * 100) for th in steps]
     n = len(pct_vals)
-    nrows, ncols = 2, 4  # Fixed 2 rows, 4 columns
+    nrows, ncols = 2, 4
 
     fig, axs = plt.subplots(
         nrows, ncols,
-        figsize=(24, 8),  # Full width
+        figsize=(24, 8),
         sharex=True, sharey=True,
         constrained_layout={'hspace': 0.1, 'wspace': 0.05}
     )
@@ -399,7 +371,6 @@ def main():
         multi_model_plot(dfs, used, thresholds, args.max_layers, args.output_dir)
     
     generate_latex_table(dfs_dict, table_model_mapping, args.output_dir)
-    # generate_full_thresholds_csv(dfs_dict, args.output_dir, thresholds)
 
 if __name__ == '__main__':
     main()
