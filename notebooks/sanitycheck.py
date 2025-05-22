@@ -146,7 +146,7 @@ def make_plots(df: pd.DataFrame, outdir: pathlib.Path):
         style="analogy",
         style_order=ana_list,
         markers=markers,
-        s=60,
+        s=100,
         edgecolor="black",
         linewidth=1,
         alpha=0.9,
@@ -223,16 +223,16 @@ def make_plots(df: pd.DataFrame, outdir: pathlib.Path):
         ana_handles,
         ana_labels,
         loc="lower center",
-        bbox_to_anchor=(0.45, -0.32),  # center under plot, slightly lower
+        bbox_to_anchor=(0.45, -0.375),
         frameon=True,
         framealpha=0.7,
-        fontsize=11,  # increased font size
+        fontsize=11,
         handletextpad=0.3,
-        labelspacing=0.5,  # increased vertical space between entries
-        borderpad=0.6,     # increased border padding
+        labelspacing=0.9,
+        borderpad=0.7,
         ncol=3,
         title="Analogies",
-        title_fontsize=11,  # match increased legend font size
+        title_fontsize=11,
         markerscale=0.8,
     )
     ax.add_artist(analogy_legend)

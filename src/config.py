@@ -56,11 +56,11 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
         "checkpoints": [
-            "step1000-tokens5B",
-            "step286000-tokens1200B",
-            "step600000-tokens2500B",
-            "main",
-        ],
+            "stage1-step1000-tokens5B",
+            "stage1-step200000-tokens839B",
+            "stage1-step400000-tokens1678B",
+            "stage1-step600000-tokens2517B"
+        ]
     },
     "olmo2-7b-instruct": {
         "model_name": "allenai/OLMo-2-1124-7B-Instruct",
