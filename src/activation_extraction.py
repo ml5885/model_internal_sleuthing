@@ -9,7 +9,7 @@ from tqdm import tqdm
 from src.model_wrapper import ModelWrapper
 from src import config, utils
 
-def extract_and_save(data_path, output_dir, model_key):
+def extract_and_save(data_path, output_dir, model_key, revision=None): 
     """
     Extract hidden-state activations for each target word and save them in
     compressed .npz shards.
@@ -30,7 +30,7 @@ def extract_and_save(data_path, output_dir, model_key):
     )
 
     os.makedirs(output_dir, exist_ok=True)
-    model_wrapper = ModelWrapper(model_key)
+    model_wrapper = ModelWrapper(model_key, revision=revision) 
     shard_paths = []
 
     for part_idx, chunk in enumerate(tqdm(reader,desc="Extracting Batches",
@@ -44,7 +44,6 @@ def extract_and_save(data_path, output_dir, model_key):
 
         batch_array = activations.cpu().numpy()
 
-        # zero-pad the part index so shard_00001.npz sorts after shard_00002, etc.
         fname = f"activations_part_{part_idx:05d}.npz"
         path = os.path.join(output_dir, fname)
         np.savez_compressed(path, activations=batch_array)
@@ -57,10 +56,12 @@ if __name__ == "__main__":
     parser.add_argument("--data", "-d", type=str, required=True, help="CSV with columns 'Sentence' and 'Target Index'.")
     parser.add_argument("--output-dir", "-o", type=str, required=True, help="Directory in which to write activation_part_xxxxx.npz files.")
     parser.add_argument("--model", "-m", type=str, default="gpt2", help="Key into MODEL_CONFIGS (e.g. 'gpt2' or 'gemma2b').")
+    parser.add_argument("--revision", type=str, default=None, help="Model revision or checkpoint (e.g., 'step1000', 'main').") 
     args = parser.parse_args()
 
     extract_and_save(
         data_path=args.data,
         output_dir=args.output_dir,
         model_key=args.model,
+        revision=args.revision
     )
