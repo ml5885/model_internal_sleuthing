@@ -9,9 +9,8 @@ from sklearn.metrics import f1_score, top_k_accuracy_score
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 import pandas as pd
-
-import h2o
-from h2o.estimators import H2ORandomForestEstimator
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.multiclass import OneVsRestClassifier
 
 from src import config, utils
 
@@ -197,62 +196,29 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
         control_scores = control_model.predict(X_test, batch_size=bs)
 
     elif probe_type == "rf":
-        # start H2O if needed
-        try:
-            h2o.cluster_info()
-        except:
-            h2o.init(nthreads=config.TRAIN_PARAMS["workers"])
-
-        # task data via CSV + import_file(header=1)
-        train_csv = os.path.join(outdir, f"train_{task}_{layer}.csv")
-        df_train = pd.DataFrame(X_train)
-        df_train["target"] = y_train
-        df_train.to_csv(train_csv, index=False)
-        hf_train = h2o.import_file(train_csv, header=1)
-        hf_train["target"] = hf_train["target"].asfactor()
-
-        test_csv = os.path.join(outdir, f"test_{task}_{layer}.csv")
-        df_test = pd.DataFrame(X_test)
-        df_test.to_csv(test_csv, index=False)
-        hf_test = h2o.import_file(test_csv, header=1)
-
-        rf_model = H2ORandomForestEstimator(
-            ntrees=config.TRAIN_PARAMS["rf_n_estimators"],
+        rf = OneVsRestClassifier(RandomForestClassifier(
+            n_estimators=config.TRAIN_PARAMS["rf_n_estimators"],
             max_depth=config.TRAIN_PARAMS["rf_max_depth"],
-            min_rows=config.TRAIN_PARAMS["rf_min_samples_leaf"],
-            balance_classes=True,
-            seed=seed,
-            model_id=f"rf_{task}_{layer}"
-        )
-        rf_model.train(x=list(df_train.columns[:-1]), y="target", training_frame=hf_train)
+            min_samples_leaf=config.TRAIN_PARAMS["rf_min_samples_leaf"],
+            n_jobs=config.TRAIN_PARAMS["workers"],
+            random_state=seed
+        ))
+        
+        rf.fit(X_train, y_train)
+        scores = rf.predict_proba(X_test)
+        preds = rf.predict(X_test)
 
-        pred_task = rf_model.predict(hf_test).as_data_frame()
-        prob_cols = [c for c in pred_task.columns if c.startswith("p")]
-        scores = pred_task[prob_cols].values
-        preds = pred_task["predict"].astype(int).values
-
-        # control data via CSV + import_file(header=1)
-        ctrl_csv = os.path.join(outdir, f"ctrl_{task}_{layer}.csv")
-        df_ctrl = pd.DataFrame(X_train)
-        df_ctrl["target"] = yc_train_m
-        df_ctrl.to_csv(ctrl_csv, index=False)
-        hf_ctrl_train = h2o.import_file(ctrl_csv, header=1)
-        hf_ctrl_train["target"] = hf_ctrl_train["target"].asfactor()
-
-        rf_ctrl = H2ORandomForestEstimator(
-            ntrees=config.TRAIN_PARAMS["rf_n_estimators"],
+        rf_ctrl = OneVsRestClassifier(RandomForestClassifier(
+            n_estimators=config.TRAIN_PARAMS["rf_n_estimators"],
             max_depth=config.TRAIN_PARAMS["rf_max_depth"],
-            min_rows=config.TRAIN_PARAMS["rf_min_samples_leaf"],
-            balance_classes=True,
-            seed=seed,
-            model_id=f"rf_ctrl_{task}_{layer}"
-        )
-        rf_ctrl.train(x=list(df_ctrl.columns[:-1]), y="target", training_frame=hf_ctrl_train)
-
-        pred_ctrl = rf_ctrl.predict(hf_test).as_data_frame()
-        ctrl_prob_cols = [c for c in pred_ctrl.columns if c.startswith("p")]
-        control_scores = pred_ctrl[ctrl_prob_cols].values
-        preds_control = pred_ctrl["predict"].astype(int).values
+            min_samples_leaf=config.TRAIN_PARAMS["rf_min_samples_leaf"],
+            n_jobs=config.TRAIN_PARAMS["workers"],
+            random_state=seed
+        ))
+        
+        rf_ctrl.fit(X_train, yc_train_m)
+        control_scores = rf_ctrl.predict_proba(X_test)
+        preds_control = rf_ctrl.predict(X_test)
 
     else:
         scores = solve_ridge(X_train, y_train, X_test, lambda_reg, n_classes)
