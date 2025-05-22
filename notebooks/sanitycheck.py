@@ -109,19 +109,21 @@ def run_models(keys: List[str]) -> pd.DataFrame:
     return pd.DataFrame.from_records(recs)
 
 def run_or_load_model(key: str, outdir: pathlib.Path) -> pd.DataFrame:
-    # Ensure subdirectory for each model exists
     safe_key = key.replace("/", "-")
     model_dir = outdir / safe_key
     model_dir.mkdir(parents=True, exist_ok=True)
-    path = model_dir / "results.csv"
-    if path.exists():
-        return pd.read_csv(path)
+    path_subdir = model_dir / "results.csv"
+    path_flat = outdir / f"{safe_key}_results.csv"
+    if path_subdir.exists():
+        return pd.read_csv(path_subdir)
+    elif path_flat.exists():
+        return pd.read_csv(path_flat)
     df = run_models([key])
-    df.to_csv(path, index=False)
+    df.to_csv(path_subdir, index=False)
     return df
 
 def make_plots(df: pd.DataFrame, outdir: pathlib.Path):
-    sns.set_style("white")  # no grid
+    sns.set_style("white")
     outdir.mkdir(parents=True, exist_ok=True)
 
     sd = (
@@ -130,7 +132,7 @@ def make_plots(df: pd.DataFrame, outdir: pathlib.Path):
           .reset_index()
     )
 
-    fig, ax = plt.subplots(figsize=(6, 5.5))
+    fig, ax = plt.subplots(figsize=(7, 9))
     ana_list = [f"{a}-{b}+{c}->{d}" for a, b, c, d in TESTS]
     markers = ["o", "X", "s", "P", "D", "*"]
 
@@ -144,7 +146,7 @@ def make_plots(df: pd.DataFrame, outdir: pathlib.Path):
         style="analogy",
         style_order=ana_list,
         markers=markers,
-        s=80,
+        s=60,
         edgecolor="black",
         linewidth=1,
         alpha=0.9,
@@ -159,20 +161,20 @@ def make_plots(df: pd.DataFrame, outdir: pathlib.Path):
     ax.set_yscale("log", base=10)
     ax.set_xlabel(
         "No tokenization (subtoken-sum) - rank of correct word",
-        fontsize=12,
-        labelpad=6,
+        fontsize=14,
+        labelpad=16,
     )
     ax.set_ylabel(
         "Apply tokenization (subtoken-average) - rank of correct word",
-        fontsize=12,
+        fontsize=14,
         labelpad=6,
     )
-    ax.tick_params(axis="x", labelsize=10, length=4, width=1)
-    ax.tick_params(axis="y", labelsize=10, length=4, width=1)
+    ax.tick_params(axis="x", labelsize=14, length=4, width=1)
+    ax.tick_params(axis="y", labelsize=14, length=4, width=1)
     for sp in ax.spines.values():
         sp.set_linewidth(1)
 
-    # build combined legend with two sections
+    # Only show model legend on the plot
     model_handles = [
         Line2D(
             [0], [0],
@@ -186,52 +188,66 @@ def make_plots(df: pd.DataFrame, outdir: pathlib.Path):
     ]
     model_labels = [model_names[m] for m in models]
 
+    # Analogy legend handles
     ana_handles = [
         Line2D(
             [0], [0],
             marker=markers[i],
             color="black",
             linestyle="",
-            markersize=7,
+            markersize=10,
         )
         for i in range(len(ana_list))
     ]
     ana_labels = ana_list
-
-    # insert section headers as empty proxies
-    handles = []
-    labels = []
-    handles.append(Line2D([], [], linestyle="", label="Models:"))
-    labels.append("Models:")
-    handles.extend(model_handles)
-    labels.extend(model_labels)
-    handles.append(Line2D([], [], linestyle="", label=" "))
-    labels.append(" ")
-    handles.append(Line2D([], [], linestyle="", label="Analogies:"))
-    labels.append("Analogies:")
-    handles.extend(ana_handles)
-    labels.extend(ana_labels)
-
-    ax.legend(
-        handles,
-        labels,
+    # Model legend (lower right, on plot)
+    model_legend = ax.legend(
+        model_handles,
+        model_labels,
         loc="lower right",
-        bbox_to_anchor=(0.98, 0.05),
+        bbox_to_anchor=(1, 0),  # moved slightly down
         frameon=True,
-        framealpha=1.0,
-        fontsize=8,
+        framealpha=0.7,
+        fontsize=12,
         handletextpad=0.3,
         labelspacing=0.3,
         borderpad=0.4,
         ncol=1,
+        title="Models",
+        title_fontsize=12,
     )
+    ax.add_artist(model_legend)
+
+    # Analogy legend (below the plot, under x-axis, spanning full plot width)
+    analogy_legend = plt.legend(
+        ana_handles,
+        ana_labels,
+        loc="lower center",
+        bbox_to_anchor=(0.45, -0.32),  # center under plot, slightly lower
+        frameon=True,
+        framealpha=0.7,
+        fontsize=11,  # increased font size
+        handletextpad=0.3,
+        labelspacing=0.5,  # increased vertical space between entries
+        borderpad=0.6,     # increased border padding
+        ncol=3,
+        title="Analogies",
+        title_fontsize=11,  # match increased legend font size
+        markerscale=0.8,
+    )
+    ax.add_artist(analogy_legend)
 
     fig.tight_layout()
+    fig.subplots_adjust(bottom=0.38)  # increase bottom margin for legend
     scatter_path = outdir / "tokenize_vs_sum_scatter.png"
-    fig.savefig(scatter_path, dpi=300)
+    fig.savefig(
+        scatter_path,
+        dpi=300,
+        bbox_inches="tight",
+        bbox_extra_artists=[model_legend, analogy_legend]
+    )
     print(f"Saved {scatter_path}")
 
-    # bar plot with hue to avoid warning
     bar_df = (
         sd.assign(delta=lambda x: x["tokenize"] - x["sum"])
           .groupby("model", as_index=False)["delta"].mean()
@@ -252,13 +268,13 @@ def make_plots(df: pd.DataFrame, outdir: pathlib.Path):
         legend=False,
     )
     ax_b.axhline(0, color="gray", linewidth=1)
-    ax_b.set_ylabel("Mean rank difference (tokenize - sum)", fontsize=12)
+    ax_b.set_ylabel("Mean rank difference (tokenize - sum)", fontsize=11)
     ax_b.set_xlabel("")
-    ax_b.tick_params(axis="x", labelsize=10, length=4, width=1)
-    ax_b.tick_params(axis="y", labelsize=10, length=4, width=1)
+    ax_b.tick_params(axis="x", labelsize=9, length=4, width=1)
+    ax_b.tick_params(axis="y", labelsize=9, length=4, width=1)
     plt.setp(ax_b.get_xticklabels(), rotation=30, ha="right")
     for sp in ax_b.spines.values():
-        sp.set_linewidth(1)
+        sp.set_linewidth(1.2)
 
     fig_b.tight_layout()
     delta_path = outdir / "delta_rank_bar.png"
@@ -307,7 +323,10 @@ def main():
         print("Saved mock data.")
         make_plots(df, outdir)
     else:
-        dfs = [run_or_load_model(m, outdir) for m in chosen]
+        dfs = []
+        for m in chosen:
+            df = run_or_load_model(m, outdir)
+            dfs.append(df)
         df = pd.concat(dfs, ignore_index=True)
         make_plots(df, outdir)
 

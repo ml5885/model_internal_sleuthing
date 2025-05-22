@@ -155,7 +155,7 @@ def plot_linguistic_and_selectivity(
                         ax.set_ylabel("Lexeme Accuracy", labelpad=15)
                     if row == 1:
                         ax.set_ylabel("Inflection Accuracy", labelpad=15)
-                ax.set_xlabel("Layer (% of model)", labelpad=15)
+                ax.set_xlabel("Normalized layer number (%)", labelpad=15)
                 continue
             for i, model in enumerate(model_list):
                 # Special handling: skip lexeme RF, plot dashes and add note
@@ -277,7 +277,7 @@ def plot_linguistic_and_selectivity(
                         ax.set_ylabel("Lexeme Selectivity", labelpad=15, fontsize=24)
                 if row == 1 and col == 0:
                     ax.set_ylabel("Inflection Selectivity", labelpad=15, fontsize=24)
-                ax.set_xlabel("Layer (% of model)", labelpad=15)
+                ax.set_xlabel("Normalized layer number (%)", labelpad=15)
                 continue
             for i, model in enumerate(model_list):
                 if task == "lexeme" and probe == "rf":
