@@ -1,9 +1,3 @@
-# Finding Lexical Identity and Inflectional Morphology in Modern Language Models
-
-This repository contains the code for the paper **Model Internal Sleuthing: Finding Lexical Identity and Inflectional Morphology in Modern Language Models**.
-
----
-
 ## Overview
 
 This codebase implements a pipeline for extracting hidden activations from language models and training classifiers on those activations to predict lexeme and inflectional features. It also provides scripts for unsupervised analysis, intrinsic dimensionality (PCA), and analogy completion experiments.
@@ -24,12 +18,16 @@ This codebase implements a pipeline for extracting hidden activations from langu
 
 - **scripts/**: Shell scripts for running experiments and analyses.
 
-- **dataset/**: Utilities and notebooks for dataset construction, statistics, and plotting.
+- **dataset/**: Utilities and notebooks for dataset construction and statistics.
 
   - `dataset.ipynb`: Builds the probing dataset from UD English-GUM.
   - `dataset_statistics.py`: Computes and plots dataset statistics.
-  - `plot_classifier_results.py`, `plot_additional_results.py`, `small_results_plot.py`: Various plotting and analysis scripts.
+
+- **plots/**: Scripts and figures for plotting and analysis results.
+
+  - `plot_classifier_results.py`, `plot_additional_results.py`, `plot_pca_results.py`, `small_results_plot.py`: Plotting and analysis scripts.
   - `scratch2.py`, `scratch3.ipynb`: Miscellaneous scripts and exploratory notebooks.
+  - `delta_rank_bar.png`, `tokenize_vs_sum_scatter_old.png`, and folders like `figs/`, `figures/`, etc.: Generated figures and plots.
 
 - **output/**: Results, probe outputs, and analysis figures are saved here.
 
@@ -92,7 +90,7 @@ This codebase implements a pipeline for extracting hidden activations from langu
    - **Analogy completion:**  
      Use `src/analogy_completion.py` or the provided scripts to evaluate analogy-solving ability of input embeddings.
    - **Plotting and statistics:**  
-     Use scripts in `dataset/` for dataset statistics, probe result plots, and selectivity/advantage analyses.
+     Use scripts in `plots/` for probe result plots, PCA/analogy plots, and selectivity/advantage analyses. Dataset statistics are in `dataset/`.
 
 ---
 
@@ -108,9 +106,3 @@ This codebase implements a pipeline for extracting hidden activations from langu
 - `output/probes/`: Probe results and plots.
 - `output/<model>_analysis/`: Unsupervised analysis outputs.
 - `notebooks/figures*/`: Figures and tables from PCA/analogy experiments.
-
----
-
-## Citation
-
-If you use this codebase, please cite the paper appropriately.
