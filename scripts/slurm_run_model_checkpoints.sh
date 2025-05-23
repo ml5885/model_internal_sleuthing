@@ -69,7 +69,8 @@ for PROBE in "${PROBES[@]}"; do
             --probe_type "$PROBE" \
             --activations_dir "$REMOTE_ACTIVATIONS" \
             --output_dir "$LOCAL_PROBES" \
-            --experiment "inflection"
+            --experiment "inflection" \
+            --no_analysis
     else
         python -m src.experiment \
             --model "$MODEL" \
@@ -77,7 +78,8 @@ for PROBE in "${PROBES[@]}"; do
             --dataset "$DATASET_NAME" \
             --probe_type "$PROBE" \
             --activations_dir "$REMOTE_ACTIVATIONS" \
-            --output_dir "$LOCAL_PROBES"
+            --output_dir "$LOCAL_PROBES" \
+            --no_analysis
     fi
     if [ $? -ne 0 ]; then
         echo "Experiment failed for probe $PROBE with exit code $?"
