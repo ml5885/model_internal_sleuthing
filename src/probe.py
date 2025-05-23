@@ -194,6 +194,8 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
         scores = model.predict(X_test, batch_size=bs)
         control_model = train_probe(X_train, yc_train_m, X_val, yc_val_m, input_dim=X_train.shape[1], n_classes=n_classes)
         control_scores = control_model.predict(X_test, batch_size=bs)
+        preds = scores.argmax(1)
+        preds_control = control_scores.argmax(1)
 
     elif probe_type == "rf":
         rf = OneVsRestClassifier(RandomForestClassifier(
