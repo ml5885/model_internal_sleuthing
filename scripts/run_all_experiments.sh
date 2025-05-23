@@ -16,9 +16,8 @@ for MODEL in $MODELS; do
 
     for PROBE_TYPE in $PROBE_TYPES; do
         OUT_LEX="output/probes/${DATASET}_${MODEL}_lexeme_${PROBE_TYPE}${PCA_SUFFIX}"
-        # OUT_INF="output/probes/${DATASET}_${MODEL}_inflection_${PROBE_TYPE}${PCA_SUFFIX}"
-        # if [ -d "$OUT_LEX" ] || [ -d "$OUT_INF" ]; then
-        if [ -d "$OUT_LEX" ]; then
+        OUT_INF="output/probes/${DATASET}_${MODEL}_inflection_${PROBE_TYPE}${PCA_SUFFIX}"
+        if [ -d "$OUT_LEX" ] || [ -d "$OUT_INF" ]; then
             echo "Skipping $MODEL/$PROBE_TYPE: already done."
             continue
         fi

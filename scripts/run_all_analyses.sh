@@ -10,7 +10,6 @@ models=(
     pythia1.4b
 )
 
-# Common arguments
 dataset="ud_gum_dataset"
 labels="data/ud_gum_dataset.csv"
 

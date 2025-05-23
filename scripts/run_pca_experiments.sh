@@ -17,7 +17,6 @@ llama3-8b \
 llama3-8b-instruct \
 olmo2-7b \
 olmo2-7b-instruct"
-# MODELS="llama3-8b"
 DATASET="ud_gum_dataset"
 OUT_DIR="notebooks/figures4"
 
