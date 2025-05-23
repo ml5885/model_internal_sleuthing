@@ -157,3 +157,70 @@ CLUSTERING = {
 }
 
 MAX_WORKERS_CLASS = 2
+
+MODEL_DISPLAY_NAMES = {
+    # Decoder/causal LMs
+    "gpt2": "GPT-2-Small",
+    "gpt2-large": "GPT-2-Large",
+    "gpt2-xl": "GPT-2-XL",
+    "qwen2": "Qwen2.5-1.5B",
+    "qwen2-instruct": "Qwen2.5-1.5B-Instruct",
+    "pythia-6.9b": "Pythia-6.9B",
+    "pythia-6.9b-tulu": "Pythia-6.9B-Tulu",
+    "gemma2b": "Gemma-2-2B",
+    "gemma2b-it": "Gemma-2-2B-Instruct",
+    "olmo2-7b": "OLMo-2-1124-7B",
+    "olmo2-7b-instruct": "OLMo-2-1124-7B-Instruct",
+    # Encoder-only masked LMs
+    "bert-base-uncased": "BERT-Base",
+    "bert-large-uncased": "BERT-Large",
+    "distilbert-base-uncased": "DistilBERT-Base",
+    "deberta-v3-large": "DeBERTa-v3-Large",
+    # Meta Llama
+    "llama3-8b": "Llama-3-8B",
+    "llama3-8b-instruct": "Llama-3-8B-Instruct",
+    # HuggingFace/other names for analogy completion
+    "google-bert/bert-base-uncased": "BERT-Base",
+    "microsoft/deberta-v3-large": "DeBERTa-v3-Large",
+    "openai-community/gpt2-large": "GPT-2-Large",
+    "openai-community/gpt2-xl": "GPT-2-XL",
+    "EleutherAI/pythia-6.9b": "Pythia-6.9B",
+    "allenai/open-instruct-pythia-6.9b-tulu": "Pythia-6.9B-Tulu",
+    "allenai/OLMo-2-1124-7B-Instruct": "OLMo-2-1124-7B-Instruct",
+    "allenai/OLMo-2-1124-7B": "OLMo-2-1124-7B",
+    "google/gemma-2-2b": "Gemma-2-2B",
+    "google/gemma-2-2b-it": "Gemma-2-2B-Instruct",
+    "Qwen/Qwen2.5-1.5B": "Qwen2.5-1.5B",
+    "Qwen/Qwen2.5-1.5B-Instruct": "Qwen2.5-1.5B-Instruct",
+    "meta-llama/Llama-3.1-8B": "Llama-3-8B",
+    "meta-llama/Llama-3.1-8B-Instruct": "Llama-3-8B-Instruct",
+}
+
+ANALOGY_MODEL_LIST = [
+    "google-bert/bert-base-uncased", "bert-large-uncased", "microsoft/deberta-v3-large",
+    "gpt2", "openai-community/gpt2-large", "openai-community/gpt2-xl",
+    "EleutherAI/pythia-6.9b", "allenai/open-instruct-pythia-6.9b-tulu",
+    "allenai/OLMo-2-1124-7B-Instruct", "allenai/OLMo-2-1124-7B",
+    "google/gemma-2-2b", "google/gemma-2-2b-it",
+    "Qwen/Qwen2.5-1.5B", "Qwen/Qwen2.5-1.5B-Instruct",
+    "meta-llama/Llama-3.1-8B", "meta-llama/Llama-3.1-8B-Instruct",
+]
+
+MODEL_TABLE_MAPPING = {
+    'BERT-Base (768)': 'bert-base-uncased',
+    'BERT-Large (1024)': 'bert-large-uncased',
+    'DeBERTa-v3-Large (1024)': 'deberta-v3-large',
+    'GPT-2-Small (768)': 'gpt2',
+    'GPT-2-Large (1280)': 'gpt2-large',
+    'GPT-2-XL (1600)': 'gpt2-xl',
+    'Pythia-6.9B (4096)': 'pythia-6.9b',
+    'Pythia-6.9B-Tulu (4096)': 'pythia-6.9b-tulu',
+    'OLMo-2-7B (4096)': 'olmo2-7b',
+    'OLMo-2-7B-Instruct (4096)': 'olmo2-7b-instruct',
+    'Gemma-2-2B (2304)': 'gemma2b',
+    'Gemma-2-2B-Instruct (2304)': 'gemma2b-it',
+    'Qwen-2.5-1.5B (1536)': 'qwen2',
+    'Qwen-2.5-1.5B-Instruct (1536)': 'qwen2-instruct',
+    'Llama-3.1-8B (4096)': 'llama3-8b',
+    'Llama-3.1-8B-Instruct (4096)': 'llama3-8b-instruct',
+}

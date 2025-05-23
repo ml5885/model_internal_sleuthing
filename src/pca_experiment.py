@@ -31,45 +31,11 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.analysis import list_shards, shard_loader
 from src import config
 
-model_names = {
-    'gpt2': 'GPT-2-Small',
-    'gpt2-large': 'GPT-2-Large',
-    'gpt2-xl': 'GPT-2-XL',
-    'qwen2': 'Qwen2.5-1.5B',
-    'qwen2-instruct': 'Qwen2.5-1.5B-Instruct',
-    'pythia1.4b': 'Pythia-1.4B',
-    'gemma2b': 'Gemma-2-2B',
-    'gemma2b-it': 'Gemma-2-2B-Instruct',
-    'bert-base-uncased': 'BERT-Base-Uncased',
-    'bert-large-uncased': 'BERT-Large-Uncased',
-    'deberta-v3-large': 'DeBERTa-v3-Large',
-    'llama3-8b': 'Llama-3-8B',
-    'llama3-8b-instruct': 'Llama-3-8B-Instruct',
-    'pythia-6.9b': 'Pythia-6.9B',
-    'pythia-6.9b-tulu': 'Pythia-6.9B-Tulu',
-    'olmo2-7b': 'OLMo-2-1124-7B',
-    'olmo2-7b-instruct': 'OLMo-2-1124-7B-Instruct',
-}
-
+model_names = config.MODEL_DISPLAY_NAMES
 # Mapping from table names to model keys
-table_model_mapping = {
-    'BERT-Base (768)': 'bert-base-uncased',
-    'BERT-Large (1024)': 'bert-large-uncased',
-    'DeBERTa-v3-Large (1024)': 'deberta-v3-large',
-    'GPT-2-Small (768)': 'gpt2',
-    'GPT-2-Large (1280)': 'gpt2-large',
-    'GPT-2-XL (1600)': 'gpt2-xl',
-    'Pythia-6.9B (4096)': 'pythia-6.9b',
-    'Pythia-6.9B-Tulu (4096)': 'pythia-6.9b-tulu',
-    'OLMo-2-7B (4096)': 'olmo2-7b',
-    'OLMo-2-7B-Instruct (4096)': 'olmo2-7b-instruct',
-    'Gemma-2-2B (2304)': 'gemma2b',
-    'Gemma-2-2B-Instruct (2304)': 'gemma2b-it',
-    'Qwen-2.5-1.5B (1536)': 'qwen2',
-    'Qwen-2.5-1.5B-Instruct (1536)': 'qwen2-instruct',
-    'Llama-3.1-8B (4096)': 'llama3-8b',
-    'Llama-3.1-8B-Instruct (4096)': 'llama3-8b-instruct',
-}
+# Use config.MODEL_TABLE_MAPPING
+
+table_model_mapping = config.MODEL_TABLE_MAPPING
 
 def load_layer_activations(activations_dir, layer_idx):
     shards = list_shards(activations_dir)

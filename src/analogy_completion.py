@@ -10,37 +10,12 @@ import torch
 import torch.nn.functional as F
 from matplotlib.lines import Line2D
 from transformers import AutoModel, AutoTokenizer, logging as hf_logging
+from src import config
 
 hf_logging.set_verbosity_error()
 
-models = [
-    "google-bert/bert-base-uncased", "bert-large-uncased", "microsoft/deberta-v3-large",
-    "gpt2", "openai-community/gpt2-large", "openai-community/gpt2-xl",
-    "EleutherAI/pythia-6.9b", "allenai/open-instruct-pythia-6.9b-tulu",
-    "allenai/OLMo-2-1124-7B-Instruct", "allenai/OLMo-2-1124-7B",
-    "google/gemma-2-2b", "google/gemma-2-2b-it",
-    "Qwen/Qwen2.5-1.5B", "Qwen/Qwen2.5-1.5B-Instruct",
-    "meta-llama/Llama-3.1-8B", "meta-llama/Llama-3.1-8B-Instruct",
-]
-
-model_names = {
-    "google-bert/bert-base-uncased": "BERT-Base",
-    "bert-large-uncased": "BERT-Large",
-    "microsoft/deberta-v3-large": "DeBERTa-v3-Large",
-    "gpt2": "GPT-2-Small",
-    "openai-community/gpt2-large": "GPT-2-Large",
-    "openai-community/gpt2-xl": "GPT-2-XL",
-    "EleutherAI/pythia-6.9b": "Pythia-6.9B",
-    "allenai/open-instruct-pythia-6.9b-tulu": "Pythia-6.9B-Tulu",
-    "allenai/OLMo-2-1124-7B-Instruct": "OLMo-2-1124-7B-Instruct",
-    "allenai/OLMo-2-1124-7B": "OLMo-2-1124-7B",
-    "google/gemma-2-2b": "Gemma-2-2B",
-    "google/gemma-2-2b-it": "Gemma-2-2B-Instruct",
-    "Qwen/Qwen2.5-1.5B": "Qwen2.5-1.5B",
-    "Qwen/Qwen2.5-1.5B-Instruct": "Qwen2.5-1.5B-Instruct",
-    "meta-llama/Llama-3.1-8B": "Llama-3-8B",
-    "meta-llama/Llama-3.1-8B-Instruct": "Llama-3-8B-Instruct",
-}
+models = config.ANALOGY_MODEL_LIST
+model_names = config.MODEL_DISPLAY_NAMES
 
 palette_map = dict(zip(models, sns.color_palette("pastel", len(models))))
 
