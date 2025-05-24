@@ -188,7 +188,6 @@ def make_plots(df: pd.DataFrame, outdir: pathlib.Path):
         labelspacing=0.3,
         borderpad=0.4,
         ncol=1,
-        title="Models",
         title_fontsize=12,
     )
     ax.add_artist(model_legend)
@@ -277,7 +276,7 @@ def main():
     p.add_argument(
         "--outdir",
         type=pathlib.Path,
-        default="notebooks/figures5",
+        default="src/figures5",
         help="Directory for figures.",
     )
     p.add_argument("--mock", action="store_true", help="Use mock data.")

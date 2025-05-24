@@ -8,7 +8,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 
 sns.set_style("white")
-mpl.rcParams["figure.dpi"] = 300
+mpl.rcParams["figure.dpi"] = 100
 plt.rcParams.update({
     "font.size": 22,
     "axes.labelsize": 24,
@@ -18,8 +18,10 @@ plt.rcParams.update({
     "legend.fontsize": 20,
     "legend.title_fontsize": 22,
     "axes.linewidth": 1.5,
-    "grid.linewidth": 1.0,
+    "grid.linewidth": 1.0
 })
+
+bbox_to_anchor = (0, -0.13, 1, 0.1)
 
 models = [
     "bert-base-uncased", "bert-large-uncased", "deberta-v3-large",
@@ -29,7 +31,30 @@ models = [
     "gemma2b", "gemma2b-it",
     "qwen2", "qwen2-instruct",
     "llama3-8b", "llama3-8b-instruct",
+    # # Pythia-6.9B checkpointsI
+    # "pythia-6.9b_step0",
+    # "pythia-6.9b_step512",
+    # "pythia-6.9b_step1000",
+    # "pythia-6.9b_step143000",
+    # # OLMo2-7B checkpoints
+    # "olmo2-7b_stage1-step1000-tokens5B",
+    # "olmo2-7b_stage1-step200000-tokens839B",
+    # "olmo2-7b_stage1-step400000-tokens1678B",
+    # "olmo2-7b_stage1-step600000-tokens2517B",
 ]
+
+# models = [
+#     "pythia-6.9b",
+#     "pythia-6.9b_step0",
+#     "pythia-6.9b_step512",
+#     "pythia-6.9b_step1000",
+#     "pythia-6.9b_step143000",
+#     "olmo2-7b",
+#     "olmo2-7b_stage1-step1000-tokens5B",
+#     "olmo2-7b_stage1-step200000-tokens839B",
+#     "olmo2-7b_stage1-step400000-tokens1678B",
+#     "olmo2-7b_stage1-step600000-tokens2517B",
+# ]
 
 model_names = {
     "gpt2": "GPT-2-Small",
@@ -49,13 +74,25 @@ model_names = {
     "pythia-6.9b-tulu": "Pythia-6.9B-Tulu",
     "olmo2-7b-instruct": "OLMo-2-1124-7B-Instruct",
     "olmo2-7b": "OLMo-2-1124-7B",
+    "pythia-6.9b_step0": "Pythia-6.9B (step0)",
+    "pythia-6.9b_step512": "Pythia-6.9B (step512)",
+    "pythia-6.9b_step1000": "Pythia-6.9B (step1000)",
+    "pythia-6.9b_step143000": "Pythia-6.9B (step143k)",
+    "olmo2-7b_stage1-step1000-tokens5B": "OLMo2-7B (1k, 5B tokens)",
+    "olmo2-7b_stage1-step200000-tokens839B": "OLMo2-7B (200k, 839B tokens)",
+    "olmo2-7b_stage1-step400000-tokens1678B": "OLMo2-7B (400k, 1678B tokens)",
+    "olmo2-7b_stage1-step600000-tokens2517B": "OLMo2-7B (600k, 2517B tokens)",
 }
 
 MODEL_COLORS = [
     "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728",
     "#9467bd", "#8c564b", "#e377c2", "#7f7f7f",
     "#bcbd22", "#17becf", "#a55194", "#393b79",
-    "#637939", "#e6550d", "#9c9ede", "#f7b6d2"
+    "#637939", "#e6550d", "#9c9ede", "#f7b6d2",
+    "#8dd3c7", "#ffffb3", "#bebada", "#fb8072",
+    "#80b1d3", "#fdb462", "#b3de69", "#fccde5",
+    "#d9d9d9", "#bc80bd", "#ccebc5", "#ffed6f",
+    "#c7e9c0", "#fdae6b", "#9ecae1", "#fd8d3c"
 ]
 
 def get_model_color(model, model_list):
@@ -106,6 +143,8 @@ def plot_linguistic_and_selectivity(
     save_name="linguistic_selectivity",
     pca: bool = False,
     pca_dim: int = 50,
+    linguistic_filename: str = None,
+    selectivity_filename: str = None,
 ):
     probe_types = ["reg", probe_type, "rf"]
     titles = ["Linear Regression", "MLP", "Random Forest"]
@@ -158,9 +197,7 @@ def plot_linguistic_and_selectivity(
                 ax.set_xlabel("Normalized layer number (%)", labelpad=15)
                 continue
             for i, model in enumerate(model_list):
-                # Special handling: skip lexeme RF, plot dashes and add note
                 if task == "lexeme" and probe == "rf":
-                    # Only plot dashes once for all models
                     if i == 0:
                         ax.plot(
                             [0, 1], [np.nan, np.nan],  # invisible line for legend
@@ -181,6 +218,7 @@ def plot_linguistic_and_selectivity(
                     probe_dir = probe_dir + f"_pca_{pca_dim}"
                 csv_path = os.path.join(probe_dir, f"{task}_results.csv")
                 if not os.path.exists(csv_path):
+                    print(f"[WARN] Missing results for model: {model} at {csv_path}")
                     continue
                 df = pd.read_csv(csv_path)
                 try:
@@ -227,11 +265,10 @@ def plot_linguistic_and_selectivity(
         fig1.legend(
             handles, labels,
             loc="lower center",
-            bbox_to_anchor=(0, -0.15, 1, 0.1),
+            bbox_to_anchor=bbox_to_anchor,
             ncol=min(4, len(labels)),
             mode="expand",
-            frameon=True,
-            title="Models"
+            frameon=True
         )
     fig1.tight_layout(rect=[0, 0.05, 1, 0.97])
     os.makedirs(output_dir, exist_ok=True)
@@ -239,7 +276,9 @@ def plot_linguistic_and_selectivity(
     if pca:
         filename1 += f"_pca_{pca_dim}"
     filename1 += ".png"
-    fig1.savefig(os.path.join(output_dir, filename1), dpi=200, bbox_inches="tight")
+    if linguistic_filename is not None:
+        filename1 = linguistic_filename
+    fig1.savefig(os.path.join(output_dir, filename1), bbox_inches="tight")
     print(f"Saved linguistic accuracy figure to {os.path.join(output_dir, filename1)}")
 
     # Selectivity Plot
@@ -301,6 +340,7 @@ def plot_linguistic_and_selectivity(
                     probe_dir = probe_dir + f"_pca_{pca_dim}"
                 csv_path = os.path.join(probe_dir, f"{task}_results.csv")
                 if not os.path.exists(csv_path):
+                    print(f"[WARN] Missing results for model: {model} at {csv_path}")  # <-- add debug print
                     continue
                 df = pd.read_csv(csv_path)
                 try:
@@ -346,18 +386,19 @@ def plot_linguistic_and_selectivity(
         fig2.legend(
             handles2, labels2,
             loc="lower center",
-            bbox_to_anchor=(0, -0.15, 1, 0.1),
+            bbox_to_anchor=bbox_to_anchor,
             ncol=min(4, len(labels2)),
             mode="expand",
-            frameon=True,
-            title="Models"
+            frameon=True
         )
     fig2.tight_layout(rect=[0, 0.05, 1, 0.97])
     filename2 = "classifier_selectivity"
     if pca:
         filename2 += f"_pca_{pca_dim}"
     filename2 += ".png"
-    fig2.savefig(os.path.join(output_dir, filename2), dpi=200, bbox_inches="tight")
+    if selectivity_filename is not None:
+        filename2 = selectivity_filename
+    fig2.savefig(os.path.join(output_dir, filename2), bbox_inches="tight")
     print(f"Saved selectivity figure to {os.path.join(output_dir, filename2)}")
 
     # Save regression results
@@ -368,4 +409,8 @@ def plot_linguistic_and_selectivity(
     print(f"Saved all regression results to {regression_filepath}")
 
 dataset = "ud_gum_dataset"
-plot_linguistic_and_selectivity(dataset, models, probe_type="nn", pca=False)
+# linguistic_filename = "pythia_linguistic_accuracy.png"
+# select_filename = "pythia_classifier_selectivity.png"
+plot_linguistic_and_selectivity(dataset, models, probe_type="nn", pca=False, )
+                                # linguistic_filename=linguistic_filename,
+                                # selectivity_filename=select_filename)

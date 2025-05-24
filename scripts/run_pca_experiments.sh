@@ -18,9 +18,9 @@ llama3-8b-instruct \
 olmo2-7b \
 olmo2-7b-instruct"
 DATASET="ud_gum_dataset"
-OUT_DIR="notebooks/figures4"
+OUT_DIR="src/figures4"
 
-python3 notebooks/pca_experiment.py \
+python3 src/pca_experiment.py \
   --models $MODELS \
   --dataset $DATASET \
   --output-dir $OUT_DIR

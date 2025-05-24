@@ -192,7 +192,6 @@ def plot_pca_results(
         bbox_to_anchor=(0.5, 0.02),
         borderaxespad=2.0,
         fancybox=True,
-        title="Models",
         title_fontsize=22
     )
 

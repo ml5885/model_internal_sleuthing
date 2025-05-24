@@ -15,14 +15,14 @@ from sklearn.decomposition import PCA
 # set global plotting style
 sns.set_style('white')
 mpl.rcParams.update({
-    'figure.dpi': 150,
-    'font.size': 20,
-    'axes.labelsize': 24,
-    'axes.titlesize': 22,
-    'xtick.labelsize': 18,
-    'ytick.labelsize': 18,
-    'legend.fontsize': 16,
-    'legend.title_fontsize': 18,
+    'figure.dpi': 100,
+    'font.size': 24,
+    'axes.labelsize': 26,
+    'axes.titlesize': 30,
+    'xtick.labelsize': 24,
+    'ytick.labelsize': 24,
+    'legend.fontsize': 22,
+    'legend.title_fontsize': 24,
     'axes.linewidth': 1.2,
     'grid.linewidth': 0.8,
 })
@@ -185,14 +185,14 @@ def plot_components_by_threshold_multiplot(dfs, models, thresholds, out_base, no
         row = i // ncols
         col = i % ncols
 
-        ax.set_title(f'{pct}% explained variance', fontsize=24)
+        ax.set_title(f'{pct}% explained variance')
         ax.set_xlim(0, 100)
         if normalize:
             ax.set_ylim(0, 1)
         ax.set_xticks([0, 33, 66, 100])
-        ax.set_xticklabels(['0', '33', '66', '100'], fontsize=20)
+        ax.set_xticklabels(['0', '33', '66', '100'],)
         ax.set_yticks(np.linspace(0, 1, 5) if normalize else ax.get_yticks())
-        ax.tick_params(axis='both', which='major', length=8, width=2, labelsize=20)
+        ax.tick_params(axis='both', which='major', length=8, width=2)
         ax.grid(True, linestyle=':', linewidth=1.2)
 
         if col != 0:
@@ -200,12 +200,12 @@ def plot_components_by_threshold_multiplot(dfs, models, thresholds, out_base, no
         if row != nrows - 1:
             ax.xaxis.set_tick_params(labelbottom=False)
         else:
-            ax.set_xlabel('Normalized layer number (%)', fontsize=24)
+            ax.set_xlabel('Normalized layer number (%)')
 
     for j in range(n, len(axs)):
         axs[j].axis('off')
 
-    fig.supylabel('Components (fraction of max)', fontsize=28, x=-0.03)
+    fig.supylabel('Components (fraction of max)', x=-0.03)
 
     handles, labels = axs[0].get_legend_handles_labels()
     fig.legend(
@@ -215,8 +215,7 @@ def plot_components_by_threshold_multiplot(dfs, models, thresholds, out_base, no
         ncol=min(4, len(models)),
         frameon=True,
         edgecolor='black',
-        facecolor='white',
-        fontsize=22
+        facecolor='white'
     )
 
     out_path = os.path.join(out_base, 'multi_components_by_thresholds.png')
@@ -262,7 +261,7 @@ def plot_variance_by_model_multiplot(dfs, models, thresholds, out_base):
         row = i // ncols
         col = i % ncols
 
-        ax.set_title(disp, fontsize=30)
+        ax.set_title(disp)
         ax.set_xlim(0, 1)
         ax.set_yscale('linear')  # linear explained variance
         ax.grid(True, linestyle=':', linewidth=0.8)
@@ -270,12 +269,12 @@ def plot_variance_by_model_multiplot(dfs, models, thresholds, out_base):
         if col != 0:
             ax.yaxis.set_tick_params(labelleft=False)
         else:
-            ax.set_ylabel('Explained variance (%)', fontsize=24)
+            ax.set_ylabel('Explained variance (%)')
 
         if row != nrows - 1:
             ax.xaxis.set_tick_params(labelbottom=False)
         else:
-            ax.set_xlabel('Components (fraction of max)', fontsize=24)
+            ax.set_xlabel('Components (fraction of max)')
 
     for j in range(n, len(axs)):
         axs[j].axis('off')
@@ -284,16 +283,16 @@ def plot_variance_by_model_multiplot(dfs, models, thresholds, out_base):
         sm,
         ax=axs.tolist(),
         orientation='vertical',
-        fraction=0.02,
+        fraction=0.04,
         pad=0.04,
-        label='Layer (%)'
+        label='Normalized layer number (%)'
     )
-    cbar.ax.tick_params(labelsize=16)
+    cbar.ax.tick_params(labelsize=22)
     cbar.set_ticks(np.linspace(0, 1, 5))
     cbar.set_ticklabels([f'{int(t*100)}%' for t in np.linspace(0, 1, 5)])
 
     out_path = os.path.join(out_base, 'multi_variance_by_model.png')
-    fig.savefig(out_path, bbox_inches='tight', dpi=150)
+    fig.savefig(out_path, bbox_inches='tight')
     plt.close(fig)
     print(f'Saved combined variance-by-model plot to {out_path}')
 

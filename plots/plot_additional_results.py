@@ -7,15 +7,37 @@ import numpy as np
 
 sns.set_style("white")
 mpl.rcParams["figure.dpi"] = 150
-plt.rcParams.update({"font.size": 12})
+plt.rcParams.update({
+    "font.size": 18,
+    "axes.labelsize": 24,
+    "axes.titlesize": 30,
+    "xtick.labelsize": 22,
+    "ytick.labelsize": 22,
+    "legend.fontsize": 24,
+    "legend.title_fontsize": 24,
+    "axes.linewidth": 1.5,
+    "grid.linewidth": 1.0
+})
 
+PLOT_CONFIG = {
+    'figure_width': 4.8,
+    'figure_height': 3.5,
+    'n_cols': 4,
+    'wspace': 0.1,
+    'hspace': 0.25,
+    'top_margin': 0.93,
+    'legend_y_offset': -0.02
+}
+
+bbox_to_anchor = (0, -0.13, 1, 0.1)
 palette = sns.color_palette("Set2")
 
-models = ["bert-base-uncased", "bert-large-uncased", "deberta-v3-large",
-          "gpt2", "gpt2-large", "gpt2-xl", "qwen2", "qwen2-instruct", "gemma2b",
-          "gemma2b-it", "llama3-8b", "llama3-8b-instruct", "pythia-6.9b", 
-          "pythia-6.9b-tulu", "olmo2-7b-instruct", "olmo2-7b"
-        ]
+models = [
+    "bert-base-uncased", "bert-large-uncased", "deberta-v3-large",
+    "gpt2", "gpt2-large", "gpt2-xl", "qwen2", "qwen2-instruct", "gemma2b",
+    "gemma2b-it", "llama3-8b", "llama3-8b-instruct", "pythia-6.9b",
+    "pythia-6.9b-tulu", "olmo2-7b-instruct", "olmo2-7b"
+]
 
 model_names = {
     "gpt2": "GPT-2-Small",
@@ -55,14 +77,17 @@ def plot_selectivity_comparison(
     probe_type: str = "reg",
     output_dir: str = "figures2",
 ):
-    n_cols = 4
+    n_cols = PLOT_CONFIG['n_cols']
     n_rows = (len(model_list) + n_cols - 1) // n_cols
+
     fig, axes = plt.subplots(n_rows, n_cols,
-                             figsize=(4 * n_cols, 6 * n_rows // 2),
+                             figsize=(PLOT_CONFIG['figure_width'] * n_cols, 
+                                    PLOT_CONFIG['figure_height'] * n_rows),
                              sharey=True)
     axes = axes.flatten()
-    plt.subplots_adjust(top=0.93, wspace=0.3, hspace=0.35)
-
+    plt.subplots_adjust(top=PLOT_CONFIG['top_margin'], 
+                       wspace=PLOT_CONFIG['wspace'], 
+                       hspace=PLOT_CONFIG['hspace'])
     handles, labels = None, None
     
     global_min = float('inf')
@@ -84,13 +109,24 @@ def plot_selectivity_comparison(
                 iac, icc = get_acc_columns(inf_df, "inflection")
                 lex_sel = lex_df[lac] - lex_df[lcc]
                 inf_sel = inf_df[iac] - inf_df[icc]
+
+                def norm_layers(df):
+                    layers = df["Layer"].values
+                    min_layer = layers.min()
+                    max_layer = layers.max()
+                    if max_layer == min_layer:
+                        return np.zeros_like(layers, dtype=float)
+                    return (layers - min_layer) / (max_layer - min_layer)
+
+                lex_norm = norm_layers(lex_df)
+                inf_norm = norm_layers(inf_df)
                 
                 global_min = min(global_min, lex_sel.min(), inf_sel.min())
                 global_max = max(global_max, lex_sel.max(), inf_sel.max())
                 
                 data_for_plots.append({
-                    'lex_df': lex_df,
-                    'inf_df': inf_df,
+                    'lex_norm': lex_norm,
+                    'inf_norm': inf_norm,
                     'lex_sel': lex_sel,
                     'inf_sel': inf_sel,
                     'valid': True
@@ -113,30 +149,46 @@ def plot_selectivity_comparison(
         y_max = global_max + y_padding
     else:
         y_min, y_max = -0.5, 1.0
-    
+
     for idx, (model, plot_data) in enumerate(zip(model_list, data_for_plots)):
         ax = axes[idx]
-        
+
         if plot_data['valid']:
-            ax.plot(plot_data['lex_df']["Layer"], plot_data['lex_sel'],
+            ax.plot(plot_data['lex_norm'], plot_data['lex_sel'],
                     label="Lexeme",
                     color=palette[0], linestyle="-", marker="o", markersize=3)
-            ax.plot(plot_data['inf_df']["Layer"], plot_data['inf_sel'],
+            ax.plot(plot_data['inf_norm'], plot_data['inf_sel'],
                     label="Inflection",
                     color=palette[1], linestyle="--", marker="x", markersize=4)
-            
+
             ax.set_ylim(y_min, y_max)
             ax.margins(x=0.05)
-            
+
             if handles is None and labels is None:
                 handles, labels = ax.get_legend_handles_labels()
+            ax.set_xlim(0, 1)
+            xticks = np.array([0, 0.5, 1.0])
+            row, col = divmod(idx, n_cols)
+            if row == n_rows - 1:
+                ax.set_xticks(xticks)
+                ax.set_xticklabels([f"{int(x*100)}%" for x in xticks])
+            else:
+                ax.set_xticks([])
         else:
             ax.text(0.5, 0.5, plot_data['error'],
                     ha="center", va="center", transform=ax.transAxes)
-        
-        ax.set_xlabel("Layer", fontsize=18)
-        ax.set_ylabel("Selectivity", fontsize=18)
-        ax.set_title(model_names.get(model, model), fontsize=26)
+            ax.set_xticks([])
+
+        row, col = divmod(idx, n_cols)
+        if col == 0:
+            ax.set_ylabel("")
+        else:
+            ax.set_ylabel("")
+        if row == n_rows - 1:
+            ax.set_xlabel("")
+        else:
+            ax.set_xlabel("")
+        ax.set_title(model_names.get(model, model))
         ax.grid(True, linestyle="--", alpha=0.3)
         ax.tick_params(axis="x", rotation=45)
         if ax.get_legend():
@@ -147,13 +199,12 @@ def plot_selectivity_comparison(
 
     fig.legend(handles, labels, loc="lower center",
                ncol=2,
-               bbox_to_anchor=(0.5, -0.02),
-               frameon=True, fontsize=20)
-
-    plt.tight_layout(rect=[0, 0.04, 1, 0.96])
+               bbox_to_anchor=(0.5, PLOT_CONFIG['legend_y_offset']),
+               frameon=True)
     os.makedirs(output_dir, exist_ok=True)
     out = os.path.join(output_dir, f"selectivity_comparison_{probe_type}.png")
-    fig.savefig(out, dpi=150, bbox_inches="tight")
+    fig.tight_layout()
+    fig.savefig(out, bbox_inches="tight")
     print(f"Saved figure to {out}")
 
 def plot_probe_advantage(
@@ -162,13 +213,16 @@ def plot_probe_advantage(
     dataset: str,
     output_dir: str = "figures2",
 ):
-    n_cols = 4
+    n_cols = PLOT_CONFIG['n_cols']
     n_rows = (len(model_list) + n_cols - 1) // n_cols
     fig, axes = plt.subplots(n_rows, n_cols,
-                             figsize=(4 * n_cols, 6 * n_rows // 2),
+                             figsize=(PLOT_CONFIG['figure_width'] * n_cols, 
+                                    PLOT_CONFIG['figure_height'] * n_rows),
                              sharey=True)
     axes = axes.flatten()
-    plt.subplots_adjust(top=0.93, wspace=0.3, hspace=0.35)
+    plt.subplots_adjust(top=PLOT_CONFIG['top_margin'], 
+                       wspace=PLOT_CONFIG['wspace'], 
+                       hspace=PLOT_CONFIG['hspace'])
 
     global_min = float('inf')
     global_max = float('-inf')
@@ -201,12 +255,18 @@ def plot_probe_advantage(
                 mf = mlp_df[mlp_df["Layer"].isin(common)].sort_values("Layer")
                 adv = mf[mac].values - lf[lac].values
 
+                layers = lf["Layer"].values
+                min_layer = layers.min()
+                max_layer = layers.max()
+                
                 global_min = min(global_min, adv.min())
                 global_max = max(global_max, adv.max())
                 
                 plot_data_list.append({
-                    'common': common,
+                    'layers': layers,
                     'adv': adv,
+                    'min_layer': min_layer,
+                    'max_layer': max_layer,
                     'valid': True
                 })
             except Exception as e:
@@ -229,47 +289,70 @@ def plot_probe_advantage(
     if global_min != float('inf') and global_max != float('-inf'):
         y_range = global_max - global_min
         if y_range == 0:
-            pad = 0.1
+            y_padding = 0.1
         else:
-            pad_factor = 0.1
-            pad = y_range * pad_factor
-            if global_min > 0:
-                global_min = min(0, global_min - pad)
-            elif global_max < 0:
-                global_max = max(0, global_max + pad)
+            y_padding = y_range * 0.15  # Increased padding
         
-        y_min = global_min - pad
-        y_max = global_max + pad
+        y_min = global_min - y_padding
+        y_max = global_max + y_padding
+        
+        # Ensure we include zero in the range for reference
+        if global_min > 0:
+            y_min = min(y_min, -y_padding)
+        if global_max < 0:
+            y_max = max(y_max, y_padding)
     else:
         y_min, y_max = -0.2, 0.2
 
     for idx, (model, plot_data) in enumerate(zip(model_list, plot_data_list)):
         ax = axes[idx]
-        
+
         if plot_data['valid']:
-            ax.bar(plot_data['common'], plot_data['adv'],
-                   color=palette[2], alpha=0.7, width=0.7)
+            layers = plot_data['layers']
+            adv = plot_data['adv']
+            
+            ax.bar(layers, adv, color=palette[2], alpha=0.7, width=0.8)
             ax.axhline(0, linestyle="--", color="gray")
             ax.set_ylim(y_min, y_max)
+            ax.set_xlim(plot_data['min_layer'] - 0.5, plot_data['max_layer'] + 0.5)
+            
+            row, col = divmod(idx, n_cols)
+            if row == n_rows - 1:
+                ax.set_xticks(layers[::max(1, len(layers)//5)])  # Show max 5 ticks
+            else:
+                ax.set_xticks([])
         else:
             ax.text(0.5, 0.5, plot_data['error'],
                     ha="center", va="center", transform=ax.transAxes,
                     fontsize=14)
-            ax.set_ylim(-0.1, 0.1)
+            ax.set_xticks([])
 
-        ax.set_xlabel("Layer", fontsize=18)
-        ax.set_ylabel("MLP Advantage", fontsize=18)
-        ax.set_title(model_names.get(model, model), fontsize=26)
+        row, col = divmod(idx, n_cols)
+        if col == 0:
+            ax.set_ylabel("")
+        else:
+            ax.set_ylabel("")
+        if row == n_rows - 1:
+            ax.set_xlabel("")
+        else:
+            ax.set_xlabel("")
+        ax.set_title(model_names.get(model, model))
         ax.grid(True, linestyle="--", alpha=0.3)
         ax.tick_params(axis="x", rotation=45)
 
     for idx in range(len(model_list), len(axes)):
         axes[idx].set_visible(False)
+        
+    fig.text(-0.015, 0.5, 'MLP Advantage', va='center', ha='center', 
+                rotation=90, fontsize=28)
+    
+    fig.text(0.5, -0.015, 'Normalized layer number (%)', va='center', ha='center', 
+                fontsize=28)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
     os.makedirs(output_dir, exist_ok=True)
     out = os.path.join(output_dir, f"mlp_advantage_{task}.png")
-    fig.savefig(out, dpi=150, bbox_inches="tight")
+    fig.tight_layout()
+    fig.savefig(out, bbox_inches="tight")
     print(f"Saved figure to {out}")
 
 def create_peak_layer_table(

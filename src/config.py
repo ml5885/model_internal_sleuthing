@@ -56,10 +56,16 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
         "checkpoints": [
-            "stage1-step1000-tokens5B",
-            "stage1-step200000-tokens839B",
-            "stage1-step400000-tokens1678B",
-            "stage1-step600000-tokens2517B"
+            "main",
+            "stage1-step5000-tokens21B",
+            "stage1-step40000-tokens168B",
+            "stage1-step97000-tokens407B",
+            "stage1-step179000-tokens751B",
+            "stage1-step282000-tokens1183B",
+            "stage1-step409000-tokens1716B",
+            "stage1-step559000-tokens2345B",
+            "stage1-step734000-tokens3079B",
+            "stage1-step928646-tokens3896B"
         ]
     },
     "olmo2-7b-instruct": {
@@ -112,10 +118,16 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
         "checkpoints": [
-            "step0",
-            "step512",
-            "step1000",
-            "step143000",
+            "main",
+            "step1",
+            "step64",
+            "step6000",
+            "step19000",
+            "step37000",
+            "step57000",
+            "step82000",
+            "step111000",
+            "step143000"
         ],
     },
     "pythia-6.9b-tulu": {
@@ -126,37 +138,7 @@ MODEL_CONFIGS = {
     },
 }
 
-# Training hyperparameters for probing
-TRAIN_PARAMS = {
-    "epochs": 50,
-    "learning_rate": 3e-4,
-    "weight_decay": 1e-2,
-    "batch_size": 4096,
-    "early_stop": 7,
-    
-    # For RF probes
-    "rf_n_estimators": 10,
-    "rf_max_depth": 10,
-    "rf_min_samples_leaf": 10,
-    # use all but one of your allocated cores
-    "workers": max(1, os.cpu_count() - 1),
-}
 
-# Data split ratios
-SPLIT_RATIOS = {
-    "train": 0.7,
-    "val": 0.1,
-    "test": 0.2
-}
-
-SEED = 42
-
-CLUSTERING = {
-    "n_clusters": 2,
-    "random_state": SEED
-}
-
-MAX_WORKERS_CLASS = 2
 
 MODEL_DISPLAY_NAMES = {
     # Decoder/causal LMs
@@ -224,3 +206,35 @@ MODEL_TABLE_MAPPING = {
     'Llama-3.1-8B (4096)': 'llama3-8b',
     'Llama-3.1-8B-Instruct (4096)': 'llama3-8b-instruct',
 }
+
+# Training hyperparameters for probing
+TRAIN_PARAMS = {
+    "epochs": 50,
+    "learning_rate": 3e-4,
+    "weight_decay": 1e-2,
+    "batch_size": 4096,
+    "early_stop": 7,
+    
+    # For RF probes
+    "rf_n_estimators": 10,
+    "rf_max_depth": 10,
+    "rf_min_samples_leaf": 10,
+    # use all but one of your allocated cores
+    "workers": max(1, os.cpu_count() - 1),
+}
+
+# Data split ratios
+SPLIT_RATIOS = {
+    "train": 0.7,
+    "val": 0.1,
+    "test": 0.2
+}
+
+SEED = 42
+
+CLUSTERING = {
+    "n_clusters": 2,
+    "random_state": SEED
+}
+
+MAX_WORKERS_CLASS = 2
