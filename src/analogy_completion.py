@@ -180,7 +180,7 @@ def make_plots(df: pd.DataFrame, outdir: pathlib.Path):
         model_handles,
         model_labels,
         loc="lower right",
-        bbox_to_anchor=(1, 0),  # moved slightly down
+        bbox_to_anchor=(1, 0),
         frameon=True,
         framealpha=0.7,
         fontsize=12,
@@ -197,7 +197,7 @@ def make_plots(df: pd.DataFrame, outdir: pathlib.Path):
         ana_handles,
         ana_labels,
         loc="lower center",
-        bbox_to_anchor=(0.45, -0.375),
+        bbox_to_anchor=(0.45, -0.36),
         frameon=True,
         framealpha=0.7,
         fontsize=11,

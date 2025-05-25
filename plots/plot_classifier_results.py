@@ -6,6 +6,7 @@ import os
 import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
+import matplotlib.colors as mcolors
 
 sns.set_style("white")
 mpl.rcParams["figure.dpi"] = 100
@@ -21,40 +22,7 @@ plt.rcParams.update({
     "grid.linewidth": 1.0
 })
 
-bbox_to_anchor = (0, -0.13, 1, 0.1)
-
-models = [
-    "bert-base-uncased", "bert-large-uncased", "deberta-v3-large",
-    "gpt2", "gpt2-large", "gpt2-xl",
-    "pythia-6.9b", "pythia-6.9b-tulu",
-    "olmo2-7b-instruct", "olmo2-7b",
-    "gemma2b", "gemma2b-it",
-    "qwen2", "qwen2-instruct",
-    "llama3-8b", "llama3-8b-instruct",
-    # # Pythia-6.9B checkpointsI
-    # "pythia-6.9b_step0",
-    # "pythia-6.9b_step512",
-    # "pythia-6.9b_step1000",
-    # "pythia-6.9b_step143000",
-    # # OLMo2-7B checkpoints
-    # "olmo2-7b_stage1-step1000-tokens5B",
-    # "olmo2-7b_stage1-step200000-tokens839B",
-    # "olmo2-7b_stage1-step400000-tokens1678B",
-    # "olmo2-7b_stage1-step600000-tokens2517B",
-]
-
-# models = [
-#     "pythia-6.9b",
-#     "pythia-6.9b_step0",
-#     "pythia-6.9b_step512",
-#     "pythia-6.9b_step1000",
-#     "pythia-6.9b_step143000",
-#     "olmo2-7b",
-#     "olmo2-7b_stage1-step1000-tokens5B",
-#     "olmo2-7b_stage1-step200000-tokens839B",
-#     "olmo2-7b_stage1-step400000-tokens1678B",
-#     "olmo2-7b_stage1-step600000-tokens2517B",
-# ]
+bbox_to_anchor = (0, -0.1, 1, 0.1)
 
 model_names = {
     "gpt2": "GPT-2-Small",
@@ -74,14 +42,22 @@ model_names = {
     "pythia-6.9b-tulu": "Pythia-6.9B-Tulu",
     "olmo2-7b-instruct": "OLMo-2-1124-7B-Instruct",
     "olmo2-7b": "OLMo-2-1124-7B",
-    "pythia-6.9b_step0": "Pythia-6.9B (step0)",
-    "pythia-6.9b_step512": "Pythia-6.9B (step512)",
-    "pythia-6.9b_step1000": "Pythia-6.9B (step1000)",
-    "pythia-6.9b_step143000": "Pythia-6.9B (step143k)",
-    "olmo2-7b_stage1-step1000-tokens5B": "OLMo2-7B (1k, 5B tokens)",
-    "olmo2-7b_stage1-step200000-tokens839B": "OLMo2-7B (200k, 839B tokens)",
-    "olmo2-7b_stage1-step400000-tokens1678B": "OLMo2-7B (400k, 1678B tokens)",
-    "olmo2-7b_stage1-step600000-tokens2517B": "OLMo2-7B (600k, 2517B tokens)",
+    "pythia-6.9b_step1": "Pythia-6.9B (step1)",
+    "pythia-6.9b_step64": "Pythia-6.9B (step64)",
+    "pythia-6.9b_step6000": "Pythia-6.9B (step6k)",
+    "pythia-6.9b_step19000": "Pythia-6.9B (step19k)",
+    "pythia-6.9b_step37000": "Pythia-6.9B (step37k)",
+    "pythia-6.9b_step57000": "Pythia-6.9B (step57k)",
+    "pythia-6.9b_step82000": "Pythia-6.9B (step82k)",
+    "pythia-6.9b_step111000": "Pythia-6.9B (step111k)",
+    "olmo2-7b_stage1-step5000-tokens21B": "OLMo2-7B (5k, 21B tokens)",
+    "olmo2-7b_stage1-step40000-tokens168B": "OLMo2-7B (40k, 168B tokens)",
+    "olmo2-7b_stage1-step97000-tokens407B": "OLMo2-7B (97k, 407B tokens)",
+    "olmo2-7b_stage1-step179000-tokens751B": "OLMo2-7B (179k, 751B tokens)",
+    "olmo2-7b_stage1-step282000-tokens1183B": "OLMo2-7B (282k, 1183B tokens)",
+    "olmo2-7b_stage1-step409000-tokens1716B": "OLMo2-7B (409k, 1716B tokens)",
+    "olmo2-7b_stage1-step559000-tokens2345B": "OLMo2-7B (559k, 2345B tokens)",
+    "olmo2-7b_stage1-step734000-tokens3079B": "OLMo2-7B (734k, 3079B tokens)",
 }
 
 MODEL_COLORS = [
@@ -96,8 +72,65 @@ MODEL_COLORS = [
 ]
 
 def get_model_color(model, model_list):
+    if ("pythia-6.9b" in model and ("step" in model or model == "pythia-6.9b")) or \
+       ("olmo2-7b" in model and ("stage1-step" in model or model == "olmo2-7b")):
+        if "pythia-6.9b" in model:
+            return get_checkpoint_gradient_color(model, model_list, "#2ca02c")
+        elif "olmo2-7b" in model:
+            return get_checkpoint_gradient_color(model, model_list, "#1f77b4")
+    
     idx = model_list.index(model)
     return MODEL_COLORS[idx % len(MODEL_COLORS)]
+
+def get_checkpoint_gradient_color(model, model_list, base_color="#1f77b4"):
+    if "pythia-6.9b" in model:
+        checkpoint_models = [m for m in model_list if "pythia-6.9b" in m]
+        base_name = "pythia-6.9b"
+    elif "olmo2-7b" in model:
+        checkpoint_models = [m for m in model_list if "olmo2-7b" in m and "stage1-step" in m]
+        if "olmo2-7b" in model_list:
+            checkpoint_models = ["olmo2-7b"] + checkpoint_models
+        base_name = "olmo2-7b"
+    else:
+        idx = model_list.index(model)
+        return MODEL_COLORS[idx % len(MODEL_COLORS)]
+    
+    if len(checkpoint_models) <= 1:
+        return base_color
+    
+    def extract_step_number(model_name):
+        if model_name == base_name:
+            return float('inf')
+        if "step" in model_name:
+            try:
+                if "tokens" in model_name:
+                    tokens_part = model_name.split("tokens")[1].split("B")[0]
+                    return float(tokens_part)
+                else:
+                    step_part = model_name.split("step")[1].split("-")[0].split("_")[0]
+                    if "k" in step_part:
+                        return float(step_part.replace("k", "")) * 1000
+                    return float(step_part)
+            except:
+                return 0
+        return 0
+    
+    sorted_checkpoints = sorted(checkpoint_models, key=extract_step_number)
+    
+    try:
+        model_idx = sorted_checkpoints.index(model)
+    except ValueError:
+        return base_color
+    
+    n_models = len(sorted_checkpoints)
+    if n_models == 1:
+        return base_color
+    
+    viridis = plt.cm.viridis
+    color_position = 0.2 + (0.7 * model_idx / (n_models - 1))
+    rgba_color = viridis(color_position)
+    
+    return mcolors.to_hex(rgba_color)
 
 def get_acc_columns(df, prefix):
     if f"{prefix}_Accuracy" in df.columns and f"{prefix}_ControlAccuracy" in df.columns:
@@ -135,6 +168,37 @@ def fit_and_store_regression(df, model_name, task, probe, all_results):
             "r2": r2,
         })
 
+def get_tick_values(ymin, ymax, min_ticks=6):
+    """
+    Compute tick values and labels for a given y-axis range, ensuring at least min_ticks (default 6) ticks,
+    including start and end. Returns (ticks, labels).
+    """
+    span = ymax - ymin
+    if span == 0:
+        return np.array([ymin]), [f"{ymin:.1f}"]
+    # Try to find a "nice" step size
+    raw_step = span / (min_ticks - 1)
+    # Use a set of "nice" steps
+    nice_steps = np.array([0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.5, 1.0, 2.0, 5.0])
+    step = nice_steps[np.searchsorted(nice_steps, raw_step, side="left")]
+    # Compute ticks
+    first_tick = np.ceil(ymin / step) * step
+    last_tick = np.floor(ymax / step) * step
+    ticks = np.arange(first_tick, last_tick + step/2, step)
+    # Ensure start and end are included
+    if abs(ticks[0] - ymin) > 1e-8:
+        ticks = np.insert(ticks, 0, ymin)
+    if abs(ticks[-1] - ymax) > 1e-8:
+        ticks = np.append(ticks, ymax)
+    # Remove duplicates and sort
+    ticks = np.unique(np.round(ticks, 8))
+    # Format labels
+    if step < 0.1:
+        labels = [f"{y:.2f}" for y in ticks]
+    else:
+        labels = [f"{y:.1f}" for y in ticks]
+    return ticks, labels
+
 def plot_linguistic_and_selectivity(
     dataset: str,
     model_list: list[str],
@@ -145,272 +209,240 @@ def plot_linguistic_and_selectivity(
     pca_dim: int = 50,
     linguistic_filename: str = None,
     selectivity_filename: str = None,
+    ylim: tuple = ((0, 1.0), (0, 1.0)),  # <-- now expects tuple of tuples for per-row y-limits
 ):
     probe_types = ["reg", probe_type, "rf"]
     titles = ["Linear Regression", "MLP", "Random Forest"]
     tasks = ["lexeme", "inflection"]
-    n_rows = len(tasks)
-    n_cols = len(probe_types)
-
+    n_rows, n_cols = len(tasks), len(probe_types)
     all_regression_results = []
+    aspect_ratio, base_height = 8 / 3, 5
+    fig_size = (n_cols * base_height * aspect_ratio / n_rows, n_rows * base_height)
 
-    # Linguistic Accuracy Plot
-    aspect_ratio = 8 / 3
-    base_height = 5
-    fig_width = n_cols * base_height * aspect_ratio / n_rows
-    fig_height = n_rows * base_height
-    fig1, axes1 = plt.subplots(
-        n_rows, n_cols,
-        figsize=(fig_width, fig_height),
-        sharey=True
-    )
-    if n_rows == 1:
-        axes1 = np.expand_dims(axes1, axis=0)
-    if n_cols == 1:
-        axes1 = np.expand_dims(axes1, axis=1)
-
-    for row, task in enumerate(tasks):
-        for col, probe in enumerate(probe_types):
-            ax = axes1[row, col]
-            if task == "lexeme" and probe == "rf":
-                # Only show placeholder explanation, no lines or legend entry
-                ax.text(
-                    0.5, 0.5,
-                    "(computationally infeasible: too many classes,\nprone to overfitting)",
-                    ha="center", va="center",
-                    transform=ax.transAxes, fontsize=18, color="gray"
-                )
+    def plot_panel(fig, axes, plot_selectivity=False):
+        for row, task in enumerate(tasks):
+            for col, probe in enumerate(probe_types):
+                ax = axes[row, col]
+                if task == "lexeme" and probe == "rf":
+                    ax.text(0.5, 0.5, "(computationally infeasible: too many classes,\nprone to overfitting)",
+                            ha="center", va="center", transform=ax.transAxes, fontsize=18, color="gray")
+                    ax.set_xlim(0, 1)
+                    ax.set_xticks(np.arange(0, 1.1, 0.2))
+                    ax.set_xticklabels([f"{x*100:.0f}" for x in np.arange(0, 1.1, 0.2)])
+                    
+                    if plot_selectivity:
+                        ax.set_ylim(0, 1.0)
+                        ax.set_yticks(np.arange(0, 1.01, 0.2))
+                        if col == 0:
+                            ax.set_yticklabels([f"{y:.1f}" for y in np.arange(0, 1.01, 0.2)])
+                            if row == 0:
+                                ax.set_ylabel("Lexeme Selectivity", labelpad=15, fontsize=24)
+                            elif row == 1:
+                                ax.set_ylabel("Inflection Selectivity", labelpad=15, fontsize=24)
+                        else:
+                            ax.set_yticklabels([])
+                    else:
+                        ax.set_ylim(0, 1)
+                        ax.set_yticks(np.arange(0, 1.1, 0.2))
+                        if col == 0:
+                            ax.set_yticklabels([f"{y:.1f}" for y in np.arange(0, 1.1, 0.2)])
+                            if row == 0:
+                                ax.set_ylabel("Lexeme Accuracy", labelpad=15)
+                            elif row == 1:
+                                ax.set_ylabel("Inflection Accuracy", labelpad=15)
+                        else:
+                            ax.set_yticklabels([])
+                    
+                    ax.grid(True, linestyle="--", alpha=0.4, linewidth=0.8)
+                    if row == 1:
+                        ax.set_xlabel("Normalized layer number (%)", labelpad=15)
+                    else:
+                        ax.set_xticklabels([])
+                        ax.set_xlabel("")
+                    if row == 0:
+                        ax.set_title(titles[col], pad=15)
+                    ax.tick_params(axis='y', which='major', length=10, width=2)
+                    continue
+                
+                # Main plotting loop
+                for i, model in enumerate(model_list):
+                    probe_dir = os.path.join("..", "output", "probes",
+                                f"{dataset}_{model}_{task}_{probe}")
+                    if pca:
+                        probe_dir += f"_pca_{pca_dim}"
+                    csv_path = os.path.join(probe_dir, f"{task}_results.csv")
+                    if not os.path.exists(csv_path):
+                        print(f"[WARN] Missing results for model: {model} at {csv_path}")
+                        continue
+                    df = pd.read_csv(csv_path)
+                    try:
+                        acc_col, ctrl_col = get_acc_columns(df, task)
+                        df["Layer_Normalized"] = (
+                            df["Layer"] - df["Layer"].min()
+                        ) / (df["Layer"].max() - df["Layer"].min())
+                        y = df[acc_col] if not plot_selectivity else df[acc_col] - df[ctrl_col]
+                        ax.plot(
+                            df["Layer_Normalized"], y,
+                            label=model_names.get(model, model),
+                            linewidth=3.0,
+                            color=get_model_color(model, model_list),
+                        )
+                        if not plot_selectivity:
+                            fit_and_store_regression(df, model, task, probe, all_regression_results)
+                    except Exception:
+                        ax.text(0.5, 0.5, f"No {task} data", ha="center", va="center",
+                                transform=ax.transAxes, fontsize=22)
+                
+                # Set axis properties
+                ax.tick_params(axis='both', which='major', length=10, width=2)
                 ax.set_xlim(0, 1)
                 ax.set_xticks(np.arange(0, 1.1, 0.2))
                 ax.set_xticklabels([f"{x*100:.0f}" for x in np.arange(0, 1.1, 0.2)])
-                ax.set_ylim(0, 1)
-                ax.set_yticks(np.arange(0, 1.1, 0.2))
-                ax.set_yticklabels([f"{y:.1f}" for y in np.arange(0, 1.1, 0.2)])
+                
+                if plot_selectivity:
+                    row_ylim = (-0.2, 0.8)
+                    yticks, ylabels = get_tick_values(row_ylim[0], row_ylim[1])
+                    ax.set_ylim(*row_ylim)
+                    ax.set_yticks(yticks)
+                    if col == 0:
+                        ax.yaxis.set_tick_params(labelleft=True)
+                        ax.set_yticklabels(ylabels)
+                        if row == 0:
+                            ax.set_ylabel("Lexeme Selectivity", labelpad=15, fontsize=24)
+                        elif row == 1:
+                            ax.set_ylabel("Inflection Selectivity", labelpad=15, fontsize=24)
+                    else:
+                        ax.yaxis.set_tick_params(labelleft=False)
+                else:
+                    # Use per-row ylim if available
+                    row_ylim = ylim[row] if isinstance(ylim, (list, tuple)) and len(ylim) > row else (0, 1)
+                    yticks, ylabels = get_tick_values(row_ylim[0], row_ylim[1])
+                    ax.set_ylim(*row_ylim)
+                    ax.set_yticks(yticks)
+                    if col == 0:
+                        ax.yaxis.set_tick_params(labelleft=True)
+                        ax.set_yticklabels(ylabels)
+                        if row == 0:
+                            ax.set_ylabel("Lexeme Accuracy", labelpad=15)
+                        elif row == 1:
+                            ax.set_ylabel("Inflection Accuracy", labelpad=15)
+                    else:
+                        ax.yaxis.set_tick_params(labelleft=False)
+                
                 ax.grid(True, linestyle="--", alpha=0.4, linewidth=0.8)
+                
+                if row == 1:
+                    ax.set_xlabel("Normalized layer number (%)", labelpad=15)
+                else:
+                    ax.set_xticklabels([])
+                    ax.set_xlabel("")
+                
                 if row == 0:
                     ax.set_title(titles[col], pad=15)
-                if col == 0:
-                    if row == 0:
-                        ax.set_ylabel("Lexeme Accuracy", labelpad=15)
-                    if row == 1:
-                        ax.set_ylabel("Inflection Accuracy", labelpad=15)
-                ax.set_xlabel("Normalized layer number (%)", labelpad=15)
-                continue
-            for i, model in enumerate(model_list):
-                if task == "lexeme" and probe == "rf":
-                    if i == 0:
-                        ax.plot(
-                            [0, 1], [np.nan, np.nan],  # invisible line for legend
-                            label="No results",
-                            color="gray", linestyle="--", linewidth=3.0
-                        )
-                        ax.text(
-                            0.5, 0.5,
-                            "— (infeasible: too many classes,\nprone to overfitting)",
-                            ha="center", va="center",
-                            transform=ax.transAxes, fontsize=18, color="gray"
-                        )
-                    continue
 
-                probe_dir = os.path.join("..", "output", "probes",
-                            f"{dataset}_{model}_{task}_{probe}")
-                if pca:
-                    probe_dir = probe_dir + f"_pca_{pca_dim}"
-                csv_path = os.path.join(probe_dir, f"{task}_results.csv")
-                if not os.path.exists(csv_path):
-                    print(f"[WARN] Missing results for model: {model} at {csv_path}")
-                    continue
-                df = pd.read_csv(csv_path)
-                try:
-                    acc_col, ctrl_col = get_acc_columns(df, task)
-                    df["Layer_Normalized"] = (
-                        df["Layer"] - df["Layer"].min()
-                    ) / (df["Layer"].max() - df["Layer"].min())
-                    ax.plot(
-                        df["Layer_Normalized"], df[acc_col],
-                        label=model_names.get(model, model),
-                        linewidth=3.0,
-                        color=get_model_color(model, model_list),
-                    )
-                    fit_and_store_regression(df, model, task, probe, all_regression_results)
-                except Exception:
-                    ax.text(
-                        0.5, 0.5, f"No {task} data",
-                        ha="center", va="center",
-                        transform=ax.transAxes, fontsize=22
-                    )
-
-            # Set bigger tick marks
-            ax.tick_params(axis='both', which='major', length=10, width=2)
-            ax.set_xlim(0, 1)
-            ax.set_xticks(np.arange(0, 1.1, 0.2))
-            ax.set_xticklabels([f"{x*100:.0f}" for x in np.arange(0, 1.1, 0.2)])
-            ax.set_ylim(0.4, 1)
-            ax.set_yticks(np.arange(0.4, 1.05, 0.1))
-            ax.set_yticklabels([f"{y:.1f}" for y in np.arange(0.4, 1.05, 0.1)])
-            ax.grid(True, linestyle="--", alpha=0.4, linewidth=0.8)
-
-            # only top row gets titles
-            if row == 0:
-                ax.set_title(titles[col], pad=15)
-            if col == 0:
-                if row == 0:
-                    ax.set_ylabel("Lexeme Accuracy", labelpad=15)
-                if row == 1:
-                    ax.set_ylabel("Inflection Accuracy", labelpad=15)
-            ax.set_xlabel("Normalized layer number (%)", labelpad=15)
-
+    fig1, axes1 = plt.subplots(n_rows, n_cols, figsize=fig_size)
+    axes1 = np.atleast_2d(axes1)
+    plot_panel(fig1, axes1, plot_selectivity=False)
     handles, labels = axes1[0, 0].get_legend_handles_labels()
     if handles and labels:
-        fig1.legend(
-            handles, labels,
-            loc="lower center",
-            bbox_to_anchor=bbox_to_anchor,
-            ncol=min(4, len(labels)),
-            mode="expand",
-            frameon=True
-        )
+        fig1.legend(handles, labels, loc="lower center", bbox_to_anchor=bbox_to_anchor,
+                    ncol=min(4, len(labels)), mode="expand", frameon=True)
     fig1.tight_layout(rect=[0, 0.05, 1, 0.97])
     os.makedirs(output_dir, exist_ok=True)
-    filename1 = "linguistic_accuracy"
-    if pca:
-        filename1 += f"_pca_{pca_dim}"
-    filename1 += ".png"
-    if linguistic_filename is not None:
-        filename1 = linguistic_filename
+    filename1 = linguistic_filename or f"linguistic_accuracy{'_pca_' + str(pca_dim) if pca else ''}.png"
     fig1.savefig(os.path.join(output_dir, filename1), bbox_inches="tight")
     print(f"Saved linguistic accuracy figure to {os.path.join(output_dir, filename1)}")
 
-    # Selectivity Plot
-    fig2, axes2 = plt.subplots(
-        n_rows, n_cols,
-        figsize=(fig_width, fig_height),
-        sharey=True
-    )
-    if n_rows == 1:
-        axes2 = np.expand_dims(axes2, axis=0)
-    if n_cols == 1:
-        axes2 = np.expand_dims(axes2, axis=1)
-
-    for row, task in enumerate(tasks):
-        for col, probe in enumerate(probe_types):
-            ax = axes2[row, col]
-            if task == "lexeme" and probe == "rf":
-                # Only show placeholder explanation, no lines or legend entry
-                ax.text(
-                    0.5, 0.5,
-                    "(computationally infeasible: too many classes,\nprone to overfitting)",
-                    ha="center", va="center",
-                    transform=ax.transAxes, fontsize=18, color="gray"
-                )
-                ax.set_xlim(0, 1)
-                ax.set_xticks(np.arange(0, 1.1, 0.2))
-                ax.set_xticklabels([f"{x*100:.0f}" for x in np.arange(0, 1.1, 0.2)])
-                ax.set_ylim(-1, 1)
-                ax.set_yticks(np.arange(-1, 1.1, 0.5))
-                ax.set_yticklabels([f"{y:.1f}" for y in np.arange(-1, 1.1, 0.5)])
-                ax.grid(True, linestyle="--", alpha=0.4, linewidth=0.8)
-                if row == 0:
-                    ax.set_title(titles[col], pad=15)
-                    if col == 0:
-                        ax.set_ylabel("Lexeme Selectivity", labelpad=15, fontsize=24)
-                if row == 1 and col == 0:
-                    ax.set_ylabel("Inflection Selectivity", labelpad=15, fontsize=24)
-                ax.set_xlabel("Normalized layer number (%)", labelpad=15)
-                continue
-            for i, model in enumerate(model_list):
-                if task == "lexeme" and probe == "rf":
-                    if i == 0:
-                        ax.plot(
-                            [0, 1], [np.nan, np.nan],
-                            label="No results",
-                            color="gray", linestyle="--", linewidth=3.0
-                        )
-                        ax.text(
-                            0.5, 0.5,
-                            "(computationally infeasible: too many classes,\nprone to overfitting)",
-                            ha="center", va="center",
-                            transform=ax.transAxes, fontsize=18, color="gray"
-                        )
-                    continue
-
-                probe_dir = os.path.join("..", "output", "probes",
-                            f"{dataset}_{model}_{task}_{probe}")
-                if pca:
-                    probe_dir = probe_dir + f"_pca_{pca_dim}"
-                csv_path = os.path.join(probe_dir, f"{task}_results.csv")
-                if not os.path.exists(csv_path):
-                    print(f"[WARN] Missing results for model: {model} at {csv_path}")  # <-- add debug print
-                    continue
-                df = pd.read_csv(csv_path)
-                try:
-                    acc_col, ctrl_col = get_acc_columns(df, task)
-                    df["Layer_Normalized"] = (
-                        df["Layer"] - df["Layer"].min()
-                    ) / (df["Layer"].max() - df["Layer"].min())
-                    selectivity = df[acc_col] - df[ctrl_col]
-                    ax.plot(
-                        df["Layer_Normalized"], selectivity,
-                        label=model_names.get(model, model),
-                        linewidth=3.0,
-                        color=get_model_color(model, model_list),
-                    )
-                except Exception:
-                    ax.text(
-                        0.5, 0.5, f"No {task} data",
-                        ha="center", va="center",
-                        transform=ax.transAxes, fontsize=22
-                    )
-
-            # Set bigger tick marks
-            ax.tick_params(axis='both', which='major', length=10, width=2)
-            ax.set_xlim(0, 1)
-            ax.set_xticks(np.arange(0, 1.1, 0.2))
-            ax.set_xticklabels([f"{x*100:.0f}" for x in np.arange(0, 1.1, 0.2)])
-            ax.set_ylim(-0.2, 0.8)
-            ax.set_yticks(np.arange(-0.2, 0.81, 0.2))
-            ax.set_yticklabels([f"{y:.1f}" for y in np.arange(-0.2, 0.81, 0.2)])
-            ax.grid(True, linestyle="--", alpha=0.4, linewidth=0.8)
-
-            # only top row gets titles
-            if row == 0:
-                ax.set_title(titles[col], pad=15)
-                if col == 0:
-                    ax.set_ylabel("Lexeme Selectivity", labelpad=15, fontsize=24)
-            if row == 1 and col == 0:
-                ax.set_ylabel("Inflection Selectivity", labelpad=15, fontsize=24)
-            ax.set_xlabel("Normalized layer number (%)", labelpad=15)
-
+    fig2, axes2 = plt.subplots(n_rows, n_cols, figsize=fig_size)
+    axes2 = np.atleast_2d(axes2)
+    plot_panel(fig2, axes2, plot_selectivity=True)
     handles2, labels2 = axes2[0, 0].get_legend_handles_labels()
     if handles2 and labels2:
-        fig2.legend(
-            handles2, labels2,
-            loc="lower center",
-            bbox_to_anchor=bbox_to_anchor,
-            ncol=min(4, len(labels2)),
-            mode="expand",
-            frameon=True
-        )
+        fig2.legend(handles2, labels2, loc="lower center", bbox_to_anchor=bbox_to_anchor,
+                    ncol=min(4, len(labels2)), mode="expand", frameon=True)
     fig2.tight_layout(rect=[0, 0.05, 1, 0.97])
-    filename2 = "classifier_selectivity"
-    if pca:
-        filename2 += f"_pca_{pca_dim}"
-    filename2 += ".png"
-    if selectivity_filename is not None:
-        filename2 = selectivity_filename
+    filename2 = selectivity_filename or f"classifier_selectivity{'_pca_' + str(pca_dim) if pca else ''}.png"
     fig2.savefig(os.path.join(output_dir, filename2), bbox_inches="tight")
     print(f"Saved selectivity figure to {os.path.join(output_dir, filename2)}")
 
-    # Save regression results
     regression_df = pd.DataFrame(all_regression_results)
-    regression_filename = "all_regression_results.csv"
-    regression_filepath = os.path.join(output_dir, regression_filename)
+    regression_filepath = os.path.join(output_dir, "all_regression_results.csv")
     regression_df.to_csv(regression_filepath, index=False)
     print(f"Saved all regression results to {regression_filepath}")
 
-dataset = "ud_gum_dataset"
+# pythia_models = [
+#     "pythia-6.9b_step1",
+#     "pythia-6.9b_step64",
+#     "pythia-6.9b_step6000",
+#     "pythia-6.9b_step19000",
+#     "pythia-6.9b_step37000",
+#     "pythia-6.9b_step57000",
+#     "pythia-6.9b_step82000",
+#     "pythia-6.9b_step111000",
+#     "pythia-6.9b",
+# ]
+# dataset = "ud_gum_dataset"
 # linguistic_filename = "pythia_linguistic_accuracy.png"
 # select_filename = "pythia_classifier_selectivity.png"
-plot_linguistic_and_selectivity(dataset, models, probe_type="nn", pca=False, )
-                                # linguistic_filename=linguistic_filename,
-                                # selectivity_filename=select_filename)
+# plot_linguistic_and_selectivity(
+#     dataset,
+#     pythia_models,
+#     probe_type="nn",
+#     pca=False,
+#     linguistic_filename=linguistic_filename,
+#     selectivity_filename=select_filename,
+#     ylim=[(0, 1.0), (0.6, 1.0)],
+# )
+
+# olmo_models = [
+#     "olmo2-7b_stage1-step5000-tokens21B",
+#     "olmo2-7b_stage1-step40000-tokens168B",
+#     "olmo2-7b_stage1-step97000-tokens407B",
+#     "olmo2-7b_stage1-step179000-tokens751B",
+#     "olmo2-7b_stage1-step282000-tokens1183B",
+#     "olmo2-7b_stage1-step409000-tokens1716B",
+#     "olmo2-7b_stage1-step559000-tokens2345B",
+#     "olmo2-7b_stage1-step734000-tokens3079B",
+#     "olmo2-7b",
+# ]
+# linguistic_filename = "olmo_linguistic_accuracy.png"
+# select_filename = "olmo_classifier_selectivity.png"
+# plot_linguistic_and_selectivity(
+#     dataset,
+#     olmo_models,
+#     probe_type="nn",
+#     pca=False,
+#     linguistic_filename=linguistic_filename,
+#     selectivity_filename=select_filename,
+#     ylim=[(0.6, 1.0), (0.6, 1.0)],
+# )
+
+# Plot with all models
+all_models = [
+    "gpt2", "gpt2-large", "gpt2-xl",
+    "qwen2", "qwen2-instruct",
+    "pythia-6.9b_step1", "pythia-6.9b_step64", "pythia-6.9b_step6000",
+    "pythia-6.9b_step19000", "pythia-6.9b_step37000", "pythia-6.9b_step57000",
+    "pythia-6.9b_step82000", "pythia-6.9b_step111000", "pythia-6.9b",
+    "gemma2b", "gemma2b-it",
+    "bert-base-uncased", "bert-large-uncased", "deberta-v3-large",
+    "llama3-8b", "llama3-8b-instruct",
+    "pythia-6.9b-tulu",
+    "olmo2-7b_stage1-step5000-tokens21B", "olmo2-7b_stage1-step40000-tokens168B",
+    "olmo2-7b_stage1-step97000-tokens407B", "olmo2-7b_stage1-step179000-tokens751B",
+    "olmo2-7b_stage1-step282000-tokens1183B", "olmo2-7b_stage1-step409000-tokens1716B",
+    "olmo2-7b_stage1-step559000-tokens2345B", "olmo2-7b_stage1-step734000-tokens3079B",
+    "olmo2-7b", "olmo2-7b-instruct"
+]
+dataset = "ud_gum_dataset"
+linguistic_filename = "linguistic_accuracy.png"
+select_filename = "classifier_selectivity.png"
+plot_linguistic_and_selectivity(
+    dataset,
+    all_models,
+    probe_type="nn",
+    pca=False,
+    linguistic_filename=linguistic_filename,
+    selectivity_filename=select_filename,
+    ylim=[(0, 1.0), (0.6, 1.0)],
+)
