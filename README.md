@@ -8,16 +8,15 @@ This codebase implements a pipeline for extracting hidden activations from langu
 
 - **src/**: Main pipeline and utilities
 
-  - `activation_extraction.py`: Extracts hidden states from models for each token in your dataset.
-  - `train.py`: Trains probes (linear, MLP, random forest, etc.) to predict lexeme or inflection labels from activations.
+  - `activation_extraction.py`: Extracts hidden states from models for each token in the dataset.
+  - `train.py`: Trains classifiers (linear, MLP and random forest) to predict lexeme or inflection labels from activations.
+  - `probe.py`: Defines the classifiers (linear, MLP and random forest)
   - `analysis.py`: Runs unsupervised analyses (t-SNE, clustering, cosine similarity) on activations.
   - `experiment.py`: Runs the full pipeline (extraction, probing, analysis).
   - `pca_experiment.py`: Computes PCA/intrinsic dimensionality of activations.
   - `analogy_completion.py`: Runs word analogy completion tasks using input embeddings.
   - `config.py`: Model settings and hyperparameters.
-
-- **scripts/**: Shell scripts for running experiments and analyses.
-
+  - 
 - **dataset/**: Utilities and notebooks for dataset construction and statistics.
 
   - `dataset.ipynb`: Builds the probing dataset from UD English-GUM.
@@ -29,21 +28,11 @@ This codebase implements a pipeline for extracting hidden activations from langu
   - `scratch2.py`, `scratch3.ipynb`: Miscellaneous scripts and exploratory notebooks.
   - `delta_rank_bar.png`, `tokenize_vs_sum_scatter_old.png`, and folders like `figs/`, `figures/`, etc.: Generated figures and plots.
 
-- **output/**: Results, probe outputs, and analysis figures are saved here.
-
 ---
 
-## How to Run
+## Running various experiments
 
-1. **Install dependencies**
-
-   ```bash
-   python -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   ```
-
-2. **Extract activations**
+**Extract activations**
 
    ```bash
    python -m src.activation_extraction \
@@ -56,7 +45,7 @@ This codebase implements a pipeline for extracting hidden activations from langu
    - `--output-dir`: Directory for activation shards
    - `--model`: Model key (see `src/config.py`)
 
-3. **Train probes**
+**Train classifiers**
 
    ```bash
    python -m src.train \
@@ -71,7 +60,7 @@ This codebase implements a pipeline for extracting hidden activations from langu
 
    - Results and plots are saved in `output/probes/`
 
-4. **Unsupervised analysis**
+**Unsupervised analysis**
 
    ```bash
    python -m src.analysis \
@@ -83,7 +72,7 @@ This codebase implements a pipeline for extracting hidden activations from langu
 
    - Outputs are in `output/<model>_analysis/`
 
-5. **Additional analyses**
+**Additional analyses**
 
    - **Intrinsic dimensionality (PCA):**  
      Run `src/pca_experiment.py` or use `scripts/run_pca_experiments.sh` to analyze the dimensionality of representations.
@@ -92,17 +81,4 @@ This codebase implements a pipeline for extracting hidden activations from langu
    - **Plotting and statistics:**  
      Use scripts in `plots/` for probe result plots, PCA/analogy plots, and selectivity/advantage analyses. Dataset statistics are in `dataset/`.
 
----
-
-## Customization
-
-- Edit `src/config.py` to add or modify models, hyperparameters, or checkpoint lists.
-
----
-
-## Output
-
-- `output/<model>_reps/`: Activation shards for each model.
-- `output/probes/`: Probe results and plots.
-- `output/<model>_analysis/`: Unsupervised analysis outputs.
-- `notebooks/figures*/`: Figures and tables from PCA/analogy experiments.
+Edit `src/config.py` to add or modify models, hyperparameters, or checkpoint lists.
