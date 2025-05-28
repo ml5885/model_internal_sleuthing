@@ -8,6 +8,24 @@ OUTPUT_DIR = os.environ.get('OUTPUT_DIR', DEFAULT_OUTPUT_DIR)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 MODEL_CONFIGS = {
+    "bert-base-uncased": {
+        "model_name": "google-bert/bert-base-uncased",
+        "tokenizer_name": "google-bert/bert-base-uncased",
+        "max_length": 128,
+        "batch_size": 32,
+    },
+    "bert-large-uncased": {
+        "model_name": "bert-large-uncased",
+        "tokenizer_name": "bert-large-uncased",
+        "max_length": 128,
+        "batch_size": 32,
+    },
+    "deberta-v3-large": {
+        "model_name": "microsoft/deberta-v3-large",
+        "tokenizer_name": "microsoft/deberta-v3-large",
+        "max_length": 128,
+        "batch_size": 32,
+    },
     "gpt2": {
         "model_name": "gpt2",
         "tokenizer_name": "gpt2",
@@ -26,7 +44,55 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
-    "qwen2-instruct": {
+    "olmo2-7b": {
+        "model_name": "allenai/OLMo-2-1124-7B",
+        "tokenizer_name": "allenai/OLMo-2-1124-7B",
+        "max_length": 128,
+        "batch_size": 32,
+        "checkpoints": [
+            "main",
+            "stage1-step5000-tokens21B",
+            "stage1-step40000-tokens168B",
+            "stage1-step97000-tokens407B",
+            "stage1-step179000-tokens751B",
+            "stage1-step282000-tokens1183B",
+            "stage1-step409000-tokens1716B",
+            "stage1-step559000-tokens2345B",
+            "stage1-step734000-tokens3079B",
+            "stage1-step928646-tokens3896B"
+        ]
+    },
+        "pythia-6.9b": {
+        "model_name": "EleutherAI/pythia-6.9b",
+        "tokenizer_name": "EleutherAI/pythia-6.9b",
+        "max_length": 128,
+        "batch_size": 32,
+        "checkpoints": [
+            "main",
+            "step1",
+            "step64",
+            "step6000",
+            "step19000",
+            "step37000",
+            "step57000",
+            "step82000",
+            "step111000",
+            "step143000"
+        ],
+    },
+    "pythia-6.9b-tulu": {
+        "model_name": "allenai/open-instruct-pythia-6.9b-tulu",
+        "tokenizer_name": "allenai/open-instruct-pythia-6.9b-tulu",
+        "max_length": 128,
+        "batch_size": 32,
+    },
+    "olmo2-7b-instruct": {
+        "model_name": "allenai/OLMo-2-1124-7B-Instruct",
+        "tokenizer_name": "allenai/OLMo-2-1124-7B-Instruct",
+        "max_length": 128,
+        "batch_size": 32,
+    },
+     "qwen2-instruct": {
         "model_name": "Qwen/Qwen2.5-1.5B-Instruct",
         "tokenizer_name": "Qwen/Qwen2.5-1.5B-Instruct",
         "max_length": 128,
@@ -50,56 +116,6 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
-    "olmo2-7b": {
-        "model_name": "allenai/OLMo-2-1124-7B",
-        "tokenizer_name": "allenai/OLMo-2-1124-7B",
-        "max_length": 128,
-        "batch_size": 32,
-        "checkpoints": [
-            "main",
-            "stage1-step5000-tokens21B",
-            "stage1-step40000-tokens168B",
-            "stage1-step97000-tokens407B",
-            "stage1-step179000-tokens751B",
-            "stage1-step282000-tokens1183B",
-            "stage1-step409000-tokens1716B",
-            "stage1-step559000-tokens2345B",
-            "stage1-step734000-tokens3079B",
-            "stage1-step928646-tokens3896B"
-        ]
-    },
-    "olmo2-7b-instruct": {
-        "model_name": "allenai/OLMo-2-1124-7B-Instruct",
-        "tokenizer_name": "allenai/OLMo-2-1124-7B-Instruct",
-        "max_length": 128,
-        "batch_size": 32,
-    },
-    # Encoder-only masked-LMs
-    "bert-base-uncased": {
-        "model_name": "google-bert/bert-base-uncased",
-        "tokenizer_name": "google-bert/bert-base-uncased",
-        "max_length": 128,
-        "batch_size": 32,
-    },
-    "bert-large-uncased": {
-        "model_name": "bert-large-uncased",
-        "tokenizer_name": "bert-large-uncased",
-        "max_length": 128,
-        "batch_size": 32,
-    },
-    "distilbert-base-uncased": {
-        "model_name": "distilbert/distilbert-base-uncased",
-        "tokenizer_name": "distilbert/distilbert-base-uncased",
-        "max_length": 128,
-        "batch_size": 32,
-    },
-    "deberta-v3-large": {
-        "model_name": "microsoft/deberta-v3-large",
-        "tokenizer_name": "microsoft/deberta-v3-large",
-        "max_length": 128,
-        "batch_size": 32,
-    },
-    # Meta Llama models
     "llama3-8b": {
         "model_name": "meta-llama/Llama-3.1-8B",
         "tokenizer_name": "meta-llama/Llama-3.1-8B",
@@ -109,30 +125,6 @@ MODEL_CONFIGS = {
     "llama3-8b-instruct": {
         "model_name": "meta-llama/Llama-3.1-8B-Instruct",
         "tokenizer_name": "meta-llama/Llama-3.1-8B-Instruct",
-        "max_length": 128,
-        "batch_size": 32,
-    },
-    "pythia-6.9b": {
-        "model_name": "EleutherAI/pythia-6.9b",
-        "tokenizer_name": "EleutherAI/pythia-6.9b",
-        "max_length": 128,
-        "batch_size": 32,
-        "checkpoints": [
-            "main",
-            "step1",
-            "step64",
-            "step6000",
-            "step19000",
-            "step37000",
-            "step57000",
-            "step82000",
-            "step111000",
-            "step143000"
-        ],
-    },
-    "pythia-6.9b-tulu": {
-        "model_name": "allenai/open-instruct-pythia-6.9b-tulu",
-        "tokenizer_name": "allenai/open-instruct-pythia-6.9b-tulu",
         "max_length": 128,
         "batch_size": 32,
     },

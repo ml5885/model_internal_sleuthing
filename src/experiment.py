@@ -97,7 +97,8 @@ def main():
         if task not in probe_output_dirs:
             raise ValueError(f"Unknown experiment name: {task}")
         
-        exp_label = f"{effective_model_key_for_paths}_{task}"
+        # exp_label should be just the model key (and revision), not include the task
+        exp_label = effective_model_key_for_paths
         
         exp_args = [
             "--activations", reps_path,

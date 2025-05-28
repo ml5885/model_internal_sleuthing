@@ -115,36 +115,53 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
                 utils.log_info(f"Could not extract LayerNorm params for layer {layer_idx+1}: {e}")
 
         seed = config.SEED + layer_idx
-        if use_llama3_norm:
-            norm_weight, norm_bias = None, None
-            try:
-                norm_weight, norm_bias = model_wrapper.get_layernorm_params(layer_idx)
-            except Exception as e:
-                utils.log_info(f"Could not extract LayerNorm params for layer {layer_idx+1}: {e}")
-            _, res, pred_df = process_layer(
-                seed, X_filtered, y_true_layer, y_control_layer,
-                lambda_reg, task, probe_type, layer_idx,
-                pca_dim, outdir=outdir,
-                label_map=uniq_infl if task == "inflection" else uniq,
-                control_label_map=uniq_words,
-                norm_weight=norm_weight,
-                norm_bias=norm_bias
-            )
-        else:
-            _, res, pred_df = process_layer(
-                seed, X_filtered, y_true_layer, y_control_layer,
-                lambda_reg, task, probe_type, layer_idx,
-                pca_dim, outdir=outdir,
-                label_map=uniq_infl if task == "inflection" else uniq,
-                control_label_map=uniq_words
-            )
-        results[f"layer_{layer_idx}"] = res
-        all_preds.append(pred_df)
+        try:
+            if use_llama3_norm:
+                norm_weight, norm_bias = None, None
+                try:
+                    norm_weight, norm_bias = model_wrapper.get_layernorm_params(layer_idx)
+                except Exception as e:
+                    utils.log_info(f"Could not extract LayerNorm params for layer {layer_idx+1}: {e}")
+                _, res, pred_df = process_layer(
+                    seed, X_filtered, y_true_layer, y_control_layer,
+                    lambda_reg, task, probe_type, layer_idx,
+                    pca_dim, outdir=outdir,
+                    label_map=uniq_infl if task == "inflection" else uniq,
+                    control_label_map=uniq_words,
+                    norm_weight=norm_weight,
+                    norm_bias=norm_bias
+                )
+            else:
+                _, res, pred_df = process_layer(
+                    seed, X_filtered, y_true_layer, y_control_layer,
+                    lambda_reg, task, probe_type, layer_idx,
+                    pca_dim, outdir=outdir,
+                    label_map=uniq_infl if task == "inflection" else uniq,
+                    control_label_map=uniq_words
+                )
+            results[f"layer_{layer_idx}"] = res
+            if pred_df is not None and len(pred_df) > 0:
+                all_preds.append(pred_df)
+        except Exception as e:
+            utils.log_info(f"Skipping layer {layer_idx} due to error: {e}")
         del X_flat, X_filtered
 
+    # Always save predictions, even if empty
+    predictions_path = os.path.join(outdir, "predictions.csv")
     if all_preds:
-        pd.concat(all_preds, ignore_index=True) \
-          .to_csv(os.path.join(outdir, "predictions.csv"), index=False)
+        try:
+            combined_preds = pd.concat(all_preds, ignore_index=True)
+            utils.log_info(f"Writing {len(combined_preds)} predictions to {predictions_path}")
+            combined_preds.to_csv(predictions_path, index=False)
+            if not os.path.isfile(predictions_path):
+                raise RuntimeError(f"Failed to write predictions.csv to {predictions_path}")
+            utils.log_info(f"Saved predictions to {predictions_path}")
+        except Exception as e:
+            utils.log_info(f"Error saving predictions: {e}")
+            raise RuntimeError(f"Could not save predictions.csv: {e}")
+    else:
+        utils.log_info(f"ERROR: No predictions to save for any layer, this should not happen. Failing loudly.")
+        raise RuntimeError("No predictions to save for any layer. This indicates a bug upstream.")
 
     np.savez_compressed(os.path.join(outdir, "probe_results.npz"),
                         results=results)

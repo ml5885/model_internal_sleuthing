@@ -170,6 +170,11 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
         stratify=stratify_val
     )
 
+    # Add this check to ensure test set is not empty
+    if len(y_test) == 0:
+        utils.log_info(f"Layer {layer}: No test samples after split, skipping this layer.")
+        raise ValueError(f"Layer {layer}: No test samples after split.")
+
     pca_explained_variance = -1
     if pca_dim and pca_dim < X_train.shape[1]:
         pca = PCA(n_components=pca_dim, random_state=config.SEED)

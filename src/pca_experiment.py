@@ -211,7 +211,7 @@ def plot_components_by_threshold_multiplot(dfs, models, thresholds, out_base, no
     fig.legend(
         handles, labels,
         loc='lower center',
-        bbox_to_anchor=(0.5, -0.35),
+        bbox_to_anchor=(0.5, -0.3),
         ncol=min(4, len(models)),
         frameon=True,
         edgecolor='black',

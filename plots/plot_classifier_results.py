@@ -22,7 +22,7 @@ plt.rcParams.update({
     "grid.linewidth": 1.0
 })
 
-bbox_to_anchor = (0, -0.1, 1, 0.1)
+bbox_to_anchor = (0, -0.11, 1, 0.1)
 
 model_names = {
     "gpt2": "GPT-2-Small",
@@ -209,7 +209,7 @@ def plot_linguistic_and_selectivity(
     pca_dim: int = 50,
     linguistic_filename: str = None,
     selectivity_filename: str = None,
-    ylim: tuple = ((0, 1.0), (0, 1.0)),  # <-- now expects tuple of tuples for per-row y-limits
+    ylim: tuple = ((0, 1.0), (0, 1.0)),
 ):
     probe_types = ["reg", probe_type, "rf"]
     titles = ["Linear Regression", "MLP", "Random Forest"]
@@ -300,7 +300,7 @@ def plot_linguistic_and_selectivity(
                 ax.set_xticklabels([f"{x*100:.0f}" for x in np.arange(0, 1.1, 0.2)])
                 
                 if plot_selectivity:
-                    row_ylim = (-0.2, 0.8)
+                    row_ylim = (0, 0.2) if row == 0 else (0, 0.8)
                     yticks, ylabels = get_tick_values(row_ylim[0], row_ylim[1])
                     ax.set_ylim(*row_ylim)
                     ax.set_yticks(yticks)
@@ -419,20 +419,14 @@ def plot_linguistic_and_selectivity(
 
 # Plot with all models
 all_models = [
-    "gpt2", "gpt2-large", "gpt2-xl",
-    "qwen2", "qwen2-instruct",
-    "pythia-6.9b_step1", "pythia-6.9b_step64", "pythia-6.9b_step6000",
-    "pythia-6.9b_step19000", "pythia-6.9b_step37000", "pythia-6.9b_step57000",
-    "pythia-6.9b_step82000", "pythia-6.9b_step111000", "pythia-6.9b",
-    "gemma2b", "gemma2b-it",
     "bert-base-uncased", "bert-large-uncased", "deberta-v3-large",
-    "llama3-8b", "llama3-8b-instruct",
+    "gpt2", "gpt2-large", "gpt2-xl",
+    "pythia-6.9b",
     "pythia-6.9b-tulu",
-    "olmo2-7b_stage1-step5000-tokens21B", "olmo2-7b_stage1-step40000-tokens168B",
-    "olmo2-7b_stage1-step97000-tokens407B", "olmo2-7b_stage1-step179000-tokens751B",
-    "olmo2-7b_stage1-step282000-tokens1183B", "olmo2-7b_stage1-step409000-tokens1716B",
-    "olmo2-7b_stage1-step559000-tokens2345B", "olmo2-7b_stage1-step734000-tokens3079B",
-    "olmo2-7b", "olmo2-7b-instruct"
+    "olmo2-7b", "olmo2-7b-instruct",
+    "gemma2b", "gemma2b-it",
+    "qwen2", "qwen2-instruct",
+    "llama3-8b", "llama3-8b-instruct",
 ]
 dataset = "ud_gum_dataset"
 linguistic_filename = "linguistic_accuracy.png"

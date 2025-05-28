@@ -197,7 +197,7 @@ def make_plots(df: pd.DataFrame, outdir: pathlib.Path):
         ana_handles,
         ana_labels,
         loc="lower center",
-        bbox_to_anchor=(0.45, -0.36),
+        bbox_to_anchor=(0.45, -0.31),
         frameon=True,
         framealpha=0.7,
         fontsize=11,
@@ -205,7 +205,7 @@ def make_plots(df: pd.DataFrame, outdir: pathlib.Path):
         labelspacing=0.9,
         borderpad=0.7,
         ncol=3,
-        title="Analogies",
+        # title="Analogies",
         title_fontsize=11,
         markerscale=0.8,
     )
