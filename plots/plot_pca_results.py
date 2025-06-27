@@ -14,15 +14,6 @@ sns.set_style("white")
 mpl.rcParams["figure.dpi"] = 150
 plt.rcParams.update({"font.size": 12})
 
-PLOT_CONFIG = {
-    'figure_width': 4.8,
-    'figure_height': 3.5,
-    'wspace': 0.1,
-    'hspace': 0.25,
-    'top_margin': 0.93,
-    'legend_y_offset': -0.02,
-}
-
 models = ["bert-base-uncased", "bert-large-uncased", "deberta-v3-large",
           "gpt2", "qwen2", "qwen2-instruct", "gemma2b", "pythia1.4b"]
 
@@ -93,16 +84,16 @@ def plot_pca_results(
     n_rows = len(combos)
     n_cols = 3
 
-    # same sizing as selectivity plots
-    fig1_w = PLOT_CONFIG['figure_width'] * n_cols
-    fig1_h = PLOT_CONFIG['figure_height'] * n_rows
-    fig1, axes1 = plt.subplots(n_rows, n_cols, figsize=(fig1_w, fig1_h))
-    # leave bottom space for full‐width legend
+    fig1_height = 3 * n_rows
+    fig1, axes1 = plt.subplots(
+        n_rows, n_cols,
+        figsize=(7 * n_cols, fig1_height),
+    )
     plt.subplots_adjust(
-        top=PLOT_CONFIG['top_margin'],
-        bottom=0.15,
-        wspace=PLOT_CONFIG['wspace'],
-        hspace=PLOT_CONFIG['hspace']
+        top=0.92, bottom=0.08,
+        left=0.07, right=0.98,
+        hspace=0.35,
+        wspace=0.35
     )
 
     pastel_colors = sns.color_palette("Dark2", n_colors=len(model_list))
@@ -110,13 +101,8 @@ def plot_pca_results(
     for row, (task, probe) in enumerate(combos):
         for i, model in enumerate(model_list):
             pca_suffix = f"pca{pca_dim}" if probe == "reg" else f"pca_{pca_dim}"
-            # Use language-specific subfolder for non-English datasets
-            if dataset in ("ud_gum_dataset", "en_gum", "english", "en_gum_dataset"):
-                probe_dir = os.path.join("..", "output", "probes",
-                            f"{dataset}_{model}_{task}_{probe}_{pca_suffix}")
-            else:
-                probe_dir = os.path.join("..", "output", dataset, "probes",
-                            f"{dataset}_{model}_{task}_{probe}_{pca_suffix}")
+            probe_dir = os.path.join("..", "output", "probes",
+                        f"{dataset}_{model}_{task}_{probe}_{pca_suffix}")
             csv_path = os.path.join(probe_dir, f"{task}_results.csv")
             if not os.path.exists(csv_path):
                 continue
@@ -196,18 +182,19 @@ def plot_pca_results(
     fig1.text(-0.03, 0.75, "Lexeme", va="center", rotation="vertical", fontsize=22)
     fig1.text(-0.03, 0.29, "Inflection", va="center", rotation="vertical", fontsize=22)
 
-    # full‐width legend under the plots
     handles, labels = axes1[0,0].get_legend_handles_labels()
     fig1.legend(
         handles, labels,
-        ncol=4,
-        bbox_to_anchor=(0, PLOT_CONFIG['legend_y_offset'], 1, 0.1),
-        loc='lower left',
-        mode='expand',
-        frameon=True
+        loc="upper center",
+        fontsize=20,
+        frameon=True,
+        ncol=6,
+        bbox_to_anchor=(0.5, 0.02),
+        borderaxespad=2.0,
+        fancybox=True,
+        title_fontsize=22
     )
-    # pack subplots into top 85% so the legend lives in bottom 15%
-    fig1.tight_layout(rect=[0, 0.15, 1, 1])
+
     os.makedirs(output_dir, exist_ok=True)
     filename1 = f"combined_probes_pca_{pca_dim}.png"
     fig1.savefig(os.path.join(output_dir, filename1), dpi=300, bbox_inches="tight")
@@ -217,13 +204,8 @@ def plot_pca_results(
     probe_type = "nn"
     for i, model in enumerate(model_list):
         pca_suffix = f"pca{pca_dim}" if probe_type == "reg" else f"pca_{pca_dim}"
-        # Use language-specific subfolder for non-English datasets
-        if dataset in ("ud_gum_dataset", "en_gum", "english", "en_gum_dataset"):
-            probe_dir = os.path.join("..", "output", "probes",
-                                     f"{dataset}_{model}_lexeme_{probe_type}_{pca_suffix}")
-        else:
-            probe_dir = os.path.join("..", "output", dataset, "probes",
-                                     f"{dataset}_{model}_lexeme_{probe_type}_{pca_suffix}")
+        probe_dir = os.path.join("..", "output", "probes",
+                                 f"{dataset}_{model}_lexeme_{probe_type}_{pca_suffix}")
         csv_path = os.path.join(probe_dir, "lexeme_results.csv")
         if not os.path.exists(csv_path):
             print(f"Missing explained variance for {model}")
@@ -254,19 +236,9 @@ def plot_pca_results(
     ax2.set_xlabel("Layer", fontsize=18)
     ax2.set_ylabel("Explained Variance Ratio", fontsize=18)
     ax2.set_title(f"PCA Explained Variance (Top {pca_dim} Components)", fontsize=20)
+    ax2.legend(fontsize=14, ncol=len(model_list) // 2, loc='upper center', bbox_to_anchor=(0.5, -0.15))
     ax2.grid(True, linestyle="--", alpha=0.3)
-    # move bottom up for the legend
-    fig2.subplots_adjust(bottom=0.15)
-    h2, l2 = ax2.get_legend_handles_labels()
-    fig2.legend(
-        h2, l2,
-        ncol=len(model_list) // 2,
-        bbox_to_anchor=(0, PLOT_CONFIG['legend_y_offset'], 1, 0.1),
-        loc='lower left',
-        mode='expand',
-        frameon=True
-    )
-    fig2.tight_layout(rect=[0, 0.15, 1, 1])
+    fig2.tight_layout(rect=[0, 0.05, 1, 1])
     filename2 = f"explained_variance_pca_{pca_dim}.png"
     fig2.savefig(os.path.join(output_dir, filename2), dpi=300, bbox_inches="tight")
     print(f"Saved explained variance figure to {os.path.join(output_dir, filename2)}")

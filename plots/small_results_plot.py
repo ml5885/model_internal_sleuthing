@@ -14,7 +14,6 @@ MODEL_NAMES = {
     "pythia-6.9b-tulu": "Pythia 6.9B Tulu",
 }
 DATASET = "ud_gum_dataset"
-LANG_SUBDIR = DATASET if DATASET not in ("ud_gum_dataset", "en_gum", "english", "en_gum_dataset") else None
 PROBE_TYPES = [("inflection", "reg"), ("lexeme", "reg"), ("inflection", "nn"), ("lexeme", "nn")]
 COLORS = {"task": sns.color_palette("Set2")[0], "control": sns.color_palette("Set2")[1]}
 OUTPUT_DIR = "figs"
@@ -47,10 +46,7 @@ def plot_all_probes():
     for col, model in enumerate(MODELS):
         for row, (task, probe_type) in enumerate(PROBE_TYPES):
             ax = axes[row, col] if nrows > 1 else axes[col]
-            if LANG_SUBDIR:
-                probe_dir = f"../output/{LANG_SUBDIR}/probes/{DATASET}_{model}_{task}_{probe_type}"
-            else:
-                probe_dir = f"../output/probes/{DATASET}_{model}_{task}_{probe_type}"
+            probe_dir = f"../output/probes/{DATASET}_{model}_{task}_{probe_type}"
             if PCA: probe_dir += f"_pca_{PCA_DIM}"
             csv_path = os.path.join(probe_dir, f"{task}_results.csv")
             if os.path.exists(csv_path):

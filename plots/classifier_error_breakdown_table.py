@@ -34,7 +34,6 @@ MODEL_DISPLAY_NAMES = {
 PROBE_TYPES = ["reg", "nn"]
 DATASET = "ud_gum_dataset"
 OUTPUT_DIR = "../output/probes"
-LANG_SUBDIR = DATASET if DATASET not in ("ud_gum_dataset", "en_gum", "english", "en_gum_dataset") else None
 
 CONLLU_PATH = "../data/en_gum-ud-train.conllu"
 POS_CACHE_PATH = "../output/lemma_to_pos_cache.json"
@@ -59,18 +58,11 @@ CANONICAL_INFLECTION_KEYS = [
 ]
 
 def get_pred_path(model, task, probe):
-    if LANG_SUBDIR:
-        return os.path.join(
-            "../output", LANG_SUBDIR, "probes",
-            f"{DATASET}_{model}_{task}_{probe}",
-            "predictions.csv"
-        )
-    else:
-        return os.path.join(
-            OUTPUT_DIR,
-            f"{DATASET}_{model}_{task}_{probe}",
-            "predictions.csv"
-        )
+    return os.path.join(
+        OUTPUT_DIR,
+        f"{DATASET}_{model}_{task}_{probe}",
+        "predictions.csv"
+    )
 
 def safe_read_csv(path):
     return pd.read_csv(path) if os.path.exists(path) else None
@@ -168,7 +160,7 @@ for model in MODELS:
         for pr in PROBE_TYPES:
             m = res_df[(res_df.Model == model) & (res_df.Probe == pr) & (res_df.Group == grp)]
             val = m.Accuracy.iloc[0] if not m.empty else np.nan
-            row.append(f"{val*100:.1f}" if not np.isnan(val) else "--")
+            row.append(f"{val:.3f}" if not np.isnan(val) else "--")
     table_rows.append(row)
 model_display_names = [MODEL_DISPLAY_NAMES[m] for m in MODELS]
 inflection_df = pd.DataFrame(table_rows, index=model_display_names, columns=inflection_cols)
@@ -293,8 +285,7 @@ if canonical is not None:
             for pr_type in PROBE_TYPES:
                 m = lex_df_data[(lex_df_data.Model == model_id) & (lex_df_data.Probe == pr_type) & (lex_df_data.POS_Group == pos_g)]
                 val = m.Accuracy.values[0] if not m.empty and not pd.isna(m.Accuracy.values[0]) else np.nan
-                # Format as percent with one decimal
-                row.append(f"{val*100:.1f}" if not np.isnan(val) else "--")
+                row.append(f"{val:.3f}" if not np.isnan(val) else "--")
         lex_rows_for_table.append(row)
     
     lexeme_df = pd.DataFrame(lex_rows_for_table, index=model_display_names, columns=lexeme_cols_for_table)
@@ -426,7 +417,7 @@ def to_latex_single_probe_table(df, probe_key, caption_text, label, group_counts
     caption_suffix = (
         " Accuracies are calculated over all examples for a given group across all layers. "
         "Counts (n) are derived from a single representative layer for each group. "
-        "All accuracy values are percentages."
+        "All accuracy values are on a 0--1 scale."
     )
     latex += f"\\caption{{{caption_text}{caption_suffix}}}\n"
     latex += f"\\label{{{label}}}\n"

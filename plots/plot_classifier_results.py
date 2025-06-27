@@ -12,7 +12,7 @@ sns.set_style("white")
 mpl.rcParams["figure.dpi"] = 100
 plt.rcParams.update({
     "font.size": 22,
-    "axes.labelsize": 22,
+    "axes.labelsize": 24,
     "axes.titlesize": 26,
     "xtick.labelsize": 20,
     "ytick.labelsize": 20,
@@ -22,7 +22,7 @@ plt.rcParams.update({
     "grid.linewidth": 1.0
 })
 
-bbox_to_anchor = (0, -0.17, 1, 0.1)
+bbox_to_anchor = (0, -0.11, 1, 0.1)
 
 model_names = {
     "gpt2": "GPT-2-Small",
@@ -217,11 +217,7 @@ def plot_linguistic_and_selectivity(
     n_rows, n_cols = len(tasks), len(probe_types)
     all_regression_results = []
     aspect_ratio, base_height = 8 / 3, 5
-    orig_width  = n_cols * base_height * aspect_ratio / n_rows
-    orig_height = n_rows * base_height
-
-    height_scale = 0.85
-    fig_size = (orig_width, orig_height * height_scale)
+    fig_size = (n_cols * base_height * aspect_ratio / n_rows, n_rows * base_height)
 
     def plot_panel(fig, axes, plot_selectivity=False):
         for row, task in enumerate(tasks):
@@ -240,9 +236,9 @@ def plot_linguistic_and_selectivity(
                         if col == 0:
                             ax.set_yticklabels([f"{y:.1f}" for y in np.arange(0, 1.01, 0.2)])
                             if row == 0:
-                                ax.set_ylabel("Lexeme Selectivity", labelpad=15)
+                                ax.set_ylabel("Lexeme Selectivity", labelpad=15, fontsize=24)
                             elif row == 1:
-                                ax.set_ylabel("Inflection Selectivity", labelpad=15)
+                                ax.set_ylabel("Inflection Selectivity", labelpad=15, fontsize=24)
                         else:
                             ax.set_yticklabels([])
                     else:
@@ -270,13 +266,8 @@ def plot_linguistic_and_selectivity(
                 
                 # Main plotting loop
                 for i, model in enumerate(model_list):
-                    # Use language-specific subfolder for non-English datasets
-                    if dataset in ("ud_gum_dataset", "en_gum", "english", "en_gum_dataset"):
-                        probe_dir = os.path.join("..", "output", "probes",
-                                    f"{dataset}_{model}_{task}_{probe}")
-                    else:
-                        probe_dir = os.path.join("..", "output", dataset, "probes",
-                                    f"{dataset}_{model}_{task}_{probe}")
+                    probe_dir = os.path.join("..", "output", "probes",
+                                f"{dataset}_{model}_{task}_{probe}")
                     if pca:
                         probe_dir += f"_pca_{pca_dim}"
                     csv_path = os.path.join(probe_dir, f"{task}_results.csv")
@@ -309,23 +300,17 @@ def plot_linguistic_and_selectivity(
                 ax.set_xticklabels([f"{x*100:.0f}" for x in np.arange(0, 1.1, 0.2)])
                 
                 if plot_selectivity:
-                    if row == 0:
-                        row_ylim = (0, 0.2)
-                        step = 0.1
-                    else:
-                        row_ylim = (0, 0.8)
-                        step = 0.2
-                    yticks = np.arange(row_ylim[0], row_ylim[1] + 1e-8, step)
-                    ylabels = [f"{y:.1f}" for y in yticks]
+                    row_ylim = (0, 0.2) if row == 0 else (0, 0.8)
+                    yticks, ylabels = get_tick_values(row_ylim[0], row_ylim[1])
                     ax.set_ylim(*row_ylim)
                     ax.set_yticks(yticks)
                     if col == 0:
                         ax.yaxis.set_tick_params(labelleft=True)
                         ax.set_yticklabels(ylabels)
                         if row == 0:
-                            ax.set_ylabel("Lexeme Selectivity", labelpad=15)
+                            ax.set_ylabel("Lexeme Selectivity", labelpad=15, fontsize=24)
                         elif row == 1:
-                            ax.set_ylabel("Inflection Selectivity", labelpad=15)
+                            ax.set_ylabel("Inflection Selectivity", labelpad=15, fontsize=24)
                     else:
                         ax.yaxis.set_tick_params(labelleft=False)
                 else:
@@ -356,7 +341,6 @@ def plot_linguistic_and_selectivity(
                     ax.set_title(titles[col], pad=15)
 
     fig1, axes1 = plt.subplots(n_rows, n_cols, figsize=fig_size)
-    fig1.subplots_adjust(hspace=0.6)
     axes1 = np.atleast_2d(axes1)
     plot_panel(fig1, axes1, plot_selectivity=False)
     handles, labels = axes1[0, 0].get_legend_handles_labels()
@@ -370,8 +354,6 @@ def plot_linguistic_and_selectivity(
     print(f"Saved linguistic accuracy figure to {os.path.join(output_dir, filename1)}")
 
     fig2, axes2 = plt.subplots(n_rows, n_cols, figsize=fig_size)
-    # same extra vertical spacing for the selectivity plot
-    fig2.subplots_adjust(hspace=0.4)
     axes2 = np.atleast_2d(axes2)
     plot_panel(fig2, axes2, plot_selectivity=True)
     handles2, labels2 = axes2[0, 0].get_legend_handles_labels()

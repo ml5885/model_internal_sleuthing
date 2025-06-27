@@ -153,22 +153,19 @@ def get_model_color(model, models):
     idx = models.index(model)
     return MODEL_COLORS[idx % len(MODEL_COLORS)]
 
-import math
-
 def plot_components_by_threshold_multiplot(dfs, models, thresholds, out_base, normalize=True):
     """
-    One subplot per variance threshold; 2 rows x 4 columns, full-width figure.
-    Legend laid out in 3 rows spanning the full width; plots a bit shorter.
+    One subplot per variance threshold; 2 rows x 4 columns, full width figure.
+    Larger tick marks, 4 x-axis labels, and custom x-axis label.
     """
-    steps   = thresholds + [1.0]
+    steps = thresholds + [1.0]
     pct_vals = [int(th * 100) for th in steps]
-    n       = len(pct_vals)
+    n = len(pct_vals)
     nrows, ncols = 2, 4
 
-    # full width, reduced height
     fig, axs = plt.subplots(
         nrows, ncols,
-        figsize=(24, 6),
+        figsize=(24, 8),
         sharex=True, sharey=True,
         constrained_layout={'hspace': 0.1, 'wspace': 0.05}
     )
@@ -177,21 +174,24 @@ def plot_components_by_threshold_multiplot(dfs, models, thresholds, out_base, no
     for i, pct in enumerate(pct_vals):
         ax = axs[i]
         for df, model in zip(dfs, models):
-            disp  = model_names.get(model, model)
-            x     = df['layer'] / df['layer'].max() * 100
-            y     = df[f'dim_{pct}'].astype(float)
+            disp = model_names.get(model, model)
+            x = df['layer'] / df['layer'].max() * 100
+            y = df[f'dim_{pct}'].astype(float)
             if normalize:
                 y /= df['dim_100'].iloc[0]
-            ax.plot(x, y, linewidth=2, label=disp, color=get_model_color(model, models))
+            color = get_model_color(model, models)
+            ax.plot(x, y, linewidth=2, label=disp, color=color)
 
-        row, col = divmod(i, ncols)
+        row = i // ncols
+        col = i % ncols
+
         ax.set_title(f'{pct}% explained variance')
         ax.set_xlim(0, 100)
         if normalize:
             ax.set_ylim(0, 1)
-            ax.set_yticks(np.linspace(0, 1, 5))
         ax.set_xticks([0, 33, 66, 100])
-        ax.set_xticklabels(['0', '33', '66', '100'])
+        ax.set_xticklabels(['0', '33', '66', '100'],)
+        ax.set_yticks(np.linspace(0, 1, 5) if normalize else ax.get_yticks())
         ax.tick_params(axis='both', which='major', length=8, width=2)
         ax.grid(True, linestyle=':', linewidth=1.2)
 
@@ -202,26 +202,17 @@ def plot_components_by_threshold_multiplot(dfs, models, thresholds, out_base, no
         else:
             ax.set_xlabel('Normalized layer number (%)')
 
-    # turn off any extras
     for j in range(n, len(axs)):
         axs[j].axis('off')
 
     fig.supylabel('Components (fraction of max)', x=-0.03)
 
-    # make room for a 3-row legend at the bottom
-    fig.subplots_adjust(bottom=0.30)
-
     handles, labels = axs[0].get_legend_handles_labels()
-    n_models = len(models)
-
-    # ncol = number of columns so that there are 3 rows
-    legend_cols = math.ceil(n_models / 4)
     fig.legend(
         handles, labels,
         loc='lower center',
-        bbox_to_anchor=(0, -0.36, 1, 0.25),  # span full width, give ~25% height
-        mode='expand',
-        ncol=legend_cols,
+        bbox_to_anchor=(0.5, -0.3),
+        ncol=min(4, len(models)),
         frameon=True,
         edgecolor='black',
         facecolor='white'
@@ -231,7 +222,6 @@ def plot_components_by_threshold_multiplot(dfs, models, thresholds, out_base, no
     fig.savefig(out_path, bbox_inches='tight')
     plt.close(fig)
     print(f'Saved combined components-by-thresholds plot to {out_path}')
-
 
 def plot_variance_by_model_multiplot(dfs, models, thresholds, out_base):
     """

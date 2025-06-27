@@ -83,12 +83,7 @@ def main():
 
     reps_path = run_activation_extraction(model_key, dataset, revision, args.activations_dir)
 
-    # Use language-specific subfolder for non-English datasets
-    if dataset in ("ud_gum_dataset", "en_gum", "english", "en_gum_dataset"):
-        base_probe_dir = args.output_dir if args.output_dir else os.path.join(config.OUTPUT_DIR, "probes")
-    else:
-        base_probe_dir = args.output_dir if args.output_dir else os.path.join(config.OUTPUT_DIR, dataset, "probes")
-
+    base_probe_dir = args.output_dir if args.output_dir else os.path.join(config.OUTPUT_DIR, "probes")
     probe_output_dirs = {
         task: utils.get_probe_output_dir(
             dataset, effective_model_key_for_paths, task, probe_type,

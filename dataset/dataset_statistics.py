@@ -6,36 +6,11 @@ import os
 from sklearn.model_selection import train_test_split
 from transformers import AutoTokenizer
 
+
 MODEL_CONFIGS = {
-    # Encoder-only masked-LMs (BERT)
-    "bert-base-uncased": {
-        "model_name": "google-bert/bert-base-uncased",
-        "tokenizer_name": "google-bert/bert-base-uncased",
-        "max_length": 128,
-        "batch_size": 32,
-    },
-    "bert-large-uncased": {
-        "model_name": "bert-large-uncased",
-        "tokenizer_name": "bert-large-uncased",
-        "max_length": 128,
-        "batch_size": 32,
-    },
-    "deberta-v3-large": {
-        "model_name": "microsoft/deberta-v3-large",
-        "tokenizer_name": "microsoft/deberta-v3-large",
-        "max_length": 128,
-        "batch_size": 32,
-    },
-    # GPT models
     "gpt2": {
         "model_name": "gpt2",
         "tokenizer_name": "gpt2",
-        "max_length": 128,
-        "batch_size": 32,
-    },
-    "gpt2-large": {
-        "model_name": "openai-community/gpt2-large",
-        "tokenizer_name": "openai-community/gpt2-large",
         "max_length": 128,
         "batch_size": 32,
     },
@@ -45,26 +20,42 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
-    # Pythia models
-    "pythia-6.9b": {
-        "model_name": "EleutherAI/pythia-6.9b",
-        "tokenizer_name": "EleutherAI/pythia-6.9b",
-        "max_length": 128,
-        "batch_size": 32,
-        "checkpoints": [
-            "step0",
-            "step512",
-            "step1000",
-            "step143000",
-        ],
-    },
-    "pythia-6.9b-tulu": {
-        "model_name": "allenai/open-instruct-pythia-6.9b-tulu",
-        "tokenizer_name": "allenai/open-instruct-pythia-6.9b-tulu",
+    "gpt2-large": {
+        "model_name": "openai-community/gpt2-large",
+        "tokenizer_name": "openai-community/gpt2-large",
         "max_length": 128,
         "batch_size": 32,
     },
-    # OLMo models
+    "qwen2-instruct": {
+        "model_name": "Qwen/Qwen2.5-1.5B-Instruct",
+        "tokenizer_name": "Qwen/Qwen2.5-1.5B-Instruct",
+        "max_length": 128,
+        "batch_size": 32,
+    },
+    "qwen2": {
+        "model_name": "Qwen/Qwen2.5-1.5B",
+        "tokenizer_name": "Qwen/Qwen2.5-1.5B",
+        "max_length": 128,
+        "batch_size": 32,
+    },
+    # "pythia1.4b": {
+    #     "model_name": "EleutherAI/pythia-1.4b",
+    #     "tokenizer_name": "EleutherAI/pythia-1.4b",
+    #     "max_length": 128,
+    #     "batch_size": 32
+    # },
+    "gemma2b": {
+        "model_name": "google/gemma-2-2b",
+        "tokenizer_name": "google/gemma-2-2b",
+        "max_length": 128,
+        "batch_size": 32,
+    },
+    "gemma2b-it": {
+        "model_name": "google/gemma-2-2b-it",
+        "tokenizer_name": "google/gemma-2-2b-it",
+        "max_length": 128,
+        "batch_size": 32,
+    },
     "olmo2-7b": {
         "model_name": "allenai/OLMo-2-1124-7B",
         "tokenizer_name": "allenai/OLMo-2-1124-7B",
@@ -83,33 +74,32 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
-    # Gemma models
-    "gemma2b": {
-        "model_name": "google/gemma-2-2b",
-        "tokenizer_name": "google/gemma-2-2b",
+    # Encoder-only masked-LMs
+    "bert-base-uncased": {
+        "model_name": "google-bert/bert-base-uncased",
+        "tokenizer_name": "google-bert/bert-base-uncased",
         "max_length": 128,
         "batch_size": 32,
     },
-    "gemma2b-it": {
-        "model_name": "google/gemma-2-2b-it",
-        "tokenizer_name": "google/gemma-2-2b-it",
+    "bert-large-uncased": {
+        "model_name": "bert-large-uncased",
+        "tokenizer_name": "bert-large-uncased",
         "max_length": 128,
         "batch_size": 32,
     },
-    # Qwen models
-    "qwen2-instruct": {
-        "model_name": "Qwen/Qwen2.5-1.5B-Instruct",
-        "tokenizer_name": "Qwen/Qwen2.5-1.5B-Instruct",
+    "distilbert-base-uncased": {
+        "model_name": "distilbert/distilbert-base-uncased",
+        "tokenizer_name": "distilbert/distilbert-base-uncased",
         "max_length": 128,
         "batch_size": 32,
     },
-    "qwen2": {
-        "model_name": "Qwen/Qwen2.5-1.5B",
-        "tokenizer_name": "Qwen/Qwen2.5-1.5B",
+    "deberta-v3-large": {
+        "model_name": "microsoft/deberta-v3-large",
+        "tokenizer_name": "microsoft/deberta-v3-large",
         "max_length": 128,
         "batch_size": 32,
     },
-    # Llama models
+    # Meta Llama models
     "llama3-8b": {
         "model_name": "meta-llama/Llama-3.1-8B",
         "tokenizer_name": "meta-llama/Llama-3.1-8B",
@@ -122,12 +112,24 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
-    # "distilbert-base-uncased": {
-    #     "model_name": "distilbert/distilbert-base-uncased",
-    #     "tokenizer_name": "distilbert/distilbert-base-uncased",
-    #     "max_length": 128,
-    #     "batch_size": 32,
-    # },
+    "pythia-6.9b": {
+        "model_name": "EleutherAI/pythia-6.9b",
+        "tokenizer_name": "EleutherAI/pythia-6.9b",
+        "max_length": 128,
+        "batch_size": 32,
+        "checkpoints": [
+            "step0",
+            "step512",
+            "step1000",
+            "step143000",
+        ],
+    },
+    "pythia-6.9b-tulu": {
+        "model_name": "allenai/open-instruct-pythia-6.9b-tulu",
+        "tokenizer_name": "allenai/open-instruct-pythia-6.9b-tulu",
+        "max_length": 128,
+        "batch_size": 32,
+    },
 }
 
 os.makedirs('figures/', exist_ok=True)
@@ -201,12 +203,7 @@ split_comparison = pd.DataFrame({
 
 def count_tokens(tokenizer, word):
     try:
-        # token_ids = tokenizer.encode(word)
-        # tokens = tokenizer.convert_ids_to_tokens(token_ids)
-        # decoded_word = tokenizer.decode(token_ids)
-        # print(f"Word: {word}, Tokens: {tokens}, Decoded: {decoded_word}")
-        # return len(token_ids)
-        return len(tokenizer.tokenize(word))
+        return len(tokenizer.encode(word))
     except:
         return float('nan')
 
@@ -216,14 +213,11 @@ word_sample = df['Word Form'].sample(sample_size, random_state=42)
 tokenizer_stats = {}
 for model_name, config in MODEL_CONFIGS.items():
     try:
-        tokenizer = AutoTokenizer.from_pretrained(
-            config['tokenizer_name'],
-            use_fast=True,
-            trust_remote_code=True
-        )
+        tokenizer = AutoTokenizer.from_pretrained(config['tokenizer_name'])
         
         token_counts = [count_tokens(tokenizer, word) for word in word_sample]
         token_counts = [c for c in token_counts if not np.isnan(c)]
+        
         tokenizer_stats[model_name] = {
             "avg_tokens_per_word": np.mean(token_counts),
             "median_tokens_per_word": np.median(token_counts),
@@ -231,7 +225,6 @@ for model_name, config in MODEL_CONFIGS.items():
             "percent_multitoken": 100 * sum(count > 1 for count in token_counts) / len(token_counts)
         }
     except Exception as e:
-        print(f"Error processing tokenizer for {model_name}: {e}")
         continue
 
 tokenizer_df = pd.DataFrame(tokenizer_stats).T

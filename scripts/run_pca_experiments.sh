@@ -17,14 +17,12 @@ llama3-8b \
 llama3-8b-instruct \
 olmo2-7b \
 olmo2-7b-instruct"
-DATASETS=("de_gsd" "zh_gsd" "fr_gsd" "ru_syntagrus" "tr_imst")
+DATASET="ud_gum_dataset"
 OUT_DIR="src/figures4"
 
-for DATASET in "${DATASETS[@]}"; do
-    python3 src/pca_experiment.py \
-      --models $MODELS \
-      --dataset $DATASET \
-      --output-dir $OUT_DIR/$DATASET
-done
+python3 src/pca_experiment.py \
+  --models $MODELS \
+  --dataset $DATASET \
+  --output-dir $OUT_DIR
 
 echo "All intrinsic-dimension analyses complete."

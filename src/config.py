@@ -131,6 +131,7 @@ MODEL_CONFIGS = {
 }
 
 
+
 MODEL_DISPLAY_NAMES = {
     # Decoder/causal LMs
     "gpt2": "GPT-2-Small",
