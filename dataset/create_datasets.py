@@ -90,7 +90,10 @@ def main():
             url = "{}/{}/master/{}-ud-{}.conllu".format(BASE_URL, tb, prefix, split)
             dest = DATA_DIR / "{}-{}.conllu".format(tb, split)
             print("{} {}: ".format(tb, split), end="")
-            download_file(url, dest)
+            if dest.exists():
+                print("Already exists, skipping download.")
+            else:
+                download_file(url, dest)
 
     print()
     print("Converting .conllu to .csv in {}".format(DATA_DIR))

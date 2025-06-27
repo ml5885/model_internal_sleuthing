@@ -24,7 +24,6 @@ build/
 # Data files
 *.csv
 *.tsv
-data/
 output/
 *.log
 *.txt
@@ -34,3 +33,11 @@ output/
 *.png
 *.jpg
 *.jpeg
+
+slurm_run_all_experiments.sh
+slurm_run_model_checkpoints.sh
+slurm_run_analogy_completion.sh
+test_slurm.sh
+test_probe.sh
+
+scratch/
