@@ -17,5 +17,8 @@ Qwen/Qwen2.5-1.5B \
 Qwen/Qwen2.5-1.5B-Instruct \
 meta-llama/Llama-3.1-8B \
 meta-llama/Llama-3.1-8B-Instruct"
+DATASETS=("de_gsd" "zh_gsd" "fr_gsd" "ru_syntagrus" "tr_imst")
 
-python notebooks/sanitycheck.py --models $MODELS --outdir $OUTDIR
+for DATASET in "${DATASETS[@]}"; do
+    python notebooks/sanitycheck.py --models $MODELS --outdir $OUTDIR/$DATASET
+done

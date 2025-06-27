@@ -4,7 +4,11 @@ import pandas as pd
 import os
 
 def load_accuracy_data(model_name, task, probe, dataset, pca=False, pca_dim=50):
-    probe_dir = os.path.join("..", "output", "probes", f"{dataset}_{model_name}_{task}_{probe}")
+    # Use language-specific subfolder for non-English datasets
+    if dataset in ("ud_gum_dataset", "en_gum", "english", "en_gum_dataset"):
+        probe_dir = os.path.join("..", "output", "probes", f"{dataset}_{model_name}_{task}_{probe}")
+    else:
+        probe_dir = os.path.join("..", "output", dataset, "probes", f"{dataset}_{model_name}_{task}_{probe}")
     if pca:
         probe_dir += f"_pca_{pca_dim}"
     csv_path = os.path.join(probe_dir, f"{task}_results.csv")

@@ -31,7 +31,14 @@ def get_probe_output_dir(dataset, model, task, probe_type, *, pca=False,
                          pca_dim=None, base_dir=None):
     if base_dir is None:
         base_dir = config.OUTPUT_DIR
-    name = f"{dataset}_{model}_{task}_{probe_type}"
-    if pca and pca_dim:
-        name += f"_pca_{pca_dim}"
-    return os.path.join(base_dir, name)
+    # For English, keep old behavior; for others, nest under dataset
+    if dataset in ("ud_gum_dataset", "en_gum", "english", "en_gum_dataset"):
+        name = f"{dataset}_{model}_{task}_{probe_type}"
+        if pca and pca_dim:
+            name += f"_pca_{pca_dim}"
+        return os.path.join(base_dir, name)
+    else:
+        name = f"{dataset}_{model}_{task}_{probe_type}"
+        if pca and pca_dim:
+            name += f"_pca_{pca_dim}"
+        return os.path.join(base_dir, dataset, name)

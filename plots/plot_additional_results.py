@@ -97,9 +97,13 @@ def plot_selectivity_comparison(
     
     for idx, model in enumerate(model_list):
         ax = axes[idx]
-
-        lex_csv = os.path.join(f"../output/probes/{dataset}_{model}_lexeme_{probe_type}", "lexeme_results.csv")
-        inf_csv = os.path.join(f"../output/probes/{dataset}_{model}_inflection_{probe_type}", "inflection_results.csv")
+        # Use language-specific subfolder for non-English datasets
+        if dataset in ("ud_gum_dataset", "en_gum", "english", "en_gum_dataset"):
+            lex_csv = os.path.join(f"../output/probes/{dataset}_{model}_lexeme_{probe_type}", "lexeme_results.csv")
+            inf_csv = os.path.join(f"../output/probes/{dataset}_{model}_inflection_{probe_type}", "inflection_results.csv")
+        else:
+            lex_csv = os.path.join(f"../output/{dataset}/probes/{dataset}_{model}_lexeme_{probe_type}", "lexeme_results.csv")
+            inf_csv = os.path.join(f"../output/{dataset}/probes/{dataset}_{model}_inflection_{probe_type}", "inflection_results.csv")
 
         if os.path.exists(lex_csv) and os.path.exists(inf_csv):
             lex_df = pd.read_csv(lex_csv)
@@ -231,10 +235,14 @@ def plot_probe_advantage(
     
     for idx, model in enumerate(model_list):
         ax = axes[idx]
+        # Use language-specific subfolder for non-English datasets
+        if dataset in ("ud_gum_dataset", "en_gum", "english", "en_gum_dataset"):
+            lin_csv = os.path.join(f"../output/probes/{dataset}_{model}_{task}_reg", f"{task}_results.csv")
+            mlp_csv = os.path.join(f"../output/probes/{dataset}_{model}_{task}_mlp", f"{task}_results.csv")
+        else:
+            lin_csv = os.path.join(f"../output/{dataset}/probes/{dataset}_{model}_{task}_reg", f"{task}_results.csv")
+            mlp_csv = os.path.join(f"../output/{dataset}/probes/{dataset}_{model}_{task}_mlp", f"{task}_results.csv")
 
-        lin_csv = os.path.join(f"../output/probes/{dataset}_{model}_{task}_reg", f"{task}_results.csv")
-        mlp_csv = os.path.join(f"../output/probes/{dataset}_{model}_{task}_mlp", f"{task}_results.csv")
-        
         if not os.path.exists(lin_csv):
             lin_csv = os.path.join(f"../output/probes/{dataset}_{model}_{task}_linear", f"{task}_results.csv")
         if not os.path.exists(mlp_csv):
