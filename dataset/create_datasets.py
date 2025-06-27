@@ -5,7 +5,6 @@ import requests
 from conllu import parse_incr
 import re
 
-# Map UD repo names to file prefixes and output CSV names
 TREEBANK_MAP = {
     "UD_Chinese-GSD": ("zh_gsd", "ud_zh_gsd_dataset.csv"),
     "UD_German-GSD": ("de_gsd", "ud_de_gsd_dataset.csv"),
@@ -16,7 +15,6 @@ TREEBANK_MAP = {
 }
 BASE_URL = "https://raw.githubusercontent.com/UniversalDependencies"
 
-# data directory one level up from this script
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR.parent / "data"
 
@@ -83,7 +81,6 @@ def download_file(url: str, dest: Path) -> bool:
     return True
 
 def process_conllu_to_csv(conllu_path: Path, out_csv: Path, treebank: str):
-    # Only process the train split
     dataset_rows = []
     with open(conllu_path, "r", encoding="utf-8") as f:
         for tokenlist in parse_incr(f):
@@ -94,7 +91,6 @@ def process_conllu_to_csv(conllu_path: Path, out_csv: Path, treebank: str):
                     continue
                 word_form = token["form"]
                 lemma = token.get("lemma")
-                # For English, use the same filtering as in the notebook
                 if treebank == "UD_English-GUM":
                     if not allowed_pattern.fullmatch(word_form):
                         continue
@@ -104,7 +100,6 @@ def process_conllu_to_csv(conllu_path: Path, out_csv: Path, treebank: str):
                     if category is None or inflection_label is None:
                         continue
                 else:
-                    # For other languages, keep all tokens, but fill columns as best as possible
                     category, inflection_label, dimension = None, None, None
                     upos = token.get("upostag")
                     feats = token.get("feats") or {}
@@ -117,7 +112,6 @@ def process_conllu_to_csv(conllu_path: Path, out_csv: Path, treebank: str):
                     elif upos == "ADJ":
                         category = "Adjective"
                         dimension = "Degree"
-                    # Compose inflection label as in original script
                     if feats:
                         parts = []
                         for feat, val in feats.items():
@@ -163,17 +157,31 @@ def main():
         if tb not in TREEBANK_MAP:
             print("Unknown treebank {}, skipping.".format(tb))
             continue
-        prefix, out_csv_name = TREEBANK_MAP[tb]
-        # Only process the train split
         split = "train"
-        url = "{}/{}/master/{}-ud-{}.conllu".format(BASE_URL, tb, prefix, split)
-        dest = DATA_DIR / "{}-{}.conllu".format(tb, split)
-        print("{} {}: ".format(tb, split), end="")
-        if not dest.exists():
-            download_file(url, dest)
+        if tb == "UD_Russian-SynTagRus":
+            parts = ["a", "b", "c"]
+            merged = DATA_DIR / f"{tb}-{split}.conllu"
+            if not merged.exists():
+                with open(merged, "wb") as wf:
+                    for p in parts:
+                        filename = f"ru_syntagrus-ud-{split}-{p}.conllu"
+                        url = f"{BASE_URL}/{tb}/master/{filename}"
+                        part_dest = DATA_DIR / filename
+                        print(f"{tb} {split}-{p}: ", end="")
+                        if download_file(url, part_dest):
+                            with open(part_dest, "rb") as rf:
+                                wf.write(rf.read())
+            dest = merged
         else:
-            print("Already exists.")
-        # Convert to CSV in the same format as dataset.ipynb
+            prefix, _ = TREEBANK_MAP[tb]
+            url = f"{BASE_URL}/{tb}/master/{prefix}-ud-{split}.conllu"
+            dest = DATA_DIR / f"{tb}-{split}.conllu"
+            print(f"{tb} {split}: ", end="")
+            if not dest.exists():
+                download_file(url, dest)
+            else:
+                print("Already exists.")
+        _, out_csv_name = TREEBANK_MAP[tb]
         out_csv = DATA_DIR / out_csv_name
         print("Processing {} to {}".format(dest.name, out_csv.name))
         process_conllu_to_csv(dest, out_csv, tb)
