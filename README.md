@@ -16,7 +16,7 @@ This codebase implements a pipeline for extracting hidden activations from langu
   - `pca_experiment.py`: Computes PCA/intrinsic dimensionality of activations.
   - `analogy_completion.py`: Runs word analogy completion tasks using input embeddings.
   - `config.py`: Model settings and hyperparameters.
-  - 
+    
 - **dataset/**: Utilities and notebooks for dataset construction and statistics.
 
   - `dataset.ipynb`: Builds the probing dataset from UD English-GUM.
