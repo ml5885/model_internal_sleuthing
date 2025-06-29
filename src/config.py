@@ -128,15 +128,15 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
-    "facebook/xglm-2.9B": {
+    "xglm-2.9B": {
         "model_name": "facebook/xglm-2.9B",
         "tokenizer_name": "facebook/xglm-2.9B",
         "max_length": 128,
         "batch_size": 32,
     },
-    "CohereForAI/aya-101": {
-        "model_name": "CohereForAI/aya-101",
-        "tokenizer_name": "CohereForAI/aya-101",
+    "aya-23-8b": {
+        "model_name": "CohereLabs/aya-23-8B",
+        "tokenizer_name": "CohereLabs/aya-23-8B",
         "max_length": 128,
         "batch_size": 32,
     },
@@ -157,8 +157,8 @@ MODEL_DISPLAY_NAMES = {
     "gemma2b-it": "Gemma-2-2B-Instruct",
     "olmo2-7b": "OLMo-2-1124-7B",
     "olmo2-7b-instruct": "OLMo-2-1124-7B-Instruct",
-    "facebook/xglm-2.9B": "XGLM-2.9B",
-    "CohereForAI/aya-101": "Aya-101",
+    "xglm-2.9B": "XGLM-2.9B",
+    "aya-23-8b": "Aya-23-8B",
     # Encoder-only masked LMs
     "bert-base-uncased": "BERT-Base",
     "bert-large-uncased": "BERT-Large",
@@ -192,6 +192,7 @@ ANALOGY_MODEL_LIST = [
     "google/gemma-2-2b", "google/gemma-2-2b-it",
     "Qwen/Qwen2.5-1.5B", "Qwen/Qwen2.5-1.5B-Instruct",
     "meta-llama/Llama-3.1-8B", "meta-llama/Llama-3.1-8B-Instruct",
+    "aya-23-8B",
 ]
 
 MODEL_TABLE_MAPPING = {
