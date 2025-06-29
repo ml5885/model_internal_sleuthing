@@ -29,6 +29,16 @@ class ModelWrapper:
                 use_fast=True,
                 trust_remote_code=self.model_config.get("trust_remote_code", False)
             )
+        except TypeError:
+            # Fallback for models like CohereForAI/aya-101
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.model_config["tokenizer_name"],
+                revision=revision,
+                add_prefix_space=True,
+                use_fast=False,
+                trust_remote_code=self.model_config.get("trust_remote_code", False),
+                legacy=True
+            )
         except Exception as fast_err:
             utils.log_info(
                 f"Fast tokenizer load failed for '{model_key}' ({fast_err}); falling back to slow Python tokenizer."
