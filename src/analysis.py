@@ -71,6 +71,15 @@ def unsupervised_layer_analysis(activations_input, labels_file, model_key, datas
 
     # Load labels
     df = pd.read_csv(labels_file)
+    
+    # If activations were sampled, filter labels to match
+    sampled_indices_path = os.path.join(activations_input, "sampled_indices.csv")
+    if os.path.exists(sampled_indices_path):
+        sampled_df = pd.read_csv(sampled_indices_path)
+        original_indices = sampled_df['index'].values
+        df = df.iloc[original_indices].reset_index(drop=True)
+        utils.log_info(f"Loaded {len(df)} labels corresponding to sampled activations.")
+
     inf_labels = pd.Categorical(df["Inflection Label"]).codes
     lex_labels = pd.Categorical(df["Lemma"]).codes
     lex_categories = pd.Categorical(df["Lemma"]).categories

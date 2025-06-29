@@ -52,6 +52,15 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
 
     df = pd.read_csv(labels)
     
+    # If activations were sampled, filter labels to match
+    activations_dir = activations if os.path.isdir(activations) else os.path.dirname(activations)
+    sampled_indices_path = os.path.join(activations_dir, "sampled_indices.csv")
+    if os.path.exists(sampled_indices_path):
+        sampled_df = pd.read_csv(sampled_indices_path)
+        original_indices = sampled_df['index'].values
+        df = df.iloc[original_indices].reset_index(drop=True)
+        utils.log_info(f"Loaded {len(df)} labels corresponding to sampled activations.")
+
     valid_label_mask = df["Lemma"].notna()
     if "Inflection Label" in df.columns:
         valid_label_mask &= df["Inflection Label"].notna()

@@ -149,9 +149,11 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
     X_flat = X_flat[keep_mask]
     y_true = y_true[keep_mask]
     y_control = y_control[keep_mask]
+    if indices is not None:
+        indices = indices[keep_mask]
 
-    X_train, X_temp, y_train, y_temp, yc_train, yc_temp = train_test_split(
-        X_flat, y_true, y_control,
+    X_train, X_temp, y_train, y_temp, yc_train, yc_temp, idx_train, idx_temp = train_test_split(
+        X_flat, y_true, y_control, np.arange(len(X_flat)) if indices is None else indices,
         train_size=config.SPLIT_RATIOS["train"],
         random_state=seed,
         stratify=y_true
@@ -163,8 +165,8 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
     temp_counts = np.bincount(y_temp)
     stratify_val = y_temp if temp_counts.min() > 1 else None
 
-    X_val, X_test, y_val, y_test, yc_val, yc_test = train_test_split(
-        X_temp, y_temp, yc_temp,
+    X_val, X_test, y_val, y_test, yc_val, yc_test, idx_val, idx_test = train_test_split(
+        X_temp, y_temp, yc_temp, idx_temp,
         train_size=val_frac,
         random_state=seed,
         stratify=stratify_val
@@ -238,7 +240,7 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
     y_ctrl_pred_str = [control_label_map[y] if control_label_map else y for y in preds_control]
 
     pred_df = pd.DataFrame({
-        "Index": np.arange(len(y_test)) if indices is None else indices,
+        "Index": idx_test,
         "y_true": y_test,
         "y_true_str": y_true_str,
         "y_pred": preds,

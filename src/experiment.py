@@ -3,7 +3,7 @@ import subprocess
 import argparse
 from src import config, utils
 
-def run_activation_extraction(model_key, dataset, revision=None, activations_dir_override=None):
+def run_activation_extraction(model_key, dataset, revision=None, activations_dir_override=None, max_rows=0):
     utils.log_info(f"Starting activation extraction for {model_key} (rev={revision}) on dataset {dataset}...")
 
     dataset_file = os.path.join("data", f"{dataset}.csv")
@@ -41,6 +41,8 @@ def run_activation_extraction(model_key, dataset, revision=None, activations_dir
     ]
     if revision is not None:
         cmd += ["--revision", revision]
+    if max_rows > 0:
+        cmd += ["--max_rows", str(max_rows)]
     subprocess.run(cmd, check=True)
 
     if os.path.isfile(combined_npz_path):
@@ -75,6 +77,7 @@ def main():
     parser.add_argument("--no_analysis", action="store_true", help="Skip analysis after running experiments.")
     parser.add_argument("--activations_dir", type=str, default=None, help="Custom base output directory for activation files/shards.")
     parser.add_argument("--output_dir", type=str, default=None, help="Custom base output directory for probe results.")
+    parser.add_argument("--max_rows", type=int, default=75000, help="Maximum number of rows to sample from dataset for activation extraction.")
     args = parser.parse_args()
 
     model_key = args.model
@@ -87,7 +90,7 @@ def main():
     revision_component = f"_{revision}" if revision else ""
     effective_model_key_for_paths = f"{model_key}{revision_component}"
 
-    reps_path = run_activation_extraction(model_key, dataset, revision, args.activations_dir)
+    reps_path = run_activation_extraction(model_key, dataset, revision, args.activations_dir, args.max_rows)
 
     base_probe_dir = args.output_dir if args.output_dir else os.path.join(config.OUTPUT_DIR, "probes")
     probe_output_dirs = {

@@ -9,33 +9,32 @@ from tqdm import tqdm
 from src.model_wrapper import ModelWrapper
 from src import config, utils
 
-def extract_and_save(data_path, output_dir, model_key, revision=None): 
+def extract_and_save(data_path, output_dir, model_key, revision=None, max_rows=0): 
     """
     Extract hidden-state activations for each target word and save them in
     compressed .npz shards.
     """
     batch_size = config.MODEL_CONFIGS[model_key]["batch_size"]
 
-    num_rows = 0
-    with open(data_path, 'r', encoding='utf-8') as f:
-        next(f)
-        for _ in f:
-            num_rows += 1
-            
+    df = pd.read_csv(data_path, usecols=["Sentence", "Target Index"])
+    if max_rows > 0 and len(df) > max_rows:
+        utils.log_info(f"Sampling {max_rows} rows from {len(df)} total rows.")
+        df = df.sample(n=max_rows, random_state=config.SEED).reset_index(drop=True)
+    
+    num_rows = len(df)
     total = math.ceil(num_rows / batch_size)
-    reader = pd.read_csv(
-        data_path,
-        usecols=["Sentence", "Target Index"],
-        chunksize=batch_size
-    )
 
     os.makedirs(output_dir, exist_ok=True)
     model_wrapper = ModelWrapper(model_key, revision=revision) 
     shard_paths = []
+    
+    # Save the indices of the sampled dataframe
+    df.to_csv(os.path.join(output_dir, "sampled_indices.csv"), index_label="sample_index")
 
-    for part_idx, chunk in enumerate(tqdm(reader,desc="Extracting Batches",
-                                          total=total,dynamic_ncols=True,
-                                          leave=True, file=sys.stdout)):
+    for part_idx, i in enumerate(tqdm(range(0, num_rows, batch_size),
+                                      desc="Extracting Batches", total=total,
+                                      dynamic_ncols=True, leave=True, file=sys.stdout)):
+        chunk = df.iloc[i:i+batch_size]
         sentences = chunk["Sentence"].tolist()
         target_indices = chunk["Target Index"].tolist()
 
@@ -57,11 +56,13 @@ if __name__ == "__main__":
     parser.add_argument("--output-dir", "-o", type=str, required=True, help="Directory in which to write activation_part_xxxxx.npz files.")
     parser.add_argument("--model", "-m", type=str, default="gpt2", help="Key into MODEL_CONFIGS (e.g. 'gpt2' or 'gemma2b').")
     parser.add_argument("--revision", type=str, default=None, help="Model revision or checkpoint (e.g., 'step1000', 'main').") 
+    parser.add_argument("--max_rows", type=int, default=0, help="Maximum number of rows to process from the data file. 0 means no limit.")
     args = parser.parse_args()
 
     extract_and_save(
         data_path=args.data,
         output_dir=args.output_dir,
         model_key=args.model,
-        revision=args.revision
+        revision=args.revision,
+        max_rows=args.max_rows
     )
