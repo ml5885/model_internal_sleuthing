@@ -29,7 +29,7 @@ PROBE_TYPES=(
 )
 TASKS=(
     "lexeme"
-    "inflection"
+    # "inflection"
 )
 
 for idx in "${!DATASETS[@]}"; do

@@ -84,11 +84,11 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
     uniq_words = sorted(set(word_forms))
     y_control = np.array([uniq_words.index(w) for w in word_forms], dtype=int)
 
-    true_counts    = np.bincount(y_true)
-    ctrl_counts    = np.bincount(y_control)
-    keep_true_mask = true_counts[y_true] >= 2
-    keep_ctrl_mask = ctrl_counts[y_control] >= 2
-    keep_mask      = keep_true_mask & keep_ctrl_mask
+    true_counts = np.bincount(y_true)
+    ctrl_counts = np.bincount(y_control)
+    keep_true_mask = true_counts[y_true] >= 4
+    keep_ctrl_mask = ctrl_counts[y_control] >= 4
+    keep_mask = keep_true_mask & keep_ctrl_mask
 
     y_true_filtered    = y_true[keep_mask]
     y_control_filtered = y_control[keep_mask]
