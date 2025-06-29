@@ -30,6 +30,7 @@ slurm_*
 *.log
 *.txt
 *.tex
+*.npz
 
 # images
 *.png

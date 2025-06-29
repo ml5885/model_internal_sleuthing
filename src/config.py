@@ -128,6 +128,18 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
+    "facebook/xglm-2.9B": {
+        "model_name": "facebook/xglm-2.9B",
+        "tokenizer_name": "facebook/xglm-2.9B",
+        "max_length": 128,
+        "batch_size": 32,
+    },
+    "CohereForAI/aya-101": {
+        "model_name": "CohereForAI/aya-101",
+        "tokenizer_name": "CohereForAI/aya-101",
+        "max_length": 128,
+        "batch_size": 32,
+    },
 }
 
 
@@ -145,6 +157,8 @@ MODEL_DISPLAY_NAMES = {
     "gemma2b-it": "Gemma-2-2B-Instruct",
     "olmo2-7b": "OLMo-2-1124-7B",
     "olmo2-7b-instruct": "OLMo-2-1124-7B-Instruct",
+    "facebook/xglm-2.9B": "XGLM-2.9B",
+    "CohereForAI/aya-101": "Aya-101",
     # Encoder-only masked LMs
     "bert-base-uncased": "BERT-Base",
     "bert-large-uncased": "BERT-Large",
