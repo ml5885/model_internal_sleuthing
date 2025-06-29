@@ -52,12 +52,12 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
 
     df = pd.read_csv(labels)
     lemmas = df["Lemma"].values
-    uniq = sorted(set(lemmas))
+    uniq = sorted({str(l) for l in lemmas if pd.notna(l)})
     lex_labels = np.array([uniq.index(w) for w in lemmas], dtype=int)
 
     if "Inflection Label" in df.columns:
         infl = df["Inflection Label"].values
-        uniq_infl = sorted(set(infl))
+        uniq_infl = sorted({str(i) for i in infl if pd.notna(i)})
         inf_labels = np.array([uniq_infl.index(x) for x in infl], dtype=int)
     else:
         inf_labels = lex_labels
