@@ -140,6 +140,18 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
+    "qwen2.5-7B": {
+        "model_name": "Qwen/Qwen2.5-7B",
+        "tokenizer_name": "Qwen/Qwen2.5-7B",
+        "max_length": 128,
+        "batch_size": 32,
+    },
+    "qwen2.5-7B-instruct": {
+        "model_name": "Qwen/Qwen2.5-7B-Instruct",
+        "tokenizer_name": "Qwen/Qwen2.5-7B-Instruct",
+        "max_length": 128,
+        "batch_size": 32,
+    },
 }
 
 
@@ -159,6 +171,8 @@ MODEL_DISPLAY_NAMES = {
     "olmo2-7b-instruct": "OLMo-2-1124-7B-Instruct",
     "xglm-2.9B": "XGLM-2.9B",
     "aya-23-8b": "Aya-23-8B",
+    "qwen2.5-7B": "Qwen2.5-7B",
+    "qwen2.5-7B-instruct": "Qwen2.5-7B-Instruct",
     # Encoder-only masked LMs
     "bert-base-uncased": "BERT-Base",
     "bert-large-uncased": "BERT-Large",
@@ -192,7 +206,7 @@ ANALOGY_MODEL_LIST = [
     "google/gemma-2-2b", "google/gemma-2-2b-it",
     "Qwen/Qwen2.5-1.5B", "Qwen/Qwen2.5-1.5B-Instruct",
     "meta-llama/Llama-3.1-8B", "meta-llama/Llama-3.1-8B-Instruct",
-    "aya-23-8B",
+    "qwen/Qwen2.5-7B", "qwen/Qwen2.5-7B-Instruct",
 ]
 
 MODEL_TABLE_MAPPING = {
