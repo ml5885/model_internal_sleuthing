@@ -152,6 +152,42 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
+    "goldfish_eng_latn_1000mb": {
+        "model_name": "goldfish-models/eng_latn_1000mb",
+        "tokenizer_name": "goldfish-models/eng_latn_1000mb",
+        "max_length": 128,
+        "batch_size": 32,
+    },
+    "goldfish_zho_hans_1000mb": {
+        "model_name": "goldfish-models/zho_hans_1000mb",
+        "tokenizer_name": "goldfish-models/zho_hans_1000mb",
+        "max_length": 128,
+        "batch_size": 32,
+    },
+    "goldfish_deu_latn_1000mb": {
+        "model_name": "goldfish-models/deu_latn_1000mb",
+        "tokenizer_name": "goldfish-models/deu_latn_1000mb",
+        "max_length": 128,
+        "batch_size": 32,
+    },
+    "goldfish_fra_latn_1000mb": {
+        "model_name": "goldfish-models/fra_latn_1000mb",
+        "tokenizer_name": "goldfish-models/fra_latn_1000mb",
+        "max_length": 128,
+        "batch_size": 32,
+    },
+    "goldfish_rus_cyrl_1000mb": {
+        "model_name": "goldfish-models/rus_cyrl_1000mb",
+        "tokenizer_name": "goldfish-models/rus_cyrl_1000mb",
+        "max_length": 128,
+        "batch_size": 32,
+    },
+    "goldfish_tur_latn_1000mb": {
+        "model_name": "goldfish-models/tur_latn_1000mb",
+        "tokenizer_name": "goldfish-models/tur_latn_1000mb",
+        "max_length": 128,
+        "batch_size": 32,
+    },
 }
 
 

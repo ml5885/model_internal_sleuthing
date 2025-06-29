@@ -19,7 +19,7 @@ def extract_and_save(data_path, output_dir, model_key, revision=None, max_rows=0
     df = pd.read_csv(data_path, usecols=["Sentence", "Target Index"])
     if max_rows > 0 and len(df) > max_rows:
         utils.log_info(f"Sampling {max_rows} rows from {len(df)} total rows.")
-        df = df.sample(n=max_rows, random_state=config.SEED).reset_index(drop=True)
+        df = df.sample(n=max_rows, random_state=config.SEED)
     
     num_rows = len(df)
     total = math.ceil(num_rows / batch_size)
@@ -28,8 +28,7 @@ def extract_and_save(data_path, output_dir, model_key, revision=None, max_rows=0
     model_wrapper = ModelWrapper(model_key, revision=revision) 
     shard_paths = []
     
-    # Save the indices of the sampled dataframe
-    df.to_csv(os.path.join(output_dir, "sampled_indices.csv"), index_label="sample_index")
+    df.to_csv(os.path.join(output_dir, "sampled_indices.csv"), index_label="index")
 
     for part_idx, i in enumerate(tqdm(range(0, num_rows, batch_size),
                                       desc="Extracting Batches", total=total,
