@@ -7,6 +7,8 @@ def run_activation_extraction(model_key, dataset, revision=None, activations_dir
     utils.log_info(f"Starting activation extraction for {model_key} (rev={revision}) on dataset {dataset}...")
 
     dataset_file = os.path.join("data", f"{dataset}.csv")
+    if not os.path.exists(dataset_file):
+        raise FileNotFoundError(f"Could not find dataset file for {dataset} at {dataset_file}")
 
     base_output_path = activations_dir_override if activations_dir_override else config.OUTPUT_DIR
 
@@ -49,10 +51,14 @@ def run_activation_extraction(model_key, dataset, revision=None, activations_dir
 
 def run_analysis(activations_input_path, model_key_for_logging, dataset_name):
     utils.log_info(f"Running analysis on activations from: {activations_input_path} for model {model_key_for_logging}, dataset {dataset_name}")
+    labels_file = os.path.join("data", f"{dataset_name}.csv")
+    if not os.path.exists(labels_file):
+        raise FileNotFoundError(f"Could not find dataset file for {dataset_name} at {labels_file}")
+
     subprocess.run([
         "python", "-m", "src.analysis",
         "--activations-dir", activations_input_path,
-        "--labels", os.path.join("data", f"{dataset_name}.csv"),
+        "--labels", labels_file,
         "--model", model_key_for_logging,
         "--dataset", dataset_name,
     ], check=True)
@@ -85,10 +91,10 @@ def main():
 
     base_probe_dir = args.output_dir if args.output_dir else os.path.join(config.OUTPUT_DIR, "probes")
     probe_output_dirs = {
-        task: utils.get_probe_output_dir(
-            dataset, effective_model_key_for_paths, task, probe_type,
-            pca=pca, pca_dim=pca_dim,
-            base_dir=base_probe_dir
+        task: os.path.join(
+            base_probe_dir,
+            f"{dataset}_{effective_model_key_for_paths}_{task}_{probe_type}" +
+            (f"_pca{pca_dim}" if pca else "")
         )
         for task in ["inflection", "lexeme"]
     }
@@ -97,12 +103,15 @@ def main():
         if task not in probe_output_dirs:
             raise ValueError(f"Unknown experiment name: {task}")
         
-        # exp_label should be just the model key (and revision), not include the task
         exp_label = effective_model_key_for_paths
         
+        labels_file = os.path.join("data", f"{dataset}.csv")
+        if not os.path.exists(labels_file):
+            raise FileNotFoundError(f"Could not find dataset file for {dataset} at {labels_file}")
+
         exp_args = [
             "--activations", reps_path,
-            "--labels", os.path.join("data", f"{dataset}.csv"),
+            "--labels", labels_file,
             "--task", task,
             "--lambda_reg", str(args.lambda_reg),
             "--exp_label", exp_label,
@@ -115,7 +124,7 @@ def main():
         utils.log_info(f"Running probe for task={task}, model_config={effective_model_key_for_paths}, dataset={dataset}")
         subprocess.run(["python", "-m", "src.train"] + exp_args, check=True)
 
-    if not args.experiment and not args.no_analysis:
+    if not args.no_analysis:
         run_analysis(reps_path, effective_model_key_for_paths, dataset)
 
     utils.log_info(f"All experiments and analysis completed for {effective_model_key_for_paths} on {dataset}.")

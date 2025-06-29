@@ -33,5 +33,5 @@ def get_probe_output_dir(dataset, model, task, probe_type, *, pca=False,
         base_dir = config.OUTPUT_DIR
     name = f"{dataset}_{model}_{task}_{probe_type}"
     if pca and pca_dim:
-        name += f"_pca_{pca_dim}"
+        name += f"_pca{pca_dim}"
     return os.path.join(base_dir, name)

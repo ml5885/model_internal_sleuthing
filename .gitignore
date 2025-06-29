@@ -26,6 +26,7 @@ build/
 *.tsv
 data/
 output/
+slurm_*
 *.log
 *.txt
 *.tex
