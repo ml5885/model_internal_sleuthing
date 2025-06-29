@@ -169,6 +169,7 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
 
     plot_probe_results(results, outdir, task)
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Train probes on activations")
     parser.add_argument("--activations", required=True)

@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from sklearn.metrics import f1_score, top_k_accuracy_score
+from sklearn.metrics import f1_score
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 import pandas as pd
@@ -143,7 +143,7 @@ def predict(arr, model):
 
 def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type, layer, pca_dim, outdir=None, indices=None, label_map=None, control_label_map=None):
     uniq, counts = np.unique(y_true, return_counts=True)
-    keep_classes = uniq[counts >= 2]
+    keep_classes = uniq[counts >= 1]
     keep_mask = np.isin(y_true, keep_classes)
 
     X_flat = X_flat[keep_mask]
@@ -170,7 +170,6 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
         stratify=stratify_val
     )
 
-    # Add this check to ensure test set is not empty
     if len(y_test) == 0:
         utils.log_info(f"Layer {layer}: No test samples after split, skipping this layer.")
         raise ValueError(f"Layer {layer}: No test samples after split.")
@@ -233,7 +232,6 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
         preds = scores.argmax(1)
         preds_control = control_scores.argmax(1)
 
-    # map back to labels
     y_true_str = [label_map[y] if label_map else y for y in y_test]
     y_pred_str = [label_map[y] if label_map else y for y in preds]
     y_ctrl_str = [control_label_map[y] if control_label_map else y for y in yc_test_m]
@@ -257,26 +255,6 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
     f1 = f1_score(y_test, preds, average="macro")
     cf1 = f1_score(yc_test_m, preds_control, average="macro")
 
-    # compute top-5
-    top5 = -1
-    ctop5 = -1
-    try:
-        uniq_test = np.unique(y_test)
-        subs = scores[:, uniq_test]
-        cmap = {orig: new for new, orig in enumerate(uniq_test)}
-        mapped = np.array([cmap[y] for y in y_test])
-        top5 = top_k_accuracy_score(mapped, subs, k=min(5, len(uniq_test)))
-    except Exception as e:
-        utils.log_info(f"Warning top5 task {task}: {e}")
-    try:
-        uniq_ctrl = np.unique(yc_test_m)
-        subs_c = control_scores[:, uniq_ctrl]
-        cmap_c = {orig: new for new, orig in enumerate(uniq_ctrl)}
-        mapped_c = np.array([cmap_c[y] for y in yc_test_m])
-        ctop5 = top_k_accuracy_score(mapped_c, subs_c, k=min(5, len(uniq_ctrl)))
-    except Exception as e:
-        utils.log_info(f"Warning top5 control: {e}")
-
     utils.log_info(f"[layer {layer}] {task} {probe_type} acc {accuracy:.3f} f1 {f1:.3f} "
                    f"ctrl_acc {control_acc:.3f} ctrl_f1 {cf1:.3f}")
 
@@ -285,8 +263,6 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
         f"{task}_control_acc": control_acc,
         f"{task}_f1": f1,
         f"{task}_control_f1": cf1,
-        f"{task}_top5": top5,
-        f"{task}_control_top5": ctop5,
         f"{task}_acc_ci_low": -1,
         f"{task}_acc_ci_high": -1,
         f"{task}_control_acc_ci_low": -1,
@@ -329,17 +305,14 @@ def plot_probe_results(results: dict, outdir: str, task: str):
     csv_path = os.path.join(outdir, f"{task}_results.csv")
     with open(csv_path, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["Layer", "Acc", "F1", "Top5", "controlAcc", "controlF1",
-                    "controlTop5", "PCA_ExplainedVar"])
+        w.writerow(["Layer", "Acc", "F1", "controlAcc", "controlF1", "PCA_ExplainedVar"])
         for l in layers:
             r = results[l]
             w.writerow([
                 l.split("_")[1],
                 r[f"{task}_acc"],
                 r[f"{task}_f1"],
-                r[f"{task}_top5"],
                 r[f"{task}_control_acc"],
                 r[f"{task}_control_f1"],
-                r[f"{task}_control_top5"],
                 r["pca_explained_variance"],
             ])
