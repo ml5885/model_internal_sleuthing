@@ -275,7 +275,7 @@ def plot_linguistic_and_selectivity(
                 
                 if plot_selectivity:
                     # row_ylim = (-0.05, 0.2) if row == 0 else (-0.05, 0.8)
-                    row_ylim = (-0.1, 0.1) if row == 0 else (0, 0.8)
+                    row_ylim = (-0.3, 0.3) if row == 0 else (0, 0.8)
                     yticks, ylabels = get_tick_values(row_ylim[0], row_ylim[1])
                     ax.set_ylim(*row_ylim)
                     ax.set_yticks(yticks)

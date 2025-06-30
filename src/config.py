@@ -188,9 +188,19 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
+    "byt5": {
+        "model_name": "google/byt5-base",
+        "tokenizer_name": "google/byt5-base",
+        "max_length": 128,
+        "batch_size": 32,
+    },
+    "mt5": {
+        "model_name": "google/mt5-base",
+        "tokenizer_name": "google/mt5-base",
+        "max_length": 128,
+        "batch_size": 32,
+    },
 }
-
-
 
 MODEL_DISPLAY_NAMES = {
     # Decoder/causal LMs

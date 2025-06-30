@@ -26,6 +26,7 @@ build/
 *.tsv
 data/
 output/
+scratch/
 slurm_*
 *.log
 *.txt

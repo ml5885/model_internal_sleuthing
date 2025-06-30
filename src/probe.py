@@ -152,12 +152,35 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
     if indices is not None:
         indices = indices[keep_mask]
 
-    X_train, X_temp, y_train, y_temp, yc_train, yc_temp, idx_train, idx_temp = train_test_split(
-        X_flat, y_true, y_control, np.arange(len(X_flat)) if indices is None else indices,
-        train_size=config.SPLIT_RATIOS["train"],
-        random_state=seed,
-        stratify=y_true
-    )
+    try:
+        # first attempt: stratified
+        X_train, X_temp, y_train, y_temp, yc_train, yc_temp, idx_train, idx_temp = (
+            train_test_split(
+                X_flat,
+                y_true,
+                y_control,
+                np.arange(len(X_flat)) if indices is None else indices,
+                train_size=config.SPLIT_RATIOS["train"],
+                random_state=seed,
+                stratify=y_true,
+            )
+        )
+    except ValueError as e:
+        utils.log_info(
+            f"Stratified split failed ({e}); retrying without stratification."
+        )
+        # fallback: no stratification
+        X_train, X_temp, y_train, y_temp, yc_train, yc_temp, idx_train, idx_temp = (
+            train_test_split(
+                X_flat,
+                y_true,
+                y_control,
+                np.arange(len(X_flat)) if indices is None else indices,
+                train_size=config.SPLIT_RATIOS["train"],
+                random_state=seed,
+                stratify=None,
+            )
+        )
 
     val_frac = config.SPLIT_RATIOS["val"] / (
         config.SPLIT_RATIOS["val"] + config.SPLIT_RATIOS["test"]
