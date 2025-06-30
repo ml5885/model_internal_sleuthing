@@ -83,15 +83,25 @@ class ModelWrapper:
         input_ids = batch_encoding["input_ids"].to(self.device)
         attention_mask = batch_encoding["attention_mask"].to(self.device)
 
+        # run only the encoder for encoder-decoder models (T5, mT5, ByT5)
         with torch.no_grad():
-            outputs = self.model(input_ids, attention_mask=attention_mask)
-
-        if hasattr(outputs, 'encoder_hidden_states') and outputs.encoder_hidden_states is not None:
-            # For encoder-decoder models like T5, use encoder hidden states
-            hidden_states = outputs.encoder_hidden_states
-        else:
-            # For encoder-only or decoder-only models
-            hidden_states = outputs.hidden_states
+            if hasattr(self.model, 'encoder'):
+                encoder_outputs = self.model.encoder(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    output_hidden_states=True,
+                    return_dict=True
+                )
+                hidden_states = encoder_outputs.hidden_states
+            else:
+                # encoder-only (BERT, DeBERTa) or decoder-only (GPT) models
+                outputs = self.model(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    output_hidden_states=True,
+                    return_dict=True
+                )
+                hidden_states = outputs.hidden_states
 
         n_layers = len(hidden_states)
         batch_size = input_ids.size(0)
