@@ -193,12 +193,14 @@ MODEL_CONFIGS = {
         "tokenizer_name": "google/byt5-base",
         "max_length": 128,
         "batch_size": 32,
+        "n_layers": 12,
     },
     "mt5": {
         "model_name": "google/mt5-base",
         "tokenizer_name": "google/mt5-base",
         "max_length": 128,
         "batch_size": 32,
+        "n_layers": 12,
     },
 }
 

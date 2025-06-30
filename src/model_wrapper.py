@@ -109,28 +109,55 @@ class ModelWrapper:
         activations = torch.empty((batch_size, n_layers, d_model), device=self.device)
 
         for i in range(batch_size):
-            # try to map tokens back to word indices (fast tokenizer)
-            try:
-                word_id_map = batch_encoding.word_ids(batch_index=i)
-                tgt_word_idx = int(target_indices[i])
-                positions = [pos for pos, wid in enumerate(word_id_map) if wid == tgt_word_idx]
+            # Special handling for byte-level models like ByT5
+            if 'byt5' in self.model_config["model_name"].lower():
+                last_pos = self._extract_byt5_word_position(sentences[i], target_indices[i], batch_encoding, i)
+            else:
+                # try to map tokens back to word indices (fast tokenizer)
+                try:
+                    word_id_map = batch_encoding.word_ids(batch_index=i)
+                    tgt_word_idx = int(target_indices[i])
+                    positions = [pos for pos, wid in enumerate(word_id_map) if wid == tgt_word_idx]
 
-                if not positions:
-                    valid = [pos for pos, wid in enumerate(word_id_map) if wid is not None]
-                    positions = [valid[-1]] if valid else [0]
+                    if not positions:
+                        valid = [pos for pos, wid in enumerate(word_id_map) if wid is not None]
+                        positions = [valid[-1]] if valid else [0]
 
-                last_pos = positions[-1]
-            except (AttributeError, ValueError):
-                # slow tokenizer (e.g. ByT5) doesn't support word_ids
-                # just use last non-pad token
-                non_pad_positions = attention_mask[i].nonzero(as_tuple=False).squeeze(-1)
-                last_pos = non_pad_positions[-1].item() if non_pad_positions.numel() > 0 else 0
+                    last_pos = positions[-1]
+                except (AttributeError, ValueError):
+                    # slow tokenizer (e.g. ByT5) doesn't support word_ids
+                    # just use last non-pad token
+                    non_pad_positions = attention_mask[i].nonzero(as_tuple=False).squeeze(-1)
+                    last_pos = non_pad_positions[-1].item() if non_pad_positions.numel() > 0 else 0
 
             for layer_idx, layer_states in enumerate(hidden_states):
                 activations[i, layer_idx, :] = layer_states[i, last_pos, :]
-                # activations[i, layer_idx, :] = layer_states[i, positions, :].mean(dim=0)
                 
         return activations.cpu()
+
+    def _extract_byt5_word_position(self, sentence, target_index, batch_encoding, batch_idx):
+        """Extract the token position for the target word in ByT5 byte-level tokenization."""
+        words = sentence.split()
+        target_word = words[int(target_index)]
+        
+        # Find character span of target word in original sentence
+        char_start = 0
+        for i, word in enumerate(words):
+            if i == int(target_index):
+                char_end = char_start + len(target_word)
+                break
+            char_start += len(word) + 1  # +1 for space
+        
+        # Map character positions to token positions
+        # This is approximate - ByT5 encoding can be complex
+        tokens = batch_encoding["input_ids"][batch_idx]
+        non_pad_positions = (tokens != self.tokenizer.pad_token_id).nonzero(as_tuple=False).squeeze(-1)
+        
+        # Use a heuristic: take the token position that roughly corresponds to the end of target word
+        # This is simplified - a more robust approach would decode tokens to find exact boundaries
+        estimated_pos = min(char_end, len(non_pad_positions) - 1)
+        
+        return non_pad_positions[estimated_pos].item() if estimated_pos < len(non_pad_positions) else non_pad_positions[-1].item()
 
     def get_layernorm_params(self, layer_idx):
         ln_name = f'model.layers.{layer_idx+1}.input_layernorm'
