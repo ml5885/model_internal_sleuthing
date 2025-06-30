@@ -74,7 +74,7 @@ def main():
     parser.add_argument("--lambda_reg", type=float, default=1e-3, help="Regularization parameter for probes.")
     parser.add_argument("--probe_type", type=str, default="reg", choices=["reg", "mlp", "nn", "rf"], help="Type of probe to use.")
     parser.add_argument("--pca_dim", type=int, default=0, help="Dimensionality for PCA reduction.")
-    parser.add_argument("--no_analysis", action="store_true", help="Skip analysis after running experiments.")
+    parser.add_argument("--no_analysis", action="store_true", default=True, help="Skip analysis after running experiments.")
     parser.add_argument("--activations_dir", type=str, default=None, help="Custom base output directory for activation files/shards.")
     parser.add_argument("--output_dir", type=str, default=None, help="Custom base output directory for probe results.")
     parser.add_argument("--max_rows", type=int, default=75000, help="Maximum number of rows to sample from dataset for activation extraction.")
