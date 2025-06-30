@@ -48,6 +48,13 @@ def get_model_color(model, model_list):
     idx = model_list.index(model)
     return MODEL_COLORS[idx % len(MODEL_COLORS)]
 
+def get_model_linestyle(model_key):
+    """Return linestyle based on model type."""
+    base_model = model_key.split('_')[0] if '_' in model_key else model_key
+    if base_model == "byt5":
+        return "--"  # dashed line for byt5
+    return "-"  # solid line for all other models
+
 def get_acc_columns(df, prefix):
     if f"{prefix}_Accuracy" in df.columns and f"{prefix}_ControlAccuracy" in df.columns:
         return f"{prefix}_Accuracy", f"{prefix}_ControlAccuracy"
@@ -55,7 +62,7 @@ def get_acc_columns(df, prefix):
         return "Acc", "controlAcc"
     raise ValueError("Could not find accuracy columns in DataFrame.")
 
-def plot_t5_results(model_to_dataset, model_list, output_dir="figures3"):
+def plot_t5_results(model_to_dataset, model_list, output_dir="figures3", filename_prefix=""):
     probe_types = ["reg", "mlp", "rf"]
     titles = ["Linear Regression", "MLP", "Random Forest"]
     tasks = ["lexeme", "inflection"]
@@ -99,12 +106,21 @@ def plot_t5_results(model_to_dataset, model_list, output_dir="figures3"):
                     current_dataset = model_to_dataset[model_key]
                     base_model = model_key.split('_')[0]
                     
-                    probe_dir = os.path.join("..", "output", "probes2",
-                                f"{current_dataset}_{base_model}_{task}_{probe}")
-                    csv_path = os.path.join(probe_dir, f"{task}_results.csv")
+                    # Check both probes and probes2 directories
+                    probe_dirs = [
+                        os.path.join("..", "output", "probes", f"{current_dataset}_{base_model}_{task}_{probe}"),
+                        os.path.join("..", "output", "probes2", f"{current_dataset}_{base_model}_{task}_{probe}")
+                    ]
                     
-                    if not os.path.exists(csv_path):
-                        print(f"[WARN] Missing results for model: {model_key} at {csv_path}")
+                    csv_path = None
+                    for probe_dir in probe_dirs:
+                        potential_path = os.path.join(probe_dir, f"{task}_results.csv")
+                        if os.path.exists(potential_path):
+                            csv_path = potential_path
+                            break
+                    
+                    if csv_path is None:
+                        print(f"[WARN] Missing results for model: {model_key} in both probes and probes2")
                         continue
                         
                     df = pd.read_csv(csv_path)
@@ -122,6 +138,7 @@ def plot_t5_results(model_to_dataset, model_list, output_dir="figures3"):
                             label=model_names.get(model_key, model_key),
                             linewidth=3.0,
                             color=get_model_color(model_key, model_list),
+                            linestyle=get_model_linestyle(model_key),
                         )
                     except Exception as e:
                         print(f"Error processing {model_key}: {e}")
@@ -164,7 +181,7 @@ def plot_t5_results(model_to_dataset, model_list, output_dir="figures3"):
                     ncol=min(4, len(labels)), mode="expand", frameon=True)
     fig1.tight_layout(rect=[0, 0.05, 1, 0.97])
     os.makedirs(output_dir, exist_ok=True)
-    filename1 = "all_languages_linguistic_accuracy.png"
+    filename1 = f"{filename_prefix}all_languages_linguistic_accuracy.png"
     fig1.savefig(os.path.join(output_dir, filename1), bbox_inches="tight")
     print(f"Saved linguistic accuracy figure to {os.path.join(output_dir, filename1)}")
 
@@ -177,7 +194,7 @@ def plot_t5_results(model_to_dataset, model_list, output_dir="figures3"):
         fig2.legend(handles2, labels2, loc="lower center", bbox_to_anchor=bbox_to_anchor,
                     ncol=min(4, len(labels2)), mode="expand", frameon=True)
     fig2.tight_layout(rect=[0, 0.05, 1, 0.97])
-    filename2 = "all_languages_classifier_selectivity.png"
+    filename2 = f"{filename_prefix}all_languages_classifier_selectivity.png"
     fig2.savefig(os.path.join(output_dir, filename2), bbox_inches="tight")
     print(f"Saved selectivity figure to {os.path.join(output_dir, filename2)}")
 
@@ -315,12 +332,12 @@ if __name__ == "__main__":
     ]
     
     models_to_plot = [
-        # "byt5",
-        # "mt5",
-        "qwen2",
-        "qwen2-instruct",
-        "qwen2.5-7B",
-        "qwen2.5-7B-instruct",
+        "byt5",
+        "mt5",
+        # "qwen2",
+        # "qwen2-instruct",
+        # "qwen2.5-7B",
+        # "qwen2.5-7B-instruct",
     ]
     
     if "qwen2" in model_names:
@@ -334,7 +351,7 @@ if __name__ == "__main__":
             model_names[model_key] = f"{model_names[model]} ({lang})"
     
     print("Plotting multilingual models across all languages...")
-    plot_t5_results(model_to_dataset, all_models)
+    plot_t5_results(model_to_dataset, all_models, filename_prefix="t5_")
     
     print("\nGenerating markdown tables for multilingual models...")
     generate_t5_markdown_tables(model_to_dataset, all_models)
