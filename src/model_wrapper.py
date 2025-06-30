@@ -86,7 +86,13 @@ class ModelWrapper:
         with torch.no_grad():
             outputs = self.model(input_ids, attention_mask=attention_mask)
 
-        hidden_states = outputs.hidden_states
+        if hasattr(outputs, 'encoder_hidden_states') and outputs.encoder_hidden_states is not None:
+            # For encoder-decoder models like T5, use encoder hidden states
+            hidden_states = outputs.encoder_hidden_states
+        else:
+            # For encoder-only or decoder-only models
+            hidden_states = outputs.hidden_states
+
         n_layers = len(hidden_states)
         batch_size = input_ids.size(0)
         d_model = hidden_states[0].size(-1)
