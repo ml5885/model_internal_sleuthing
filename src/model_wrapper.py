@@ -109,16 +109,22 @@ class ModelWrapper:
         activations = torch.empty((batch_size, n_layers, d_model), device=self.device)
 
         for i in range(batch_size):
-            word_id_map = batch_encoding.word_ids(batch_index=i) # maps token ids to word ids
-            tgt_word_idx = int(target_indices[i])
-            positions = [pos for pos, wid in enumerate(word_id_map) if wid == tgt_word_idx]
+            # try to map tokens back to word indices (fast tokenizer)
+            try:
+                word_id_map = batch_encoding.word_ids(batch_index=i)
+                tgt_word_idx = int(target_indices[i])
+                positions = [pos for pos, wid in enumerate(word_id_map) if wid == tgt_word_idx]
 
-            # handle if word was removed somehow
-            if not positions:
-                valid = [pos for pos, wid in enumerate(word_id_map) if wid is not None]
-                positions = [valid[-1]] if valid else [0]
+                if not positions:
+                    valid = [pos for pos, wid in enumerate(word_id_map) if wid is not None]
+                    positions = [valid[-1]] if valid else [0]
 
-            last_pos = positions[-1]
+                last_pos = positions[-1]
+            except (AttributeError, ValueError):
+                # slow tokenizer (e.g. ByT5) doesn't support word_ids
+                # just use last non-pad token
+                non_pad_positions = attention_mask[i].nonzero(as_tuple=False).squeeze(-1)
+                last_pos = non_pad_positions[-1].item() if non_pad_positions.numel() > 0 else 0
 
             for layer_idx, layer_states in enumerate(hidden_states):
                 activations[i, layer_idx, :] = layer_states[i, last_pos, :]
