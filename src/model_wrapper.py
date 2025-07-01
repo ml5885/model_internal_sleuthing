@@ -116,7 +116,7 @@ class ModelWrapper:
         if use_attention:
             n_layers = len(attentions)
             n_heads = attentions[0].size(1)
-            d_attn = n_heads * max_length  # Always use fixed max_length
+            d_attn = n_heads               # one scalar per head (top-k mean)
             activations = torch.empty((batch_size, n_layers, d_attn), device=self.device)
         else:
             n_layers = len(hidden_states)
@@ -149,17 +149,13 @@ class ModelWrapper:
                 if use_attention:
                     # A: (batch, heads, seq, seq)
                     A = attentions[layer_idx]
-                    # Extract the full attention vector from last_pos to all tokens, for all heads
-                    # shape: (n_heads, seq_len)
-                    v = A[i, :, last_pos, :]  # (n_heads, seq_len)
-                    seq_len = v.size(-1)
-                    if seq_len < max_length:
-                        # pad with zeros at the end
-                        pad = torch.zeros((n_heads, max_length - seq_len), device=v.device, dtype=v.dtype)
-                        v_padded = torch.cat([v, pad], dim=-1)
-                    else:
-                        v_padded = v[:, :max_length]
-                    activations[i, layer_idx, :] = v_padded.flatten()  # (n_heads * max_length,)
+                    # pick that head’s row for the target token: shape (n_heads, seq_len)
+                    row = A[i, :, last_pos, :]
+                    # take top-k attention scores per head (k=3) and average them
+                    k = min(3, row.size(-1))
+                    topk_vals = row.topk(k, dim=-1).values   # (n_heads, k)
+                    head_scores = topk_vals.mean(dim=-1)     # (n_heads,)
+                    activations[i, layer_idx, :] = head_scores
                 else:
                     layer_states = hidden_states[layer_idx]
                     activations[i, layer_idx, :] = layer_states[i, last_pos, :]
