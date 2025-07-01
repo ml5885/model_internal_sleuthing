@@ -111,12 +111,12 @@ class ModelWrapper:
                     hidden_states = outputs.hidden_states
 
         batch_size = input_ids.size(0)
-        
+        max_length = self.model_config["max_length"]
+
         if use_attention:
             n_layers = len(attentions)
             n_heads = attentions[0].size(1)
-            seq_len = attentions[0].size(-1)
-            d_attn = n_heads * seq_len
+            d_attn = n_heads * max_length  # Always use fixed max_length
             activations = torch.empty((batch_size, n_layers, d_attn), device=self.device)
         else:
             n_layers = len(hidden_states)
@@ -152,7 +152,14 @@ class ModelWrapper:
                     # Extract the full attention vector from last_pos to all tokens, for all heads
                     # shape: (n_heads, seq_len)
                     v = A[i, :, last_pos, :]  # (n_heads, seq_len)
-                    activations[i, layer_idx, :] = v.flatten()  # Flatten to (n_heads * seq_len,)
+                    seq_len = v.size(-1)
+                    if seq_len < max_length:
+                        # pad with zeros at the end
+                        pad = torch.zeros((n_heads, max_length - seq_len), device=v.device, dtype=v.dtype)
+                        v_padded = torch.cat([v, pad], dim=-1)
+                    else:
+                        v_padded = v[:, :max_length]
+                    activations[i, layer_idx, :] = v_padded.flatten()  # (n_heads * max_length,)
                 else:
                     layer_states = hidden_states[layer_idx]
                     activations[i, layer_idx, :] = layer_states[i, last_pos, :]
