@@ -3,7 +3,7 @@ import subprocess
 import argparse
 from src import config, utils
 
-def run_activation_extraction(model_key, dataset, revision=None, activations_dir_override=None, max_rows=0):
+def run_activation_extraction(model_key, dataset, revision=None, activations_dir_override=None, max_rows=0, use_attention=False):
     utils.log_info(f"Starting activation extraction for {model_key} (rev={revision}) on dataset {dataset}...")
 
     dataset_file = os.path.join("data", f"{dataset}.csv")
@@ -13,8 +13,9 @@ def run_activation_extraction(model_key, dataset, revision=None, activations_dir
     base_output_path = activations_dir_override if activations_dir_override else config.OUTPUT_DIR
 
     revision_component = f"_{revision}" if revision else ""
+    attention_component = "_attn" if use_attention else ""
 
-    output_leaf_name = f"{model_key}{revision_component}_{dataset}_reps"
+    output_leaf_name = f"{model_key}{revision_component}_{dataset}_reps{attention_component}"
 
     activations_output_dir = os.path.join(base_output_path, output_leaf_name)
     os.makedirs(activations_output_dir, exist_ok=True)
@@ -43,6 +44,8 @@ def run_activation_extraction(model_key, dataset, revision=None, activations_dir
         cmd += ["--revision", revision]
     if max_rows > 0:
         cmd += ["--max_rows", str(max_rows)]
+    if use_attention:
+        cmd += ["--use_attention"]
     subprocess.run(cmd, check=True)
 
     if os.path.isfile(combined_npz_path):
@@ -78,6 +81,7 @@ def main():
     parser.add_argument("--activations_dir", type=str, default=None, help="Custom base output directory for activation files/shards.")
     parser.add_argument("--output_dir", type=str, default=None, help="Custom base output directory for probe results.")
     parser.add_argument("--max_rows", type=int, default=75000, help="Maximum number of rows to sample from dataset for activation extraction.")
+    parser.add_argument("--use_attention", action="store_true", help="Run extraction on attention outputs rather than residual stream.")
     args = parser.parse_args()
 
     model_key = args.model
@@ -90,13 +94,14 @@ def main():
     revision_component = f"_{revision}" if revision else ""
     effective_model_key_for_paths = f"{model_key}{revision_component}"
 
-    reps_path = run_activation_extraction(model_key, dataset, revision, args.activations_dir, args.max_rows)
+    reps_path = run_activation_extraction(model_key, dataset, revision, args.activations_dir, args.max_rows, args.use_attention)
 
     base_probe_dir = args.output_dir if args.output_dir else os.path.join(config.OUTPUT_DIR, "probes")
+    attention_component = "_attn" if args.use_attention else ""
     probe_output_dirs = {
         task: os.path.join(
             base_probe_dir,
-            f"{dataset}_{effective_model_key_for_paths}_{task}_{probe_type}" +
+            f"{dataset}_{effective_model_key_for_paths}_{task}_{probe_type}{attention_component}" +
             (f"_pca{pca_dim}" if pca else "")
         )
         for task in ["inflection", "lexeme"]

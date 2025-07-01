@@ -355,14 +355,8 @@ def generate_t5_markdown_tables(model_to_dataset, model_list, output_dir="figure
             family = "Goldfish"
         elif model_key.startswith('mt5_'):
             family = "mT5"
-        elif model_key.startswith('qwen2.5-7B-instruct_'):
-            family = "Qwen2.5-7B-Instruct"
-        elif model_key.startswith('qwen2.5-7B_'):
-            family = "Qwen2.5-7B"
-        elif model_key.startswith('qwen2-instruct_'):
-            family = "Qwen2.5-1.5B-Instruct"
-        elif model_key.startswith('qwen2_'):
-            family = "Qwen2.5-1.5B"
+        elif any(model_key.startswith(f'{qwen}_') for qwen in ['qwen2', 'qwen2-instruct', 'qwen2.5-7B', 'qwen2.5-7B-instruct']):
+            family = "Qwen"
         else:
             family = "Other"
         
@@ -436,9 +430,24 @@ def generate_t5_markdown_tables(model_to_dataset, model_list, output_dir="figure
                         language_groups[lang_part] = []
                     language_groups[lang_part].append((model_key, dataset, language))
                 
-                # Sort languages alphabetically
+                # Sort languages alphabetically, and within each language sort models appropriately
                 for lang in sorted(language_groups.keys()):
                     models_in_lang = language_groups[lang]
+                    
+                    # For Qwen family, sort by model size and type
+                    if family_name == "Qwen":
+                        def qwen_sort_key(item):
+                            model_key = item[0]
+                            # Extract base model name
+                            base_model = model_key.split('_')[0]
+                            
+                            # Sort order: size (1.5B < 7B), then type (base < instruct)
+                            size_priority = 0 if '1.5B' in base_model or base_model in ['qwen2', 'qwen2-instruct'] else 1
+                            type_priority = 0 if 'instruct' not in base_model else 1
+                            
+                            return (size_priority, type_priority, base_model)
+                        
+                        models_in_lang.sort(key=qwen_sort_key)
                     
                     for model_key, dataset, language in models_in_lang:
                         csv_path = file_availability[model_key].get((task, probe_type))
@@ -484,7 +493,7 @@ if __name__ == "__main__":
     
     multilingual_models = [
         # "byt5",
-        "mt5",
+        # "mt5",
         "qwen2",
         "qwen2-instruct",
         "qwen2.5-7B",
@@ -493,12 +502,12 @@ if __name__ == "__main__":
     
     # Goldfish models are language-specific
     goldfish_models = [
-        ("goldfish_eng_latn_1000mb", "ud_gum_dataset", "English"),
-        ("goldfish_zho_hans_1000mb", "ud_zh_gsd_dataset", "Chinese"),
-        ("goldfish_deu_latn_1000mb", "ud_de_gsd_dataset", "German"),
-        ("goldfish_fra_latn_1000mb", "ud_fr_gsd_dataset", "French"),
-        ("goldfish_rus_cyrl_1000mb", "ud_ru_syntagrus_dataset", "Russian"),
-        ("goldfish_tur_latn_1000mb", "ud_tr_imst_dataset", "Turkish"),
+        # ("goldfish_eng_latn_1000mb", "ud_gum_dataset", "English"),
+        # ("goldfish_zho_hans_1000mb", "ud_zh_gsd_dataset", "Chinese"),
+        # ("goldfish_deu_latn_1000mb", "ud_de_gsd_dataset", "German"),
+        # ("goldfish_fra_latn_1000mb", "ud_fr_gsd_dataset", "French"),
+        # ("goldfish_rus_cyrl_1000mb", "ud_ru_syntagrus_dataset", "Russian"),
+        # ("goldfish_tur_latn_1000mb", "ud_tr_imst_dataset", "Turkish"),
     ]
     
     # Add multilingual models (tested on all languages)
@@ -516,8 +525,8 @@ if __name__ == "__main__":
         model_to_dataset[model_key] = dataset
         model_names[model_key] = f"{model_names[goldfish_model]} ({lang})"
     
-    print("Plotting multilingual models across all languages...")
-    plot_t5_results(model_to_dataset, all_models)
+    # print("Plotting multilingual models across all languages...")
+    # plot_t5_results(model_to_dataset, all_models)
     
     print("\nGenerating markdown tables for multilingual models...")
     generate_t5_markdown_tables(model_to_dataset, all_models)

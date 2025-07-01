@@ -18,6 +18,7 @@ class ModelWrapper:
             self.model_config["model_name"],
             revision=revision,
             output_hidden_states=True,
+            output_attentions=True,
             trust_remote_code=self.model_config.get("trust_remote_code", False)
         )
 
@@ -67,7 +68,7 @@ class ModelWrapper:
             return_attention_mask=True,
         )
 
-    def extract_activations(self, sentences, target_indices):
+    def extract_activations(self, sentences, target_indices, use_attention=False):
         word_lists = [sent.split() for sent in sentences]
 
         batch_encoding = self.tokenizer(
@@ -83,30 +84,44 @@ class ModelWrapper:
         input_ids = batch_encoding["input_ids"].to(self.device)
         attention_mask = batch_encoding["attention_mask"].to(self.device)
 
-        # run only the encoder for encoder-decoder models (T5, mT5, ByT5)
         with torch.no_grad():
             if hasattr(self.model, 'encoder'):
                 encoder_outputs = self.model.encoder(
                     input_ids=input_ids,
                     attention_mask=attention_mask,
                     output_hidden_states=True,
+                    output_attentions=True,
                     return_dict=True
                 )
-                hidden_states = encoder_outputs.hidden_states
+                if use_attention:
+                    attentions = encoder_outputs.attentions
+                else:
+                    hidden_states = encoder_outputs.hidden_states
             else:
-                # encoder-only (BERT, DeBERTa) or decoder-only (GPT) models
                 outputs = self.model(
                     input_ids=input_ids,
                     attention_mask=attention_mask,
                     output_hidden_states=True,
+                    output_attentions=True,
                     return_dict=True
                 )
-                hidden_states = outputs.hidden_states
+                if use_attention:
+                    attentions = outputs.attentions
+                else:
+                    hidden_states = outputs.hidden_states
 
-        n_layers = len(hidden_states)
         batch_size = input_ids.size(0)
-        d_model = hidden_states[0].size(-1)
-        activations = torch.empty((batch_size, n_layers, d_model), device=self.device)
+        
+        if use_attention:
+            n_layers = len(attentions)
+            seq_len = attentions[0].size(-2)
+            n_heads = attentions[0].size(1)
+            d_attn = n_heads * seq_len
+            activations = torch.empty((batch_size, n_layers, d_attn), device=self.device)
+        else:
+            n_layers = len(hidden_states)
+            d_model = hidden_states[0].size(-1)
+            activations = torch.empty((batch_size, n_layers, d_model), device=self.device)
 
         for i in range(batch_size):
             # Special handling for byte-level models like ByT5
@@ -130,8 +145,16 @@ class ModelWrapper:
                     non_pad_positions = attention_mask[i].nonzero(as_tuple=False).squeeze(-1)
                     last_pos = non_pad_positions[-1].item() if non_pad_positions.numel() > 0 else 0
 
-            for layer_idx, layer_states in enumerate(hidden_states):
-                activations[i, layer_idx, :] = layer_states[i, last_pos, :]
+            for layer_idx in range(n_layers):
+                if use_attention:
+                    # flatten heads x seq to a single vector
+                    A = attentions[layer_idx]  # (batch, heads, seq, seq)
+                    # take attention weights from all heads for the target token
+                    v = A[i, :, last_pos, :].reshape(-1)
+                    activations[i, layer_idx, :] = v
+                else:
+                    layer_states = hidden_states[layer_idx]
+                    activations[i, layer_idx, :] = layer_states[i, last_pos, :]
                 
         return activations.cpu()
 

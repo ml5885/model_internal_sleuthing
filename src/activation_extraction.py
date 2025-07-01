@@ -9,7 +9,7 @@ from tqdm import tqdm
 from src.model_wrapper import ModelWrapper
 from src import config, utils
 
-def extract_and_save(data_path, output_dir, model_key, revision=None, max_rows=0): 
+def extract_and_save(data_path, output_dir, model_key, revision=None, max_rows=0, use_attention=False): 
     """
     Extract hidden-state activations for each target word and save them in
     compressed .npz shards.
@@ -38,7 +38,7 @@ def extract_and_save(data_path, output_dir, model_key, revision=None, max_rows=0
         target_indices = chunk["Target Index"].tolist()
 
         with torch.no_grad():
-            activations = model_wrapper.extract_activations(sentences, target_indices)
+            activations = model_wrapper.extract_activations(sentences, target_indices, use_attention=use_attention)
 
         batch_array = activations.cpu().numpy()
 
@@ -56,6 +56,7 @@ if __name__ == "__main__":
     parser.add_argument("--model", "-m", type=str, default="gpt2", help="Key into MODEL_CONFIGS (e.g. 'gpt2' or 'gemma2b').")
     parser.add_argument("--revision", type=str, default=None, help="Model revision or checkpoint (e.g., 'step1000', 'main').") 
     parser.add_argument("--max_rows", type=int, default=0, help="Maximum number of rows to process from the data file. 0 means no limit.")
+    parser.add_argument("--use_attention", action="store_true", help="Extract per-head attention outputs instead of hidden states.")
     args = parser.parse_args()
 
     extract_and_save(
@@ -63,5 +64,6 @@ if __name__ == "__main__":
         output_dir=args.output_dir,
         model_key=args.model,
         revision=args.revision,
-        max_rows=args.max_rows
+        max_rows=args.max_rows,
+        use_attention=args.use_attention
     )
