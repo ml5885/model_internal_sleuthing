@@ -58,6 +58,50 @@ class ModelWrapper:
         self.model.to(self.device)
         self.model.eval()
 
+        # Register hooks to capture attention outputs (context_layer)
+        n_layers = self.model.config.num_hidden_layers
+        self.attn_outputs = [None] * n_layers
+        self.attn_handles = []
+        
+        # Determine the correct module list based on model architecture
+        if hasattr(self.model, 'encoder') and hasattr(self.model.encoder, 'layer'):
+            modules = self.model.encoder.layer # BERT-like
+        elif hasattr(self.model, 'layers'):
+            modules = self.model.layers # LLaMA, GPT-NeoX
+        elif hasattr(self.model, 'transformer') and hasattr(self.model.transformer, 'h'):
+            modules = self.model.transformer.h # GPT-2
+        else:
+            raise TypeError(f"Unsupported model architecture for hook registration: {self.model.__class__.__name__}")
+
+        for idx, layer in enumerate(modules):
+            # Determine the attention module within the layer
+            if hasattr(layer, 'attention'):
+                attn_module = layer.attention # BERT-like
+            elif hasattr(layer, 'attn'):
+                attn_module = layer.attn # GPT-2, LLaMA
+            else:
+                raise TypeError(f"Could not find attention module in layer: {layer.__class__.__name__}")
+            
+            # The output of the 'self-attention' part (often called 'self') is what we want.
+            # It's typically the module that outputs the context layer before the output projection.
+            if hasattr(attn_module, 'self'):
+                target_module = attn_module.self # BERT-like
+            else:
+                target_module = attn_module # GPT-2, LLaMA (hooking the whole attention block)
+
+            handle = target_module.register_forward_hook(
+                self._get_attn_hook(idx)
+            )
+            self.attn_handles.append(handle)
+
+    def _get_attn_hook(self, layer_idx):
+        def hook(module, input, output):
+            # Output is often a tuple: (hidden_states, present_key_value, attention_probs)
+            # We want the first element, the context layer.
+            context = output[0] if isinstance(output, tuple) else output
+            self.attn_outputs[layer_idx] = context
+        return hook
+
     def tokenize(self, sentences):
         return self.tokenizer(
             sentences,
@@ -67,6 +111,28 @@ class ModelWrapper:
             max_length=self.model_config["max_length"],
             return_attention_mask=True,
         )
+
+    def _get_token_position(self, batch_idx, sentences, target_indices, batch_encoding, attention_mask):
+        # Special handling for byte-level models like ByT5
+        if 'byt5' in self.model_config["model_name"].lower():
+            return self._extract_byt5_word_position(sentences[batch_idx], target_indices[batch_idx], batch_encoding, batch_idx)
+        
+        # try to map tokens back to word indices (fast tokenizer)
+        try:
+            word_id_map = batch_encoding.word_ids(batch_index=batch_idx)
+            tgt_word_idx = int(target_indices[batch_idx])
+            positions = [pos for pos, wid in enumerate(word_id_map) if wid == tgt_word_idx]
+
+            if not positions:
+                valid = [pos for pos, wid in enumerate(word_id_map) if wid is not None]
+                positions = [valid[-1]] if valid else [0]
+
+            return positions[-1]
+        except (AttributeError, ValueError):
+            # slow tokenizer doesn't support word_ids
+            # just use last non-pad token
+            non_pad_positions = attention_mask[batch_idx].nonzero(as_tuple=False).squeeze(-1)
+            return non_pad_positions[-1].item() if non_pad_positions.numel() > 0 else 0
 
     def extract_activations(self, sentences, target_indices, use_attention=False):
         word_lists = [sent.split() for sent in sentences]
@@ -84,77 +150,42 @@ class ModelWrapper:
         input_ids = batch_encoding["input_ids"].to(self.device)
         attention_mask = batch_encoding["attention_mask"].to(self.device)
 
-        with torch.no_grad():
-            if hasattr(self.model, 'encoder'):
-                encoder_outputs = self.model.encoder(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    output_hidden_states=True,
-                    output_attentions=True,
-                    return_dict=True
-                )
-                if use_attention:
-                    attentions = encoder_outputs.attentions
-                else:
-                    hidden_states = encoder_outputs.hidden_states
-            else:
-                outputs = self.model(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    output_hidden_states=True,
-                    output_attentions=True,
-                    return_dict=True
-                )
-                if use_attention:
-                    attentions = outputs.attentions
-                else:
-                    hidden_states = outputs.hidden_states
-
         batch_size = input_ids.size(0)
-        max_length = self.model_config["max_length"]
+        n_layers = self.model.config.num_hidden_layers
+        d_model = self.model.config.hidden_size
 
         if use_attention:
-            n_layers = len(attentions)
-            d_attn = 1                     # top-1 from best head
-            activations = torch.empty((batch_size, n_layers, d_attn), device=self.device)
+            # Reset hook storage
+            self.attn_outputs = [None] * n_layers
+            activations = torch.empty((batch_size, n_layers, d_model), device=self.device)
         else:
-            n_layers = len(hidden_states)
-            d_model = hidden_states[0].size(-1)
             activations = torch.empty((batch_size, n_layers, d_model), device=self.device)
 
+        with torch.no_grad():
+            # Forward pass will trigger hooks and populate self.attn_outputs
+            outputs = self.model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                output_hidden_states=True,
+                # output_attentions is not strictly needed for hidden states,
+                # but doesn't hurt and is needed if we ever want raw attention scores.
+                output_attentions=True, 
+                return_dict=True
+            )
+
         for i in range(batch_size):
-            # Special handling for byte-level models like ByT5
-            if 'byt5' in self.model_config["model_name"].lower():
-                last_pos = self._extract_byt5_word_position(sentences[i], target_indices[i], batch_encoding, i)
-            else:
-                # try to map tokens back to word indices (fast tokenizer)
-                try:
-                    word_id_map = batch_encoding.word_ids(batch_index=i)
-                    tgt_word_idx = int(target_indices[i])
-                    positions = [pos for pos, wid in enumerate(word_id_map) if wid == tgt_word_idx]
-
-                    if not positions:
-                        valid = [pos for pos, wid in enumerate(word_id_map) if wid is not None]
-                        positions = [valid[-1]] if valid else [0]
-
-                    last_pos = positions[-1]
-                except (AttributeError, ValueError):
-                    # slow tokenizer (e.g. ByT5) doesn't support word_ids
-                    # just use last non-pad token
-                    non_pad_positions = attention_mask[i].nonzero(as_tuple=False).squeeze(-1)
-                    last_pos = non_pad_positions[-1].item() if non_pad_positions.numel() > 0 else 0
+            last_pos = self._get_token_position(i, sentences, target_indices, batch_encoding, attention_mask)
 
             for layer_idx in range(n_layers):
                 if use_attention:
-                    # A: (batch, heads, seq, seq)
-                    A = attentions[layer_idx]
-                    # pick that head’s row for the target token: shape (n_heads, seq_len)
-                    row = A[i, :, last_pos, :]
-                    # find the max attention value across all heads (top-1 from best head)
-                    best_head_max_attn = row.max()
-                    activations[i, layer_idx, 0] = best_head_max_attn
+                    # Hooks capture the context layer from the attention module's forward pass
+                    context_layer = self.attn_outputs[layer_idx]
+                    if context_layer is None:
+                        raise RuntimeError(f"Hook for layer {layer_idx} did not run or capture output.")
+                    activations[i, layer_idx, :] = context_layer[i, last_pos, :]
                 else:
-                    layer_states = hidden_states[layer_idx]
+                    # `outputs.hidden_states` includes the embedding layer, so we take from index 1
+                    layer_states = outputs.hidden_states[layer_idx + 1]
                     activations[i, layer_idx, :] = layer_states[i, last_pos, :]
                 
         return activations.cpu()
