@@ -115,8 +115,7 @@ class ModelWrapper:
 
         if use_attention:
             n_layers = len(attentions)
-            n_heads = attentions[0].size(1)
-            d_attn = n_heads               # one scalar per head (top-k mean)
+            d_attn = 1                     # top-1 from best head
             activations = torch.empty((batch_size, n_layers, d_attn), device=self.device)
         else:
             n_layers = len(hidden_states)
@@ -151,11 +150,9 @@ class ModelWrapper:
                     A = attentions[layer_idx]
                     # pick that head’s row for the target token: shape (n_heads, seq_len)
                     row = A[i, :, last_pos, :]
-                    # take top-k attention scores per head (k=3) and average them
-                    k = min(3, row.size(-1))
-                    topk_vals = row.topk(k, dim=-1).values   # (n_heads, k)
-                    head_scores = topk_vals.mean(dim=-1)     # (n_heads,)
-                    activations[i, layer_idx, :] = head_scores
+                    # find the max attention value across all heads (top-1 from best head)
+                    best_head_max_attn = row.max()
+                    activations[i, layer_idx, 0] = best_head_max_attn
                 else:
                     layer_states = hidden_states[layer_idx]
                     activations[i, layer_idx, :] = layer_states[i, last_pos, :]
@@ -201,6 +198,9 @@ class ModelWrapper:
                     weight = state_dict[k]
                 if k.endswith(f'layers.{layer_idx+1}.input_layernorm.bias'):
                     bias = state_dict[k]
+        if weight is None or bias is None:
+            raise ValueError(f"Could not find LayerNorm params for layer {layer_idx+1}")
+        return weight, bias
         if weight is None or bias is None:
             raise ValueError(f"Could not find LayerNorm params for layer {layer_idx+1}")
         return weight, bias
