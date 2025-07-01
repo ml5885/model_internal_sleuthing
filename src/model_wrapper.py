@@ -226,11 +226,3 @@ class ModelWrapper:
         if weight is None or bias is None:
             raise ValueError(f"Could not find LayerNorm params for layer {layer_idx+1}")
         return weight, bias
-                if k.endswith(f'layers.{layer_idx+1}.input_layernorm.bias'):
-                    bias = state_dict[k]
-        if weight is None or bias is None:
-            raise ValueError(f"Could not find LayerNorm params for layer {layer_idx+1}")
-        return weight, bias
-        if weight is None or bias is None:
-            raise ValueError(f"Could not find LayerNorm params for layer {layer_idx+1}")
-        return weight, bias
