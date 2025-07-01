@@ -355,8 +355,14 @@ def generate_t5_markdown_tables(model_to_dataset, model_list, output_dir="figure
             family = "Goldfish"
         elif model_key.startswith('mt5_'):
             family = "mT5"
-        elif any(model_key.startswith(f'{qwen}_') for qwen in ['qwen2', 'qwen2-instruct', 'qwen2.5-7B', 'qwen2.5-7B-instruct']):
-            family = "Qwen"
+        elif model_key.startswith('qwen2.5-7B-instruct_'):
+            family = "Qwen2.5-7B-Instruct"
+        elif model_key.startswith('qwen2.5-7B_'):
+            family = "Qwen2.5-7B"
+        elif model_key.startswith('qwen2-instruct_'):
+            family = "Qwen2.5-1.5B-Instruct"
+        elif model_key.startswith('qwen2_'):
+            family = "Qwen2.5-1.5B"
         else:
             family = "Other"
         
@@ -430,24 +436,9 @@ def generate_t5_markdown_tables(model_to_dataset, model_list, output_dir="figure
                         language_groups[lang_part] = []
                     language_groups[lang_part].append((model_key, dataset, language))
                 
-                # Sort languages alphabetically, and within each language sort models appropriately
+                # Sort languages alphabetically
                 for lang in sorted(language_groups.keys()):
                     models_in_lang = language_groups[lang]
-                    
-                    # For Qwen family, sort by model size and type
-                    if family_name == "Qwen":
-                        def qwen_sort_key(item):
-                            model_key = item[0]
-                            # Extract base model name
-                            base_model = model_key.split('_')[0]
-                            
-                            # Sort order: size (1.5B < 7B), then type (base < instruct)
-                            size_priority = 0 if '1.5B' in base_model or base_model in ['qwen2', 'qwen2-instruct'] else 1
-                            type_priority = 0 if 'instruct' not in base_model else 1
-                            
-                            return (size_priority, type_priority, base_model)
-                        
-                        models_in_lang.sort(key=qwen_sort_key)
                     
                     for model_key, dataset, language in models_in_lang:
                         csv_path = file_availability[model_key].get((task, probe_type))

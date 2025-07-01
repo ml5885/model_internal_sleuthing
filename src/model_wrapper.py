@@ -115,7 +115,8 @@ class ModelWrapper:
         if use_attention:
             n_layers = len(attentions)
             n_heads = attentions[0].size(1)
-            d_attn = n_heads  # one value per head after averaging
+            seq_len = attentions[0].size(-1)
+            d_attn = n_heads * seq_len
             activations = torch.empty((batch_size, n_layers, d_attn), device=self.device)
         else:
             n_layers = len(hidden_states)
@@ -148,10 +149,10 @@ class ModelWrapper:
                 if use_attention:
                     # A: (batch, heads, seq, seq)
                     A = attentions[layer_idx]
-                    # take attention from last_pos to all tokens, then average over seq axis:
-                    # shape (heads,)
-                    v = A[i, :, last_pos, :].mean(dim=-1)
-                    activations[i, layer_idx, :] = v
+                    # Extract the full attention vector from last_pos to all tokens, for all heads
+                    # shape: (n_heads, seq_len)
+                    v = A[i, :, last_pos, :]  # (n_heads, seq_len)
+                    activations[i, layer_idx, :] = v.flatten()  # Flatten to (n_heads * seq_len,)
                 else:
                     layer_states = hidden_states[layer_idx]
                     activations[i, layer_idx, :] = layer_states[i, last_pos, :]
