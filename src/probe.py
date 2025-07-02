@@ -15,14 +15,6 @@ from sklearn.multiclass import OneVsRestClassifier
 from src import config, utils
 
 
-def get_device():
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
-    return torch.device("cpu")
-
-
 class MLPProbe(nn.Module):
     """MLP probe: one hidden ReLU layer, then softmax output."""
     def __init__(self, input_dim, output_dim, hidden_dim=None, norm_weight=None, norm_bias=None):
@@ -60,7 +52,7 @@ class MLPProbe(nn.Module):
 
 def train_probe(X_train, y_train, X_val, y_val, input_dim, n_classes, norm_weight=None, norm_bias=None):
     torch.manual_seed(config.SEED)
-    device = get_device()
+    device = utils.get_device()
 
     model = MLPProbe(input_dim, n_classes, norm_weight=norm_weight, norm_bias=norm_bias).to(device)
     optim = torch.optim.AdamW(
@@ -121,11 +113,27 @@ def train_probe(X_train, y_train, X_val, y_val, input_dim, n_classes, norm_weigh
     return model
 
 
-def solve_ridge(X_train, y_train, X_test, lambda_reg, n_classes):
+def solve_ridge(X_train, y_train, X_test, lambda_reg, n_classes, return_weights=False):
+    device = utils.get_device()
     d = X_train.shape[1]
-    cov = X_train.T.dot(X_train) + lambda_reg * np.eye(d)
-    W = np.linalg.solve(cov, X_train.T.dot(np.eye(n_classes)[y_train]))
-    return X_test.dot(W)
+    
+    # Convert to torch tensors and move to GPU
+    X_train_t = torch.from_numpy(X_train).float().to(device)
+    y_train_one_hot_t = torch.from_numpy(np.eye(n_classes)[y_train]).float().to(device)
+    X_test_t = torch.from_numpy(X_test).float().to(device)
+    
+    # Perform computation on GPU
+    cov = X_train_t.T @ X_train_t + lambda_reg * torch.eye(d, device=device)
+    W = torch.linalg.solve(cov, X_train_t.T @ y_train_one_hot_t)
+    
+    scores = X_test_t @ W
+    
+    # Move results back to CPU and convert to numpy
+    scores_np = scores.cpu().numpy()
+    
+    if return_weights:
+        return scores_np, W.cpu().numpy()
+    return scores_np
 
 
 def predict(arr, model):
@@ -141,7 +149,7 @@ def predict(arr, model):
     return torch.cat(out, dim=0).numpy()
 
 
-def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type, layer, pca_dim, outdir=None, indices=None, label_map=None, control_label_map=None):
+def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type, layer, pca_dim, outdir=None, indices=None, label_map=None, control_label_map=None, probe_obj=None, norm_weight=None, norm_bias=None):
     uniq, counts = np.unique(y_true, return_counts=True)
     keep_classes = uniq[counts >= 1]
     keep_mask = np.isin(y_true, keep_classes)
@@ -186,7 +194,7 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
         config.SPLIT_RATIOS["val"] + config.SPLIT_RATIOS["test"]
     )
     temp_counts = np.bincount(y_temp)
-    stratify_val = y_temp if temp_counts.min() > 1 else None
+    stratify_val = y_temp if len(temp_counts) > 1 and temp_counts.min() > 1 else None
 
     X_val, X_test, y_val, y_test, yc_val, yc_test, idx_val, idx_test = train_test_split(
         X_temp, y_temp, yc_temp, idx_temp,
@@ -218,24 +226,39 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
 
     bs = config.TRAIN_PARAMS["batch_size"]
 
+    if probe_obj is None:
+        if probe_type in ["mlp", "nn"]:
+            model = train_probe(X_train, y_train, X_val, y_val, input_dim=X_train.shape[1], n_classes=n_classes, norm_weight=norm_weight, norm_bias=norm_bias)
+            probe_obj = model
+        elif probe_type == "rf":
+            rf = OneVsRestClassifier(RandomForestClassifier(
+                n_estimators=config.TRAIN_PARAMS["rf_n_estimators"],
+                max_depth=config.TRAIN_PARAMS["rf_max_depth"],
+                min_samples_leaf=config.TRAIN_PARAMS["rf_min_samples_leaf"],
+                n_jobs=config.TRAIN_PARAMS["workers"],
+                random_state=seed
+            ))
+            rf.fit(X_train, y_train)
+            probe_obj = rf
+        elif probe_type == "reg":
+            _, W = solve_ridge(
+                X_train, y_train, X_test,
+                lambda_reg, n_classes,
+                return_weights=True
+            )
+            probe_obj = W
+
     if probe_type in ["mlp", "nn"]:
-        model = train_probe(X_train, y_train, X_val, y_val, input_dim=X_train.shape[1], n_classes=n_classes)
+        model = probe_obj
         scores = model.predict(X_test, batch_size=bs)
-        control_model = train_probe(X_train, yc_train_m, X_val, yc_val_m, input_dim=X_train.shape[1], n_classes=n_classes)
+        # For simplicity, we don't save/load control probes. They are cheap to train.
+        control_model = train_probe(X_train, yc_train_m, X_val, yc_val_m, input_dim=X_train.shape[1], n_classes=n_classes, norm_weight=norm_weight, norm_bias=norm_bias)
         control_scores = control_model.predict(X_test, batch_size=bs)
         preds = scores.argmax(1)
         preds_control = control_scores.argmax(1)
 
     elif probe_type == "rf":
-        rf = OneVsRestClassifier(RandomForestClassifier(
-            n_estimators=config.TRAIN_PARAMS["rf_n_estimators"],
-            max_depth=config.TRAIN_PARAMS["rf_max_depth"],
-            min_samples_leaf=config.TRAIN_PARAMS["rf_min_samples_leaf"],
-            n_jobs=config.TRAIN_PARAMS["workers"],
-            random_state=seed
-        ))
-        
-        rf.fit(X_train, y_train)
+        rf = probe_obj
         scores = rf.predict_proba(X_test)
         preds = rf.predict(X_test)
 
@@ -251,9 +274,14 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
         control_scores = rf_ctrl.predict_proba(X_test)
         preds_control = rf_ctrl.predict(X_test)
 
-    else:
-        scores = solve_ridge(X_train, y_train, X_test, lambda_reg, n_classes)
-        control_scores = solve_ridge(X_train, yc_train_m, X_test, lambda_reg, n_classes)
+    elif probe_type == "reg":
+        W = probe_obj
+        scores = X_test.dot(W)
+        control_scores, _ = solve_ridge(
+            X_train, yc_train_m, X_test,
+            lambda_reg, n_classes,
+            return_weights=False # We don't need control weights
+        )
         preds = scores.argmax(1)
         preds_control = control_scores.argmax(1)
 
@@ -295,7 +323,14 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
         "pca_explained_variance": pca_explained_variance
     }
 
-    return seed, result, pred_df
+    # pick the probe object to steer with
+    if probe_type in ("mlp","nn"):
+        probe_obj = model
+    elif probe_type == "reg":
+        probe_obj = W
+    else:  # rf
+        probe_obj = rf
+    return seed, result, pred_df, probe_obj
 
 
 def plot_probe_results(results: dict, outdir: str, task: str):
@@ -333,6 +368,14 @@ def plot_probe_results(results: dict, outdir: str, task: str):
         w.writerow(["Layer", "Acc", "F1", "controlAcc", "controlF1", "PCA_ExplainedVar"])
         for l in layers:
             r = results[l]
+            w.writerow([
+                l.split("_")[1],
+                r[f"{task}_acc"],
+                r[f"{task}_f1"],
+                r[f"{task}_control_acc"],
+                r[f"{task}_control_f1"],
+                r["pca_explained_variance"],
+            ])
             w.writerow([
                 l.split("_")[1],
                 r[f"{task}_acc"],
