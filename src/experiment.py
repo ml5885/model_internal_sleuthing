@@ -149,7 +149,10 @@ def main():
             utils.log_info(f"No trained probes found in {probe_dir_for_steering}. Train probes first.")
             return
 
-        steering_output_dir = os.path.join(config.OUTPUT_DIR, "steering", f"{dataset}_{effective_model_key_for_paths}_{probe_type}{attention_component}")
+        steering_output_dir = os.path.join(
+            config.OUTPUT_DIR, "steering",
+            f"{dataset}_{effective_model_key_for_paths}_{probe_type}{attention_component}_lambda{args.lambda_steer}"
+        )
         
         steering_args = [
             "--activations", reps_path,
@@ -159,7 +162,7 @@ def main():
             "--probe_type", probe_type,
             "--lambda_steer", str(args.lambda_steer),
         ]
-        utils.log_info(f"Running steering for model={effective_model_key_for_paths}, dataset={dataset}")
+        utils.log_info(f"Running steering for model={effective_model_key_for_paths}, dataset={dataset}, lambda_steer={args.lambda_steer}")
         subprocess.run(["python", "-m", "src.steering"] + steering_args, check=True)
 
 
