@@ -82,6 +82,8 @@ def main():
     parser.add_argument("--output_dir", type=str, default=None, help="Custom base output directory for probe results.")
     parser.add_argument("--max_rows", type=int, default=75000, help="Maximum number of rows to sample from dataset for activation extraction.")
     parser.add_argument("--use_attention", action="store_true", help="Run extraction on attention outputs rather than residual stream.")
+    parser.add_argument("--steering", action="store_true", help="Run steering experiment after probing.")
+    parser.add_argument("--lambda_steer", type=float, default=1.5, help="Lambda for steering vector strength.")
     args = parser.parse_args()
 
     model_key = args.model
@@ -107,30 +109,59 @@ def main():
         for task in ["inflection", "lexeme"]
     }
 
-    for task in ([args.experiment] if args.experiment else ["inflection", "lexeme"]):
-        if task not in probe_output_dirs:
-            raise ValueError(f"Unknown experiment name: {task}")
-        
-        exp_label = effective_model_key_for_paths
-        
-        labels_file = os.path.join("data", f"{dataset}.csv")
-        if not os.path.exists(labels_file):
-            raise FileNotFoundError(f"Could not find dataset file for {dataset} at {labels_file}")
+    if not args.steering:
+        for task in ([args.experiment] if args.experiment else ["inflection", "lexeme"]):
+            if task not in probe_output_dirs:
+                raise ValueError(f"Unknown experiment name: {task}")
+            
+            exp_label = effective_model_key_for_paths
+            
+            labels_file = os.path.join("data", f"{dataset}.csv")
+            if not os.path.exists(labels_file):
+                raise FileNotFoundError(f"Could not find dataset file for {dataset} at {labels_file}")
 
-        exp_args = [
-            "--activations", reps_path,
-            "--labels", labels_file,
-            "--task", task,
-            "--lambda_reg", str(args.lambda_reg),
-            "--exp_label", exp_label,
-            "--dataset", dataset,
-            "--probe_type", probe_type,
-            "--pca_dim", str(pca_dim),
-            "--output_dir", probe_output_dirs[task],
-        ]
+            exp_args = [
+                "--activations", reps_path,
+                "--labels", labels_file,
+                "--task", task,
+                "--lambda_reg", str(args.lambda_reg),
+                "--exp_label", exp_label,
+                "--dataset", dataset,
+                "--probe_type", probe_type,
+                "--pca_dim", str(pca_dim),
+                "--output_dir", probe_output_dirs[task],
+            ]
+            
+            utils.log_info(f"Running probe for task={task}, model_config={effective_model_key_for_paths}, dataset={dataset}")
+            subprocess.run(["python", "-m", "src.train"] + exp_args, check=True)
+
+    if args.steering:
+        utils.log_info("Proceeding to steering experiment...")
+        # The steering experiment is for inflection only.
+        task = "inflection"
+        probe_dir_for_steering = probe_output_dirs.get(task)
+        if not probe_dir_for_steering or not os.path.exists(probe_dir_for_steering):
+            utils.log_info(f"Probe directory for inflection task not found at {probe_dir_for_steering}. Cannot run steering.")
+            return
+
+        # Check if probes exist
+        if not any(f.startswith("probe_layer_") for f in os.listdir(probe_dir_for_steering)):
+            utils.log_info(f"No trained probes found in {probe_dir_for_steering}. Train probes first.")
+            return
+
+        steering_output_dir = os.path.join(config.OUTPUT_DIR, "steering", f"{dataset}_{effective_model_key_for_paths}_{probe_type}{attention_component}")
         
-        utils.log_info(f"Running probe for task={task}, model_config={effective_model_key_for_paths}, dataset={dataset}")
-        subprocess.run(["python", "-m", "src.train"] + exp_args, check=True)
+        steering_args = [
+            "--activations", reps_path,
+            "--labels", os.path.join("data", f"{dataset}.csv"),
+            "--probe_dir", probe_dir_for_steering,
+            "--output_dir", steering_output_dir,
+            "--probe_type", probe_type,
+            "--lambda_steer", str(args.lambda_steer),
+        ]
+        utils.log_info(f"Running steering for model={effective_model_key_for_paths}, dataset={dataset}")
+        subprocess.run(["python", "-m", "src.steering"] + steering_args, check=True)
+
 
     if not args.no_analysis:
         run_analysis(reps_path, effective_model_key_for_paths, dataset)

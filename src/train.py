@@ -105,6 +105,21 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
         model_wrapper = ModelWrapper(exp_label)
 
     for layer_idx in tqdm(range(n_layers), desc="Layers"):
+        # Check if probe for this layer already exists
+        probe_exists = False
+        if probe_type in ["mlp", "nn"]:
+            probe_model_path = os.path.join(outdir, f"probe_layer_{layer_idx}.pt")
+            if os.path.exists(probe_model_path):
+                probe_exists = True
+        elif probe_type == "rf":
+            probe_model_path = os.path.join(outdir, f"probe_layer_{layer_idx}.joblib")
+            if os.path.exists(probe_model_path):
+                probe_exists = True
+
+        if probe_exists:
+            utils.log_info(f"Probe for layer {layer_idx} already exists, skipping training.")
+            continue
+
         X_flat = load_layer(shards, layer_idx)
         X_flat = X_flat[valid_label_mask] # Apply the same mask to activations
 
@@ -181,6 +196,10 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
         utils.log_info(f"WARNING: No predictions to save for any layer. This may indicate an issue.")
         # Create an empty predictions file
         pd.DataFrame().to_csv(predictions_path, index=False)
+    
+    if not results:
+        utils.log_info("No new results were generated. Skipping results saving and plotting.")
+        return
 
     np.savez_compressed(os.path.join(outdir, "probe_results.npz"),
                         results=results)

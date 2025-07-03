@@ -1,0 +1,98 @@
+import os
+import argparse
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+
+from src import utils
+
+def plot_results(results_df, output_dir):
+    """Plots steering experiment results and generates a markdown table."""
+    if results_df.empty:
+        utils.log_info("Results dataframe is empty, skipping plotting.")
+        return
+
+    # If loading the summary, the columns are already aggregated.
+    # If loading detailed results, we need to aggregate first.
+    if 'mean_prob_change' not in results_df.columns:
+        summary_df = results_df.groupby('layer').agg(
+            mean_prob_change=('prob_change', 'mean'),
+            flip_rate=('prediction_flip', 'mean')
+        ).reset_index()
+    else:
+        summary_df = results_df
+    
+    summary_df = summary_df.sort_values('layer')
+    
+    # Ensure layers are treated as integers for plotting
+    summary_df['layer'] = summary_df['layer'].astype(int)
+    layers = summary_df['layer']
+    
+    sns.set_theme(style="whitegrid")
+
+    # Plot 1: Mean Probability Change
+    plt.figure(figsize=(12, 6))
+    ax1 = sns.lineplot(data=summary_df, x='layer', y='mean_prob_change', marker='o', legend=False)
+    plt.title('Mean Probability Change of Steered Inflection', fontsize=16)
+    plt.xlabel('Model Layer', fontsize=12)
+    plt.ylabel('Mean Probability Change', fontsize=12)
+    ax1.set_xticks(layers)
+    ax1.set_xticklabels(layers, rotation=45, ha="right")
+    plt.tight_layout()
+    plot_path = os.path.join(output_dir, 'steering_prob_change.png')
+    plt.savefig(plot_path)
+    plt.close()
+    utils.log_info(f"Saved probability change plot to {plot_path}")
+
+    # Plot 2: Prediction Flip Rate
+    plt.figure(figsize=(12, 6))
+    ax2 = sns.lineplot(data=summary_df, x='layer', y='flip_rate', marker='o', color='green', legend=False)
+    plt.title('Prediction Flip Rate to Steered Inflection', fontsize=16)
+    plt.xlabel('Model Layer', fontsize=12)
+    plt.ylabel('Flip Rate', fontsize=12)
+    plt.ylim(0, max(0.1, summary_df['flip_rate'].max() * 1.15)) # Adjust y-axis for better visibility
+    ax2.set_xticks(layers)
+    ax2.set_xticklabels(layers, rotation=45, ha="right")
+    plt.tight_layout()
+    plot_path = os.path.join(output_dir, 'steering_flip_rate.png')
+    plt.savefig(plot_path)
+    plt.close()
+    utils.log_info(f"Saved flip rate plot to {plot_path}")
+
+    # Generate and save a Markdown Table
+    markdown_table = summary_df.to_markdown(index=False, floatfmt=".4f")
+    table_path = os.path.join(output_dir, 'steering_summary.md')
+    with open(table_path, 'w') as f:
+        f.write("# Steering Experiment Summary\n\n")
+        f.write(markdown_table)
+    utils.log_info(f"Saved markdown summary to {table_path}")
+    
+    # Print the table to console for immediate feedback
+    print("\n--- Steering Results Summary ---")
+    print(markdown_table)
+    print("------------------------------\n")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Plot results from a steering experiment.")
+    parser.add_argument("--results_dir", required=True, help="Directory containing steering_results.csv or steering_summary.csv.")
+    args = parser.parse_args()
+
+    summary_file = os.path.join(args.results_dir, "steering_summary.csv")
+    results_file = os.path.join(args.results_dir, "steering_results.csv")
+    
+    if os.path.exists(summary_file):
+        utils.log_info(f"Loading summary file: {summary_file}")
+        results_df = pd.read_csv(summary_file)
+    elif os.path.exists(results_file):
+        utils.log_info(f"Loading detailed results file: {results_file}")
+        results_df = pd.read_csv(results_file)
+    else:
+        print(f"Error: Neither steering_summary.csv nor steering_results.csv found in {args.results_dir}")
+        return
+
+    plot_results(results_df, args.results_dir)
+
+if __name__ == "__main__":
+    main()

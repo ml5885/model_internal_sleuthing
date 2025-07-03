@@ -11,6 +11,8 @@ from sklearn.model_selection import train_test_split
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.multiclass import OneVsRestClassifier
+import joblib
+import json
 
 from src import config, utils
 
@@ -225,6 +227,16 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
         control_scores = control_model.predict(X_test, batch_size=bs)
         preds = scores.argmax(1)
         preds_control = control_scores.argmax(1)
+        
+        if outdir:
+            os.makedirs(outdir, exist_ok=True)
+            model_path = os.path.join(outdir, f"probe_layer_{layer}.pt")
+            torch.save(model.state_dict(), model_path)
+            if label_map and isinstance(label_map, list):
+                label_map_path = os.path.join(outdir, "label_map.json")
+                if not os.path.exists(label_map_path):
+                    with open(label_map_path, 'w') as f:
+                        json.dump(label_map, f)
 
     elif probe_type == "rf":
         rf = OneVsRestClassifier(RandomForestClassifier(
@@ -251,6 +263,15 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
         control_scores = rf_ctrl.predict_proba(X_test)
         preds_control = rf_ctrl.predict(X_test)
 
+        if outdir:
+            os.makedirs(outdir, exist_ok=True)
+            model_path = os.path.join(outdir, f"probe_layer_{layer}.joblib")
+            joblib.dump(rf, model_path)
+            if label_map and isinstance(label_map, list):
+                label_map_path = os.path.join(outdir, "label_map.json")
+                if not os.path.exists(label_map_path):
+                    with open(label_map_path, 'w') as f:
+                        json.dump(label_map, f)
     else:
         scores = solve_ridge(X_train, y_train, X_test, lambda_reg, n_classes)
         control_scores = solve_ridge(X_train, yc_train_m, X_test, lambda_reg, n_classes)
