@@ -1,6 +1,7 @@
 import os
 import subprocess
 import argparse
+from joblib import Parallel, delayed
 from src import config, utils
 
 def run_activation_extraction(model_key, dataset, revision=None, activations_dir_override=None, max_rows=0, use_attention=False):
@@ -83,7 +84,8 @@ def main():
     parser.add_argument("--max_rows", type=int, default=75000, help="Maximum number of rows to sample from dataset for activation extraction.")
     parser.add_argument("--use_attention", action="store_true", help="Run extraction on attention outputs rather than residual stream.")
     parser.add_argument("--steering", action="store_true", help="Run steering experiment after probing.")
-    parser.add_argument("--lambda_steer", type=float, default=1.5, help="Lambda for steering vector strength.")
+    parser.add_argument("--lambda_steer", type=float, nargs='+', default=[1.5], help="One or more lambda for steering vector strength.")
+    parser.add_argument("--num_samples", type=int, default=1000, help="Number of samples for steering.")
     args = parser.parse_args()
 
     model_key = args.model
@@ -141,30 +143,58 @@ def main():
         task = "inflection"
         probe_dir_for_steering = probe_output_dirs.get(task)
         if not probe_dir_for_steering or not os.path.exists(probe_dir_for_steering):
-            utils.log_info(f"Probe directory for inflection task not found at {probe_dir_for_steering}. Cannot run steering.")
-            return
+            utils.log_info(f"Probe directory for inflection task not found at {probe_dir_for_steering}. Running probe training first.")
+            # This part is to ensure probes are trained if steering is run directly.
+            # The slurm script already runs this, but it's good for robustness.
+            exp_args = [
+                "--activations", reps_path,
+                "--labels", os.path.join("data", f"{dataset}.csv"),
+                "--task", task,
+                "--lambda_reg", str(args.lambda_reg),
+                "--exp_label", effective_model_key_for_paths,
+                "--dataset", dataset,
+                "--probe_type", probe_type,
+                "--pca_dim", str(pca_dim),
+                "--output_dir", probe_dir_for_steering,
+            ]
+            subprocess.run(["python", "-m", "src.train"] + exp_args, check=True)
 
-        # Check if probes exist
         if not any(f.startswith("probe_layer_") for f in os.listdir(probe_dir_for_steering)):
-            utils.log_info(f"No trained probes found in {probe_dir_for_steering}. Train probes first.")
+            utils.log_info(f"No trained probes found in {probe_dir_for_steering} even after training attempt. Cannot run steering.")
             return
 
-        steering_output_dir = os.path.join(
-            config.OUTPUT_DIR, "steering",
-            f"{dataset}_{effective_model_key_for_paths}_{probe_type}{attention_component}_lambda{args.lambda_steer}"
-        )
-        
-        steering_args = [
-            "--activations", reps_path,
-            "--labels", os.path.join("data", f"{dataset}.csv"),
-            "--probe_dir", probe_dir_for_steering,
-            "--output_dir", steering_output_dir,
-            "--probe_type", probe_type,
-            "--lambda_steer", str(args.lambda_steer),
-        ]
-        utils.log_info(f"Running steering for model={effective_model_key_for_paths}, dataset={dataset}, lambda_steer={args.lambda_steer}")
-        subprocess.run(["python", "-m", "src.steering"] + steering_args, check=True)
+        from src.steering import run_steering as run_single_steering
 
+        def run_steering_for_lambda(lambda_val):
+            base_steering_dir = args.output_dir if args.output_dir else os.path.join(config.OUTPUT_DIR, "steering")
+            steering_output_dir = os.path.join(
+                base_steering_dir,
+                f"{dataset}_{effective_model_key_for_paths}_{probe_type}{attention_component}_lambda{lambda_val}"
+            )
+            
+            steering_args = argparse.Namespace(
+                activations=reps_path,
+                labels=os.path.join("data", f"{dataset}.csv"),
+                probe_dir=probe_dir_for_steering,
+                output_dir=steering_output_dir,
+                probe_type=probe_type,
+                lambda_steer=lambda_val,
+                num_samples=args.num_samples
+            )
+            utils.log_info(f"Running steering for model={effective_model_key_for_paths}, dataset={dataset}, lambda_steer={lambda_val}")
+            run_single_steering(steering_args)
+
+        # Run first lambda sequentially to ensure everything is set up.
+        if args.lambda_steer:
+            utils.log_info("Running first lambda value sequentially...")
+            run_steering_for_lambda(args.lambda_steer[0])
+
+        # Run the rest in parallel
+        if len(args.lambda_steer) > 1:
+            utils.log_info(f"Running remaining {len(args.lambda_steer) - 1} lambda values in parallel...")
+            Parallel(n_jobs=max(1, os.cpu_count() // 2))(
+                delayed(run_steering_for_lambda)(l) for l in args.lambda_steer[1:]
+            )
 
     if not args.no_analysis:
         run_analysis(reps_path, effective_model_key_for_paths, dataset)

@@ -131,21 +131,29 @@ def main():
     # Check for multi-lambda subdirectories
     import re
     parent_dir = os.path.dirname(args.results_dir.rstrip('/'))
-    base = os.path.basename(args.results_dir.rstrip('/'))
-    lambda_pattern = re.compile(r"_lambda(\d+(\.\d+)?)$")
-    match = lambda_pattern.search(base)
+    base_name = os.path.basename(args.results_dir.rstrip('/'))
+    
+    # This regex will find the lambda value and the prefix before it.
+    match = re.search(r'^(.*_lambda)\d+(\.\d+)?$', base_name)
+
     if match:
         # If results_dir is a lambda-specific directory, check for siblings
-        prefix = base[:match.start()]
-        siblings = [d for d in os.listdir(parent_dir) if d.startswith(prefix) and lambda_pattern.search(d)]
+        prefix = match.group(1) # e.g., "ud_gum_dataset_qwen2_reg_lambda"
+        siblings = [d for d in os.listdir(parent_dir) if d.startswith(prefix)]
         results_dirs = {}
         for sib in siblings:
-            m = lambda_pattern.search(sib)
-            if m:
-                lambda_val = float(m.group(1))
+            # Extract lambda value from directory name
+            lambda_str = sib[len(prefix):]
+            try:
+                lambda_val = float(lambda_str)
                 results_dirs[lambda_val] = os.path.join(parent_dir, sib)
+            except ValueError:
+                continue # Ignore directories that don't end in a valid number
+        
         if len(results_dirs) > 1:
+            # The output directory for multi-lambda plots should be the parent directory.
             plot_multi_lambda(results_dirs, parent_dir)
+
     summary_file = os.path.join(args.results_dir, "steering_summary.csv")
     results_file = os.path.join(args.results_dir, "steering_results.csv")
     if os.path.exists(summary_file):
