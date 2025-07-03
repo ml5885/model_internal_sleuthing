@@ -213,7 +213,7 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
     # — run steering experiment immediately for inflection probes —
     if task == "inflection":
         layers = sorted(probe_objs.keys())
-        lambdas = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
+        lambdas = [5, 10, 20, 100]
         run_inflection_steering(
             activations,
             probe_objs,
