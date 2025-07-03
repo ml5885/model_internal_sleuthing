@@ -151,7 +151,11 @@ def run_steering(args):
 
                 pred_steered = np.argmax(probs_steered)
                 prob_change = probs_steered[i_steer] - probs_orig[i_steer]
+                
+                # Original flip logic: did the prediction change from something else to the target?
                 prediction_flip = (pred_orig != i_steer) and (pred_steered == i_steer)
+                # New success logic: does the new prediction match the target?
+                steer_success = (pred_steered == i_steer)
 
                 layer_results.append({
                     "layer": layer,
@@ -159,7 +163,8 @@ def run_steering(args):
                     "original_inflection": label_map[i_orig],
                     "steer_inflection": label_map[i_steer],
                     "prob_change": prob_change,
-                    "prediction_flip": prediction_flip,
+                    "prediction_flip": prediction_flip, # Kept for backward compatibility
+                    "steer_success": steer_success,
                 })
 
         if layer_results:
@@ -176,7 +181,7 @@ def run_steering(args):
 
     summary = results_df.groupby('layer').agg(
         mean_prob_change=('prob_change', 'mean'),
-        flip_rate=('prediction_flip', 'mean')
+        flip_rate=('steer_success', 'mean') # Use new metric for flip_rate
     ).reset_index()
     summary_path = os.path.join(args.output_dir, "steering_summary.csv")
     summary.to_csv(summary_path, index=False)

@@ -170,7 +170,7 @@ def main():
             
             steering_output_dir = os.path.join(
                 base_steering_dir,
-                f"{dataset}_{effective_model_key_for_paths}_{probe_type}{attention_component}_lambda{lambda_val}"
+                f"{dataset}_{effective_model_key_for_paths}_{probe_type}{attention_component}_lambda{lambda_val:.1f}"
             )
             
             steering_args = argparse.Namespace(
