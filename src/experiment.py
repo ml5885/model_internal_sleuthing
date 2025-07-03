@@ -167,6 +167,7 @@ def main():
 
         def run_steering_for_lambda(lambda_val):
             base_steering_dir = args.output_dir if args.output_dir else os.path.join(config.OUTPUT_DIR, "steering")
+            
             steering_output_dir = os.path.join(
                 base_steering_dir,
                 f"{dataset}_{effective_model_key_for_paths}_{probe_type}{attention_component}_lambda{lambda_val}"
