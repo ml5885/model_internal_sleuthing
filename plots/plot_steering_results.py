@@ -3,7 +3,6 @@ import argparse
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import numpy as np
 import re
 
 def plot_and_summarize_probe_type(probe_type, results_dirs, model, dataset, output_dir):
@@ -99,75 +98,6 @@ def main():
         print(f"\n--- Processing probe type: {probe_type} ---")
         plot_and_summarize_probe_type(probe_type, results_dirs, args.model, args.dataset, args.output_dir)
         print("-------------------------------------------\n")
-
-if __name__ == "__main__":
-    main()
-    plt.ylabel('Mean Probability Change', fontsize=12)
-    plt.legend(title="Lambda")
-    plt.tight_layout()
-    plot_path = os.path.join(output_dir, 'steering_prob_change_multi_lambda.png')
-    plt.savefig(plot_path)
-    plt.close()
-    print(f"Saved multi-lambda probability change plot to {plot_path}")
-
-    plt.figure(figsize=(12, 6))
-    for lambda_val in sorted(results_dirs.keys(), key=float):
-        sub = df_all[df_all['lambda'] == lambda_val]
-        plt.plot(sub['layer'], sub['flip_rate'], marker='o', label=f"λ={lambda_val}")
-    plt.title('Prediction Flip Rate to Steered Inflection (by λ)', fontsize=16)
-    plt.xlabel('Model Layer', fontsize=12)
-    plt.ylabel('Flip Rate', fontsize=12)
-    plt.legend(title="Lambda")
-    plt.tight_layout()
-    plot_path = os.path.join(output_dir, 'steering_flip_rate_multi_lambda.png')
-    plt.savefig(plot_path)
-    plt.close()
-    print(f"Saved multi-lambda flip rate plot to {plot_path}")
-
-def main():
-    parser = argparse.ArgumentParser(description="Plot results from a steering experiment.")
-    parser.add_argument("--results_dir", required=True, help="Directory containing steering_results.csv or steering_summary.csv.")
-    args = parser.parse_args()
-
-    # Check for multi-lambda subdirectories
-    import re
-    parent_dir = os.path.dirname(args.results_dir.rstrip('/'))
-    base_name = os.path.basename(args.results_dir.rstrip('/'))
-    
-    # This regex will find the lambda value and the prefix before it.
-    match = re.search(r'^(.*_lambda)\d+(\.\d+)?$', base_name)
-
-    if match:
-        # If results_dir is a lambda-specific directory, check for siblings
-        prefix = match.group(1) # e.g., "ud_gum_dataset_qwen2_reg_lambda"
-        siblings = [d for d in os.listdir(parent_dir) if d.startswith(prefix)]
-        results_dirs = {}
-        for sib in siblings:
-            # Extract lambda value from directory name
-            lambda_str = sib[len(prefix):]
-            try:
-                lambda_val = float(lambda_str)
-                results_dirs[lambda_val] = os.path.join(parent_dir, sib)
-            except ValueError:
-                continue # Ignore directories that don't end in a valid number
-        
-        if len(results_dirs) > 1:
-            # The output directory for multi-lambda plots should be the parent directory.
-            plot_multi_lambda(results_dirs, parent_dir)
-
-    summary_file = os.path.join(args.results_dir, "steering_summary.csv")
-    results_file = os.path.join(args.results_dir, "steering_results.csv")
-    if os.path.exists(summary_file):
-        print(f"Loading summary file: {summary_file}")
-        results_df = pd.read_csv(summary_file)
-    elif os.path.exists(results_file):
-        print(f"Loading detailed results file: {results_file}")
-        results_df = pd.read_csv(results_file)
-    else:
-        print(f"Error: Neither steering_summary.csv nor steering_results.csv found in {args.results_dir}")
-        return
-
-    plot_results(results_df, args.results_dir)
 
 if __name__ == "__main__":
     main()
