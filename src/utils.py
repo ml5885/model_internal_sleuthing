@@ -1,6 +1,5 @@
 import logging
 import os
-import torch
 from src import config
 
 # Create the logs directory in the repository root if it doesn't exist
@@ -27,13 +26,6 @@ logger.addHandler(console_handler)
 
 def log_info(message):
     logger.info(message)
-
-def get_device():
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
-    return torch.device("cpu")
 
 def get_probe_output_dir(dataset, model, task, probe_type, *, pca=False,
                          pca_dim=None, base_dir=None):

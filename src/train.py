@@ -4,20 +4,39 @@ import re
 import numpy as np
 import pandas as pd
 import torch
-import joblib
 from tqdm import tqdm
-import matplotlib.pyplot as plt
-from sklearn.metrics import accuracy_score
-from src.steering import run_inflection_steering, load_shards, load_layer
+
 from src import config, utils
 from src.probe import process_layer, plot_probe_results
 
-def run_probes(activations, labels, task, lambda_reg, exp_label,
-               dataset, probe_type, pca_dim, output_dir=None, save_probes=False):
-    
-    device = utils.get_device()
-    utils.log_info(f"Running on device: {device}")
+def load_shards(path):
+    if os.path.isdir(path):
+        files = sorted(
+            [os.path.join(path, f) for f in os.listdir(path)
+             if f.endswith(".npz") and "activations_part" in f],
+            key=lambda fn: int(re.search(r"part_?(\d+)", os.path.basename(fn)).group(1))
+        )
+        return files
+    if os.path.isfile(path) and path.endswith(".npz"):
+        return [path]
+    raise ValueError(f"{path} is not a .npz file or directory of shards")
 
+def load_layer(shards, layer_idx):
+    parts = []
+    for shard in shards:
+        try:
+            with np.load(shard, mmap_mode="r") as data:
+                arr = data["activations"]
+        except EOFError:
+            raise RuntimeError(f"Corrupt or empty shard: {shard}")
+        except Exception:
+            with np.load(shard) as data:
+                arr = data["activations"]
+        parts.append(arr[:, layer_idx, :])
+    return np.concatenate(parts, axis=0)
+
+def run_probes(activations, labels, task, lambda_reg, exp_label,
+               dataset, probe_type, pca_dim, output_dir=None):
     pca_suffix = f"_pca_{pca_dim}" if pca_dim > 0 else ""
     if output_dir:
         outdir = output_dir
@@ -26,10 +45,6 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
                               f"{dataset}_{exp_label}_{probe_type}{pca_suffix}")
     os.makedirs(outdir, exist_ok=True)
     utils.log_info(f"Probe outputs will be saved to {outdir}")
-
-    probe_objects_dir = os.path.join(outdir, "probe_objects")
-    if save_probes:
-        os.makedirs(probe_objects_dir, exist_ok=True)
 
     shards = load_shards(activations)
     sample = np.load(shards[0], mmap_mode="r")["activations"]
@@ -77,13 +92,9 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
 
     y_true_filtered    = y_true[keep_mask]
     y_control_filtered = y_control[keep_mask]
-    indices_filtered   = np.arange(len(valid_label_mask))[valid_label_mask][keep_mask]
 
     results = {}
     all_preds = []
-
-    probe_objs = {}          # layer_idx -> trained probe object (MLP, W, or RF)
-    pred_dfs_by_layer = {}   # layer_idx -> that layer's pred_df
 
     use_llama3_norm = (
         exp_label in ["llama3-8b", "llama3-8b-instruct"] and probe_type in ["mlp", "nn"]
@@ -94,25 +105,6 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
         model_wrapper = ModelWrapper(exp_label)
 
     for layer_idx in tqdm(range(n_layers), desc="Layers"):
-        probe_obj = None
-        probe_ext = {"reg": ".npy", "mlp": ".pt", "nn": ".pt", "rf": ".joblib"}[probe_type]
-        probe_filename = f"probe_layer_{layer_idx}{probe_ext}"
-        probe_path = os.path.join(probe_objects_dir, probe_filename)
-
-        if os.path.exists(probe_path):
-            utils.log_info(f"Loading existing probe for layer {layer_idx} from {probe_path}")
-            try:
-                if probe_type in ["mlp", "nn"]:
-                    # Will be loaded into an instantiated model later
-                    probe_obj = torch.load(probe_path)
-                elif probe_type == "reg":
-                    probe_obj = np.load(probe_path)
-                elif probe_type == "rf":
-                    probe_obj = joblib.load(probe_path)
-            except Exception as e:
-                utils.log_info(f"Failed to load probe for layer {layer_idx}, retraining. Error: {e}")
-                probe_obj = None
-
         X_flat = load_layer(shards, layer_idx)
         X_flat = X_flat[valid_label_mask] # Apply the same mask to activations
 
@@ -123,17 +115,14 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
                 X_filtered = X_flat[adjusted_keep_mask]
                 y_true_layer = y_true[:len(X_flat)][adjusted_keep_mask]
                 y_control_layer = y_control[:len(X_flat)][adjusted_keep_mask]
-                indices_layer = indices_filtered[:len(X_flat)][adjusted_keep_mask]
             else:
                 X_filtered = X_flat[:len(y_true_filtered)]
                 y_true_layer = y_true_filtered
                 y_control_layer = y_control_filtered
-                indices_layer = indices_filtered[:len(y_true_filtered)]
         else:
             X_filtered = X_flat[keep_mask]
             y_true_layer = y_true_filtered
             y_control_layer = y_control_filtered
-            indices_layer = indices_filtered
 
         norm_weight, norm_bias = None, None
         if use_llama3_norm:
@@ -150,81 +139,30 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
                     norm_weight, norm_bias = model_wrapper.get_layernorm_params(layer_idx)
                 except Exception as e:
                     utils.log_info(f"Could not extract LayerNorm params for layer {layer_idx+1}: {e}")
-
-                # If we loaded a state dict, we need to create a model to load it into
-                if probe_type in ["mlp", "nn"] and probe_obj is not None and isinstance(probe_obj, dict):
-                    from src.probe import MLPProbe
-                    n_classes = int(np.max(y_true_filtered) + 1)
-                    input_dim = X_filtered.shape[1]
-                    model = MLPProbe(input_dim, n_classes, norm_weight=norm_weight, norm_bias=norm_bias)
-                    model.load_state_dict(probe_obj)
-                    probe_obj = model
-
-                _, res, pred_df, trained_probe_obj = process_layer(
+                _, res, pred_df = process_layer(
                     seed, X_filtered, y_true_layer, y_control_layer,
                     lambda_reg, task, probe_type, layer_idx,
                     pca_dim, outdir=outdir,
-                    indices=indices_layer,
                     label_map=uniq_infl if task == "inflection" else uniq,
                     control_label_map=uniq_words,
-                    probe_obj=probe_obj,
                     norm_weight=norm_weight,
                     norm_bias=norm_bias
                 )
             else:
-                # If we loaded a state dict, we need to create a model to load it into
-                if probe_type in ["mlp", "nn"] and probe_obj is not None and isinstance(probe_obj, dict):
-                    from src.probe import MLPProbe
-                    n_classes = int(np.max(y_true_filtered) + 1)
-                    input_dim = X_filtered.shape[1]
-                    model = MLPProbe(input_dim, n_classes)
-                    model.load_state_dict(probe_obj)
-                    probe_obj = model
-
-                _, res, pred_df, trained_probe_obj = process_layer(
+                _, res, pred_df = process_layer(
                     seed, X_filtered, y_true_layer, y_control_layer,
                     lambda_reg, task, probe_type, layer_idx,
                     pca_dim, outdir=outdir,
-                    indices=indices_layer,
                     label_map=uniq_infl if task == "inflection" else uniq,
-                    control_label_map=uniq_words,
-                    probe_obj=probe_obj
+                    control_label_map=uniq_words
                 )
             results[f"layer_{layer_idx}"] = res
-            probe_objs[layer_idx] = trained_probe_obj
-            pred_dfs_by_layer[layer_idx] = pred_df
-
-            if save_probes and probe_obj is None: # if we trained a new probe
-                utils.log_info(f"Saving probe for layer {layer_idx} to {probe_path}")
-                if probe_type in ["mlp", "nn"]:
-                    torch.save(trained_probe_obj.state_dict(), probe_path)
-                elif probe_type == "reg":
-                    np.save(probe_path, trained_probe_obj)
-                elif probe_type == "rf":
-                    joblib.dump(trained_probe_obj, probe_path)
-
             if pred_df is not None and len(pred_df) > 0:
                 all_preds.append(pred_df)
         except Exception as e:
             utils.log_info(f"Skipping layer {layer_idx} due to error: {e}")
             continue
         del X_flat, X_filtered
-
-    # — run steering experiment immediately for inflection probes —
-    if task == "inflection":
-        layers = sorted(probe_objs.keys())
-        lambdas = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
-        run_inflection_steering(
-            activations,
-            probe_objs,
-            pred_dfs_by_layer,
-            valid_label_mask,
-            keep_mask,
-            inf_labels,
-            layers,
-            lambdas,
-            outdir
-        )
 
     # Always save predictions, even if empty
     predictions_path = os.path.join(outdir, "predictions.csv")
@@ -263,7 +201,6 @@ def parse_args():
     parser.add_argument("--pca_dim", type=int, default=0)
     parser.add_argument("--output_dir", type=str, default=None,
                         help="Custom output directory for results")
-    parser.add_argument("--save_probes", action="store_true", help="Save trained probes for reuse.")
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -277,6 +214,5 @@ if __name__ == "__main__":
         args.dataset,
         args.probe_type,
         args.pca_dim,
-        output_dir=args.output_dir,
-        save_probes=args.save_probes
+        output_dir=args.output_dir
     )

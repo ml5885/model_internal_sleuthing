@@ -82,7 +82,6 @@ def main():
     parser.add_argument("--output_dir", type=str, default=None, help="Custom base output directory for probe results.")
     parser.add_argument("--max_rows", type=int, default=75000, help="Maximum number of rows to sample from dataset for activation extraction.")
     parser.add_argument("--use_attention", action="store_true", help="Run extraction on attention outputs rather than residual stream.")
-    parser.add_argument("--save_probes", action="store_true", help="Save trained probes for reuse.")
     args = parser.parse_args()
 
     model_key = args.model
@@ -98,7 +97,6 @@ def main():
     reps_path = run_activation_extraction(model_key, dataset, revision, args.activations_dir, args.max_rows, args.use_attention)
 
     base_probe_dir = args.output_dir if args.output_dir else os.path.join(config.OUTPUT_DIR, "probes")
-    steering_base_dir = args.output_dir if args.output_dir else os.path.join(config.OUTPUT_DIR, "steering")
     attention_component = "_attn" if args.use_attention else ""
     probe_output_dirs = {
         task: os.path.join(
@@ -108,12 +106,6 @@ def main():
         )
         for task in ["inflection", "lexeme"]
     }
-    steering_output_dir = os.path.join(
-        steering_base_dir,
-        f"{dataset}_{effective_model_key_for_paths}_inflection_{probe_type}{attention_component}" +
-        (f"_pca{pca_dim}" if pca else "")
-    )
-
 
     for task in ([args.experiment] if args.experiment else ["inflection", "lexeme"]):
         if task not in probe_output_dirs:
@@ -134,12 +126,9 @@ def main():
             "--dataset", dataset,
             "--probe_type", probe_type,
             "--pca_dim", str(pca_dim),
-            "--output_dir", probe_output_dirs[task] if task != "inflection" else steering_output_dir,
+            "--output_dir", probe_output_dirs[task],
         ]
         
-        if args.save_probes:
-            exp_args.append("--save_probes")
-
         utils.log_info(f"Running probe for task={task}, model_config={effective_model_key_for_paths}, dataset={dataset}")
         subprocess.run(["python", "-m", "src.train"] + exp_args, check=True)
 
