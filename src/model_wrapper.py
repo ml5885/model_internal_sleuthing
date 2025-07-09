@@ -9,7 +9,8 @@ class ModelWrapper:
 
         self.model_config = config.MODEL_CONFIGS[model_key]
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
+
+        # 1) Try loading PyTorch weights, else retry from TF
         try:
             self.model = AutoModel.from_pretrained(
                 self.model_config["model_name"],
@@ -17,38 +18,43 @@ class ModelWrapper:
                 output_hidden_states=True,
                 output_attentions=True,
                 trust_remote_code=self.model_config.get("trust_remote_code", False),
-                device_map="cuda" if torch.cuda.is_available() else "cpu"
+                device_map="cuda" if torch.cuda.is_available() else "cpu",
             )
-        except RuntimeError as e:
-            if "size mismatch" in str(e):
-                raise ValueError(
-                    f"Size mismatch for model '{model_key}'. The checkpoint at revision '{revision}' "
-                    "does not match the model architecture. Please verify your model key and revision."
-                ) from e
-            raise e
         except OSError as e:
-            if "from_tf=True" in str(e):
-                raise OSError(
-                    f"Could not find PyTorch weights for '{model_key}'. The repository may only contain "
-                    "TensorFlow weights. You may need to specify a different model from the Hub."
-                ) from e
-            raise e
+            msg = str(e).lower()
+            if "does not appear to have a file named pytorch_model.bin" in msg and "tensorflow" in msg:
+                utils.log_info(f"PyTorch weights not found for '{model_key}', retrying from TensorFlow checkpoint.")
+                self.model = AutoModel.from_pretrained(
+                    self.model_config["model_name"],
+                    revision=revision,
+                    from_tf=True,
+                    output_hidden_states=True,
+                    output_attentions=True,
+                    trust_remote_code=self.model_config.get("trust_remote_code", False),
+                    device_map="cuda" if torch.cuda.is_available() else "cpu",
+                )
+            else:
+                raise
 
+        # 2) Tokenizer (fast, else slow fallback)
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(
                 self.model_config["tokenizer_name"],
                 revision=revision,
                 add_prefix_space=True,
                 use_fast=True,
-                trust_remote_code=self.model_config.get("trust_remote_code", False)
+                trust_remote_code=self.model_config.get("trust_remote_code", False),
             )
-        except Exception:
+        except Exception as fast_err:
+            utils.log_info(
+                f"Fast tokenizer load failed for '{model_key}' ({fast_err}); falling back to slow Python tokenizer."
+            )
             self.tokenizer = AutoTokenizer.from_pretrained(
                 self.model_config["tokenizer_name"],
                 revision=revision,
                 add_prefix_space=True,
                 use_fast=False,
-                trust_remote_code=self.model_config.get("trust_remote_code", False)
+                trust_remote_code=self.model_config.get("trust_remote_code", False),
             )
 
         if self.tokenizer.pad_token is None:
@@ -56,49 +62,58 @@ class ModelWrapper:
 
         self.model.eval()
 
+        # 3) Determine where the layers live
         if hasattr(self.model, "encoder") and hasattr(self.model.encoder, "layer"):
+            # BERT/DeBERTa style
             self.layers = self.model.encoder.layer
         elif hasattr(self.model, "model") and hasattr(self.model.model, "layers"):
+            # Qwen2 or some HF wrapper style
             self.layers = self.model.model.layers
-        elif hasattr(self.model, "transformer") and hasattr(self.model.transformer, "blocks"):
-            self.layers = self.model.transformer.blocks
-        elif hasattr(self.model, "h"):
-            self.layers = self.model.h
         elif hasattr(self.model, "layers"):
+            # Pythia, LLaMA, etc.
             self.layers = self.model.layers
+        elif hasattr(self.model, "h"):
+            # GPT-2 style
+            self.layers = self.model.h
         else:
-            raise ValueError(
-                f"Cannot find a list of layers on the model '{model_key}'; this architecture is unsupported."
-            )
+            raise ValueError("Cannot find `.layers` (or `.h`) on the model; unsupported architecture.")
 
+        # Prepare storage for hooks
         n_layers = len(self.layers)
         self.attn_outputs = [None] * n_layers
         self._hook_handles = []
 
+        # 4) Register a forward hook on each layer’s self-attention module
         for idx, layer in enumerate(self.layers):
-            target_module = None
-            if hasattr(layer, "self_attn"):
+            # priority: .attention.self → .attention → .self_attn → .attn
+            if hasattr(layer, "attention"):
+                attn_mod = layer.attention
+                # BERT/DeBERTa style
+                if hasattr(attn_mod, "self"):
+                    target_module = attn_mod.self
+                else:
+                    # NeoX/Pythia style
+                    target_module = attn_mod
+            elif hasattr(layer, "self_attn"):
+                # Qwen2, LLaMA, OLMo style
                 target_module = layer.self_attn
             elif hasattr(layer, "attn"):
+                # GPT-2 style
                 target_module = layer.attn
-            elif hasattr(layer, "attention") and hasattr(layer.attention, "self"):
-                target_module = layer.attention.self
-            elif hasattr(layer, "attention"):
-                target_module = layer.attention
-            
-            if target_module:
-                handle = target_module.register_forward_hook(self._make_hook(idx))
-                self._hook_handles.append(handle)
             else:
                 raise TypeError(
-                    f"Could not find a self-attention submodule in layer {idx} "
-                    f"({layer.__class__.__name__}) for model '{model_key}'."
+                    f"Could not find a self-attention submodule in layer {idx} ({layer.__class__.__name__})"
                 )
+
+            handle = target_module.register_forward_hook(self._make_hook(idx))
+            self._hook_handles.append(handle)
 
     def _make_hook(self, layer_idx: int):
         def hook(module, inputs, outputs):
-            # outputs may be a Tensor or a tuple (context, ...)
-            self.attn_outputs[layer_idx] = outputs[0] if isinstance(outputs, tuple) else outputs
+            # outputs could be a tensor or tuple
+            ctx = outputs[0] if isinstance(outputs, tuple) else outputs
+            # ctx shape: (batch_size, seq_len, hidden_size)
+            self.attn_outputs[layer_idx] = ctx
         return hook
 
     def tokenize(self, sentences):
