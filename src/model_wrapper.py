@@ -17,7 +17,7 @@ class ModelWrapper:
                 output_hidden_states=True,
                 output_attentions=True,
                 trust_remote_code=self.model_config.get("trust_remote_code", False),
-                device_map="auto"
+                device_map="cuda" if torch.cuda.is_available() else "cpu"
             )
         except RuntimeError as e:
             if "size mismatch" in str(e):
@@ -36,17 +36,24 @@ class ModelWrapper:
 
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_config["tokenizer_name"], revision=revision, add_prefix_space=True, use_fast=True,
+                self.model_config["tokenizer_name"],
+                revision=revision,
+                add_prefix_space=True,
+                use_fast=True,
                 trust_remote_code=self.model_config.get("trust_remote_code", False)
             )
         except Exception:
             self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_config["tokenizer_name"], revision=revision, add_prefix_space=True, use_fast=False,
+                self.model_config["tokenizer_name"],
+                revision=revision,
+                add_prefix_space=True,
+                use_fast=False,
                 trust_remote_code=self.model_config.get("trust_remote_code", False)
             )
 
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
+
         self.model.eval()
 
         if hasattr(self.model, "encoder") and hasattr(self.model.encoder, "layer"):
@@ -60,7 +67,9 @@ class ModelWrapper:
         elif hasattr(self.model, "layers"):
             self.layers = self.model.layers
         else:
-            raise ValueError(f"Cannot find a list of layers on the model '{model_key}'; this architecture is unsupported.")
+            raise ValueError(
+                f"Cannot find a list of layers on the model '{model_key}'; this architecture is unsupported."
+            )
 
         n_layers = len(self.layers)
         self.attn_outputs = [None] * n_layers
@@ -88,6 +97,7 @@ class ModelWrapper:
 
     def _make_hook(self, layer_idx: int):
         def hook(module, inputs, outputs):
+            # outputs may be a Tensor or a tuple (context, ...)
             self.attn_outputs[layer_idx] = outputs[0] if isinstance(outputs, tuple) else outputs
         return hook
 
@@ -112,9 +122,13 @@ class ModelWrapper:
         try:
             word_id_map = batch_encoding.word_ids(batch_index=batch_idx)
             tgt_word_idx = int(target_indices[batch_idx])
-            positions = [pos for pos, wid in enumerate(word_id_map) if wid == tgt_word_idx]
+            positions = [
+                pos for pos, wid in enumerate(word_id_map) if wid == tgt_word_idx
+            ]
             if not positions:
-                valid = [pos for pos, wid in enumerate(word_id_map) if wid is not None]
+                valid = [
+                    pos for pos, wid in enumerate(word_id_map) if wid is not None
+                ]
                 positions = [valid[-1]] if valid else [0]
             return positions[-1]
         except (AttributeError, ValueError):
@@ -141,6 +155,7 @@ class ModelWrapper:
         hidden_size = self.model.config.hidden_size
 
         if use_attention:
+            # clear any stale hooks
             self.attn_outputs = [None] * n_layers
         
         activations = torch.empty(
@@ -152,7 +167,7 @@ class ModelWrapper:
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 output_hidden_states=not use_attention,
-                output_attentions=False,
+                output_attentions=use_attention,
                 return_dict=True
             )
 
@@ -186,7 +201,11 @@ class ModelWrapper:
         tokens = batch_encoding["input_ids"][batch_idx]
         non_pad_positions = (tokens != self.tokenizer.pad_token_id).nonzero(as_tuple=False).squeeze(-1)
         estimated_pos = min(char_end, len(non_pad_positions) - 1)
-        return non_pad_positions[estimated_pos].item() if estimated_pos < len(non_pad_positions) else non_pad_positions[-1].item()
+        return (
+            non_pad_positions[estimated_pos].item()
+            if estimated_pos < len(non_pad_positions)
+            else non_pad_positions[-1].item()
+        )
 
     def get_layernorm_params(self, layer_idx):
         ln_name = f'model.layers.{layer_idx+1}.input_layernorm'
