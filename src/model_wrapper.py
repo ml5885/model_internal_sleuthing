@@ -1,10 +1,6 @@
 import torch
 from transformers import AutoModel, AutoTokenizer
 from src import config, utils
-from huggingface_hub import hf_hub_download
-from tokenizers import Tokenizer
-from transformers import PreTrainedTokenizerFast
-import json
 
 class ModelWrapper:
     def __init__(self, model_key: str, revision: str = None):
@@ -13,77 +9,86 @@ class ModelWrapper:
 
         self.model_config = config.MODEL_CONFIGS[model_key]
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-        self.model = AutoModel.from_pretrained(
-            self.model_config["model_name"],
-            revision=revision,
-            output_hidden_states=True,
-            output_attentions=True,
-            trust_remote_code=self.model_config.get("trust_remote_code", False),
-            device_map="cuda" if torch.cuda.is_available() else "cpu"
-        )
+        
+        try:
+            self.model = AutoModel.from_pretrained(
+                self.model_config["model_name"],
+                revision=revision,
+                output_hidden_states=True,
+                output_attentions=True,
+                trust_remote_code=self.model_config.get("trust_remote_code", False),
+                device_map="auto"
+            )
+        except RuntimeError as e:
+            if "size mismatch" in str(e):
+                raise ValueError(
+                    f"Size mismatch for model '{model_key}'. The checkpoint at revision '{revision}' "
+                    "does not match the model architecture. Please verify your model key and revision."
+                ) from e
+            raise e
+        except OSError as e:
+            if "from_tf=True" in str(e):
+                raise OSError(
+                    f"Could not find PyTorch weights for '{model_key}'. The repository may only contain "
+                    "TensorFlow weights. You may need to specify a different model from the Hub."
+                ) from e
+            raise e
 
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_config["tokenizer_name"],
-                revision=revision,
-                add_prefix_space=True,
-                use_fast=True,
+                self.model_config["tokenizer_name"], revision=revision, add_prefix_space=True, use_fast=True,
                 trust_remote_code=self.model_config.get("trust_remote_code", False)
             )
-        except Exception as fast_err:
-            utils.log_info(
-                f"Fast tokenizer load failed for '{model_key}' ({fast_err}); falling back to slow Python tokenizer."
-            )
+        except Exception:
             self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_config["tokenizer_name"],
-                revision=revision,
-                add_prefix_space=True,
-                use_fast=False,
+                self.model_config["tokenizer_name"], revision=revision, add_prefix_space=True, use_fast=False,
                 trust_remote_code=self.model_config.get("trust_remote_code", False)
             )
 
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
-
         self.model.eval()
 
-        # Determine where the layer list lives (encoder vs. decoder)
         if hasattr(self.model, "encoder") and hasattr(self.model.encoder, "layer"):
             self.layers = self.model.encoder.layer
         elif hasattr(self.model, "model") and hasattr(self.model.model, "layers"):
             self.layers = self.model.model.layers
+        elif hasattr(self.model, "transformer") and hasattr(self.model.transformer, "blocks"):
+            self.layers = self.model.transformer.blocks
+        elif hasattr(self.model, "h"):
+            self.layers = self.model.h
         elif hasattr(self.model, "layers"):
             self.layers = self.model.layers
         else:
-            raise ValueError("Cannot find `.layers` on the model; unsupported architecture.")
+            raise ValueError(f"Cannot find a list of layers on the model '{model_key}'; this architecture is unsupported.")
 
-        # Prepare storage for n_layers hooks
         n_layers = len(self.layers)
         self.attn_outputs = [None] * n_layers
         self._hook_handles = []
 
-        # Register a forward hook on each layer's self-attention module
         for idx, layer in enumerate(self.layers):
-            if hasattr(layer, "attention") and hasattr(layer.attention, "self"):
-                # encoder-style: layer.attention.self
-                target_module = layer.attention.self
-            elif hasattr(layer, "self_attn"):
-                # decoder-style (e.g. Qwen2DecoderLayer): layer.self_attn
+            target_module = None
+            if hasattr(layer, "self_attn"):
                 target_module = layer.self_attn
+            elif hasattr(layer, "attn"):
+                target_module = layer.attn
+            elif hasattr(layer, "attention") and hasattr(layer.attention, "self"):
+                target_module = layer.attention.self
+            elif hasattr(layer, "attention"):
+                target_module = layer.attention
+            
+            if target_module:
+                handle = target_module.register_forward_hook(self._make_hook(idx))
+                self._hook_handles.append(handle)
             else:
                 raise TypeError(
-                    f"Could not find a self-attention submodule in layer {idx} ({layer.__class__.__name__})"
+                    f"Could not find a self-attention submodule in layer {idx} "
+                    f"({layer.__class__.__name__}) for model '{model_key}'."
                 )
-
-            handle = target_module.register_forward_hook(self._make_hook(idx))
-            self._hook_handles.append(handle)
 
     def _make_hook(self, layer_idx: int):
         def hook(module, inputs, outputs):
-            context = outputs[0] if isinstance(outputs, tuple) else outputs
-            # context shape: (batch_size, seq_len, hidden_size)
-            self.attn_outputs[layer_idx] = context
+            self.attn_outputs[layer_idx] = outputs[0] if isinstance(outputs, tuple) else outputs
         return hook
 
     def tokenize(self, sentences):
@@ -97,7 +102,6 @@ class ModelWrapper:
         )
 
     def _get_token_position(self, batch_idx, target_indices, batch_encoding):
-        # Special handling for byte-level models like ByT5
         if 'byt5' in self.model_config["model_name"].lower():
             return self._extract_byt5_word_position(
                 batch_encoding.encodings[batch_idx].text,
@@ -114,7 +118,6 @@ class ModelWrapper:
                 positions = [valid[-1]] if valid else [0]
             return positions[-1]
         except (AttributeError, ValueError):
-            # fallback: last non-pad token
             attention_mask = batch_encoding["attention_mask"]
             non_pad_positions = attention_mask[batch_idx].nonzero(as_tuple=False).squeeze(-1)
             return non_pad_positions[-1].item() if non_pad_positions.numel() > 0 else 0
@@ -175,27 +178,17 @@ class ModelWrapper:
         return activations.cpu()
 
     def _extract_byt5_word_position(self, sentence, target_index, batch_encoding, batch_idx):
-        """Extract the token position for the target word in ByT5 byte-level tokenization."""
         words = sentence.split()
         target_word = words[int(target_index)]
-        
-        # Find character span of target word in original sentence
         char_start = 0
         for i, word in enumerate(words):
             if i == int(target_index):
                 char_end = char_start + len(target_word)
                 break
-            char_start += len(word) + 1  # +1 for space
-        
-        # Map character positions to token positions
-        # This is approximate - ByT5 encoding can be complex
+            char_start += len(word) + 1
         tokens = batch_encoding["input_ids"][batch_idx]
         non_pad_positions = (tokens != self.tokenizer.pad_token_id).nonzero(as_tuple=False).squeeze(-1)
-        
-        # Use a heuristic: take the token position that roughly corresponds to the end of target word
-        # This is simplified - a more robust approach would decode tokens to find exact boundaries
         estimated_pos = min(char_end, len(non_pad_positions) - 1)
-        
         return non_pad_positions[estimated_pos].item() if estimated_pos < len(non_pad_positions) else non_pad_positions[-1].item()
 
     def get_layernorm_params(self, layer_idx):
