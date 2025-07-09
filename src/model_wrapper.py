@@ -19,7 +19,8 @@ class ModelWrapper:
             revision=revision,
             output_hidden_states=True,
             output_attentions=True,
-            trust_remote_code=self.model_config.get("trust_remote_code", False)
+            trust_remote_code=self.model_config.get("trust_remote_code", False),
+            device_map="cuda" if torch.cuda.is_available() else "cpu"
         )
 
         try:
@@ -29,16 +30,6 @@ class ModelWrapper:
                 add_prefix_space=True,
                 use_fast=True,
                 trust_remote_code=self.model_config.get("trust_remote_code", False)
-            )
-        except TypeError:
-            # Fallback for models like CohereForAI/aya-101
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_config["tokenizer_name"],
-                revision=revision,
-                add_prefix_space=True,
-                use_fast=False,
-                trust_remote_code=self.model_config.get("trust_remote_code", False),
-                legacy=True
             )
         except Exception as fast_err:
             utils.log_info(
@@ -55,7 +46,6 @@ class ModelWrapper:
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        self.model.to(self.device)
         self.model.eval()
 
         # Determine where the layer list lives (encoder vs. decoder)
