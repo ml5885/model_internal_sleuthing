@@ -133,8 +133,8 @@ class ModelWrapper:
             max_length=self.model_config["max_length"],
             return_attention_mask=True,
         )
-        input_ids = batch_encoding["input_ids"].to(self.device)
-        attention_mask = batch_encoding["attention_mask"].to(self.device)
+        input_ids = batch_encoding["input_ids"].to(self.model.device)
+        attention_mask = batch_encoding["attention_mask"].to(self.model.device)
 
         batch_size = input_ids.size(0)
         n_layers = len(self.layers)
@@ -142,14 +142,11 @@ class ModelWrapper:
 
         if use_attention:
             self.attn_outputs = [None] * n_layers
-            activations = torch.empty(
-                (batch_size, n_layers, hidden_size), device=self.device
-            )
-        else:
-            activations = torch.empty(
-                (batch_size, n_layers, hidden_size), device=self.device
-            )
-
+        
+        activations = torch.empty(
+            (batch_size, n_layers, hidden_size), device=self.model.device
+        )
+        
         with torch.no_grad():
             outputs = self.model(
                 input_ids=input_ids,
