@@ -224,27 +224,20 @@ class ModelWrapper:
 
     def get_layernorm_params(self, layer_idx):
         state_dict = self.model.state_dict()
-        weight, bias = None, None
-        
+        weight = None
+
         ln_key_base = f'layers.{layer_idx}.input_layernorm'
-        
         weight_key = f'model.{ln_key_base}.weight'
-        bias_key = f'model.{ln_key_base}.bias'
 
         if weight_key in state_dict:
             weight = state_dict[weight_key]
-        if bias_key in state_dict:
-            bias = state_dict[bias_key]
 
         if weight is None:
-            # Fallback for other model architectures if needed
             for k in state_dict:
                 if k.endswith(f'layers.{layer_idx}.input_layernorm.weight'):
                     weight = state_dict[k]
-                if k.endswith(f'layers.{layer_idx}.input_layernorm.bias'):
-                    bias = state_dict[k]
 
         if weight is None:
             raise ValueError(f"Could not find LayerNorm weight for layer {layer_idx}")
-            
-        return weight, bias
+
+        return weight
