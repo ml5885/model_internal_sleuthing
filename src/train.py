@@ -139,10 +139,10 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
             y_true_layer = y_true_filtered
             y_control_layer = y_control_filtered
 
-        norm_weight, norm_bias = None, None
+        norm_weight = None
         if use_llama3_norm:
             try:
-                norm_weight, norm_bias = model_wrapper.get_layernorm_params(layer_idx)
+                norm_weight = model_wrapper.get_layernorm_params(layer_idx)
             except Exception as e:
                 utils.log_info(f"Could not extract LayerNorm params for layer {layer_idx+1}: {e}")
 
@@ -154,8 +154,7 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
                 pca_dim, outdir=outdir,
                 label_map=uniq_infl if task == "inflection" else uniq,
                 control_label_map=uniq_words,
-                norm_weight=norm_weight,
-                norm_bias=norm_bias
+                norm_weight=norm_weight
             )
             results[f"layer_{layer_idx}"] = res
             if pred_df is not None and len(pred_df) > 0:
@@ -165,7 +164,6 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
             continue
         del X_flat, X_filtered
 
-    # Always save predictions, even if empty
     predictions_path = os.path.join(outdir, "predictions.csv")
     if all_preds:
         try:

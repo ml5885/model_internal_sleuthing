@@ -27,17 +27,16 @@ def get_device():
 
 class MLPProbe(nn.Module):
     """MLP probe: one hidden ReLU layer, then softmax output."""
-    def __init__(self, input_dim, output_dim, hidden_dim=None, norm_weight=None, norm_bias=None):
+    def __init__(self, input_dim, output_dim, hidden_dim=None, norm_weight=None):
         super().__init__()
         if hidden_dim is None:
             hidden_dim = 64
-        self.norm = nn.LayerNorm(input_dim)
+        self.norm = nn.LayerNorm(input_dim, elementwise_affine=False)
+        self.norm.weight = nn.Parameter(torch.ones(input_dim))
+        self.norm.elementwise_affine = True # allow weight to be updated
         if norm_weight is not None:
             with torch.no_grad():
                 self.norm.weight.copy_(norm_weight)
-        if norm_bias is not None:
-            with torch.no_grad():
-                self.norm.bias.copy_(norm_bias)
         self.linear1 = nn.Linear(input_dim, hidden_dim)
         self.relu = nn.ReLU()
         self.linear2 = nn.Linear(hidden_dim, output_dim)
@@ -60,13 +59,13 @@ class MLPProbe(nn.Module):
         return torch.cat(out, dim=0).numpy()
 
 
-def train_probe(X_train, y_train, X_val, y_val, input_dim, n_classes, norm_weight=None, norm_bias=None):
+def train_probe(X_train, y_train, X_val, y_val, input_dim, n_classes, norm_weight=None):
     torch.manual_seed(config.SEED)
     device = get_device()
 
-    model = MLPProbe(input_dim, n_classes, norm_weight=norm_weight, norm_bias=norm_bias).to(device)
-    if norm_weight is not None and norm_bias is not None:
-        utils.log_info("Training MLP probe with pre-loaded LayerNorm parameters.")
+    model = MLPProbe(input_dim, n_classes, norm_weight=norm_weight).to(device)
+    if norm_weight is not None:
+        utils.log_info("Training MLP probe with pre-loaded LayerNorm weight.")
     optim = torch.optim.AdamW(
         model.parameters(),
         lr=config.TRAIN_PARAMS["learning_rate"],
