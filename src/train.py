@@ -148,29 +148,15 @@ def run_probes(activations, labels, task, lambda_reg, exp_label,
 
         seed = config.SEED + layer_idx
         try:
-            if use_llama3_norm:
-                norm_weight, norm_bias = None, None
-                try:
-                    norm_weight, norm_bias = model_wrapper.get_layernorm_params(layer_idx)
-                except Exception as e:
-                    utils.log_info(f"Could not extract LayerNorm params for layer {layer_idx+1}: {e}")
-                _, res, pred_df = process_layer(
-                    seed, X_filtered, y_true_layer, y_control_layer,
-                    lambda_reg, task, probe_type, layer_idx,
-                    pca_dim, outdir=outdir,
-                    label_map=uniq_infl if task == "inflection" else uniq,
-                    control_label_map=uniq_words,
-                    norm_weight=norm_weight,
-                    norm_bias=norm_bias
-                )
-            else:
-                _, res, pred_df = process_layer(
-                    seed, X_filtered, y_true_layer, y_control_layer,
-                    lambda_reg, task, probe_type, layer_idx,
-                    pca_dim, outdir=outdir,
-                    label_map=uniq_infl if task == "inflection" else uniq,
-                    control_label_map=uniq_words
-                )
+            _, res, pred_df = process_layer(
+                seed, X_filtered, y_true_layer, y_control_layer,
+                lambda_reg, task, probe_type, layer_idx,
+                pca_dim, outdir=outdir,
+                label_map=uniq_infl if task == "inflection" else uniq,
+                control_label_map=uniq_words,
+                norm_weight=norm_weight,
+                norm_bias=norm_bias
+            )
             results[f"layer_{layer_idx}"] = res
             if pred_df is not None and len(pred_df) > 0:
                 all_preds.append(pred_df)

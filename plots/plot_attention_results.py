@@ -43,22 +43,50 @@ def add_legends(fig, model_list, title_model="Model", title_source="Source"):
 
     model_handles = []
     model_labels_and_base_models = [
-        ("Qwen2-1.5B (English)", "qwen2"),
-        ("Qwen2-1.5B-Instruct (English)", "qwen2-instruct"),
+        ("GPT-2-Small", "gpt2"),
+        ("GPT-2-Large", "gpt2-large"),
+        ("GPT-2-XL", "gpt2-xl"),
+        ("Qwen2.5-1.5B", "qwen2"),
+        ("Qwen2.5-1.5B-Instruct", "qwen2-instruct"),
+        ("Qwen2.5-7B", "qwen2.5-7B"),
+        ("Qwen2.5-7B-Instruct", "qwen2.5-7B-instruct"),
+        ("Pythia-1.4B", "pythia1.4b"),
+        ("Gemma-2-2B", "gemma2b"),
+        ("Gemma-2-2B-Instruct", "gemma2b-it"),
+        ("BERT-Base-Uncased", "bert-base-uncased"),
+        ("BERT-Large-Uncased", "bert-large-uncased"),
+        ("DeBERTa-v3-Large", "deberta-v3-large"),
+        ("Llama-3-8B", "llama3-8b"),
+        ("Llama-3-8B-Instruct", "llama3-8b-instruct"),
+        ("Pythia-6.9B", "pythia-6.9b"),
+        ("Pythia-6.9B-Tulu", "pythia-6.9b-tulu"),
+        ("OLMo-2-1124-7B-Instruct", "olmo2-7b-instruct"),
+        ("OLMo-2-1124-7B", "olmo2-7b"),
     ]
 
-    for label, base_model in model_labels_and_base_models:
-        model_handles.append(Line2D([0], [0], color=MODEL_COLORS.get(base_model, "gray"), linestyle="-", label=label))
-    
-    # Combined legend handles and labels
-    combined_handles = model_handles + source_handles
-    combined_labels = [h.get_label() for h in combined_handles]
+    filtered_model_labels_and_base_models = [
+        (label, base_model) for label, base_model in model_labels_and_base_models if base_model in model_list or any(model.startswith(base_model) for model in model_list)
+    ]
+    for label, base_model in filtered_model_labels_and_base_models:
+        model_handles.append(Line2D([0], [0], color=MODEL_COLORS.get(base_model, "gray"), linestyle="-", linewidth=4.0, label=label))
+        
+    model_bbox_anchor = (0.5, 0.03)
+    ncol = 5
 
-    # Position the combined legend below the plots, with a background
+    if any(model.startswith("bert") for model in model_list):
+        model_bbox_anchor = (0.5, 0.07)
+        ncol = 3
+
     fig.legend(
-        combined_handles, combined_labels,
-        loc="lower center", bbox_to_anchor=(0.5, 0.1),
-        ncol=4, frameon=True, fontsize=18
+        source_handles, [h.get_label() for h in source_handles],
+        loc="lower center", bbox_to_anchor=(0.5, 0.16),
+        ncol=2, frameon=True, fontsize=18, title="", title_fontsize=18
+    )
+
+    fig.legend(
+        model_handles, [h.get_label() for h in model_handles],
+        loc="lower center", bbox_to_anchor=model_bbox_anchor,
+        ncol=ncol, frameon=True, fontsize=18, title="", title_fontsize=18
     )
 
 
@@ -83,18 +111,22 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
             for probe in probes:
                 for attn in [True, False]:
                     key = (task, probe, attn)
-                    csv_path = find_csv_file_probe(model_key, dataset, task, probe, attn=attn)
+                    if probe == "mlp":
+                        csv_path = find_csv_file_probe(model_key, dataset, task, "mlp", attn=attn)
+                        if not csv_path:
+                            csv_path = find_csv_file_probe(model_key, dataset, task, "nn", attn=attn)
+                    else:
+                        csv_path = find_csv_file_probe(model_key, dataset, task, probe, attn=attn)
                     file_availability[model_key][key] = csv_path
                     if csv_path is None:
                         missing_files.append((model_key, task, probe, attn))
     if missing_files:
         print(f"[INFO] Missing {len(missing_files)} probe result files (will skip in plots)")
-        for i, (model, task, probe, attn) in enumerate(missing_files[:5]):
-            print(f"  - {model} {task} {probe} {'attn' if attn else 'residual'}")
-        if len(missing_files) > 5:
-            print(f"  ... and {len(missing_files) - 5} more")
+        for (model, task, probe, attn) in missing_files:
+            if probe != "rf":
+                print(f"  - {model} {task} {probe} {'attn' if attn else 'residual'}")
 
-    def plot_panel(axes, plot_selectivity=False):
+    def plot_panel(axes, model_list_subset, plot_selectivity=False):
         for row, task in enumerate(tasks):
             for col, probe in enumerate(probe_types):
                 ax = axes[row, col]
@@ -105,10 +137,10 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
                     ax.set_xticks(np.arange(0, 1.1, 0.2))
                     ax.set_xticklabels([f"{x*100:.0f}" for x in np.arange(0, 1.1, 0.2)])
                     if plot_selectivity:
-                        ax.set_ylim(-0.3, 0.3) # Adjusted for selectivity, same as other RF panels
+                        ax.set_ylim(-0.3, 0.3)
                     else:
-                        ax.set_ylim(0, 1.0) # Adjusted for accuracy, same as other RF panels
-                    ax.set_yticks(np.arange(ax.get_ylim()[0], ax.get_ylim()[1] + 0.001, 0.2)) # Dynamic yticks
+                        ax.set_ylim(0, 1.0)
+                    ax.set_yticks(np.arange(ax.get_ylim()[0], ax.get_ylim()[1] + 0.001, 0.2))
                     if col == 0:
                         ax.set_yticklabels([f"{y:.1f}" for y in ax.get_yticks()])
                     else:
@@ -120,19 +152,15 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
                         ax.set_title(titles[col], pad=15)
                     continue
 
-                for model_key in model_list:
-                    # Fix: Use base_model_name = model_key.split('_')[0] for color, but always use full model_key for file lookup
+                for model_key in model_list_subset:
                     base_model_name = model_key.split('_')[0]
 
                     for attn, label_suffix, alpha, zorder in [
                         (True, " (Attention Output)", 1.0, 2),
                         (False, " (Residual Stream)", 0.7, 1)
                     ]:
-                        # For lexeme/rf, skip plotting (panel is grayed out)
                         if task == "lexeme" and probe == "rf":
                             continue
-                        # For inflection/rf, plot if available
-                        # --- Fix: For all tasks/probes, plot if available ---
                         csv_path = file_availability[model_key].get((task, probe, attn))
                         if not csv_path:
                             continue
@@ -168,42 +196,54 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
                         ax.set_ylim(0, 0.8)
                         ax.set_yticks(np.arange(0, 0.81, 0.2))
                 else:
-                    # if row == 0:
-                    #     ax.set_ylim(0, 1.0)
-                    #     ax.set_yticks(np.arange(0, 1.01, 0.2))
-                    # else:
-                    #     ax.set_ylim(0.6, 1.0)
-                    #     ax.set_yticks(np.arange(0.6, 1.01, 0.1))
-                    ax.set_ylim(0, 1.0)
-                    ax.set_yticks(np.arange(0, 1.01, 0.2))
-
+                    if row == 0:
+                        ax.set_ylim(0, 1.0)
+                        ax.set_yticks(np.arange(0, 1.01, 0.2))
+                    else:
+                        ax.set_ylim(0.6, 1.0)
+                        ax.set_yticks(np.arange(0.6, 1.01, 0.1))
                 if col == 0:
                     ylabel = f"{task.title()} {'Selectivity' if plot_selectivity else 'Accuracy'}"
                     ax.set_ylabel(ylabel, labelpad=15)
                 ax.grid(True, linestyle="--", alpha=0.4, linewidth=0.8)
                 if row == 1:
                     ax.set_xlabel("Normalized layer number (%)", labelpad=15)
-                if row == 0:
-                    ax.set_title(titles[col], pad=15)
 
-    fig1, axes1 = plt.subplots(n_rows, n_cols, figsize=fig_size)
-    axes1 = np.atleast_2d(axes1)
-    plot_panel(axes1, plot_selectivity=False)
-    fig1.tight_layout(rect=[0, 0.2, 1, 0.97]) 
-    add_legends(fig1, model_list)
-    os.makedirs(output_dir, exist_ok=True)
-    filename1 = f"{filename_prefix}linguistic_accuracy.png"
-    fig1.savefig(os.path.join(output_dir, filename1), bbox_inches="tight")
-    print(f"Saved attention linguistic accuracy figure to {os.path.join(output_dir, filename1)}")
+    bert_models = [m for m in model_list if "bert" in m]
+    gpt_models = [m for m in model_list if "gpt2" in m]
+    bert_gpt_models = bert_models + gpt_models
+    other_models = [m for m in model_list if m not in bert_gpt_models]
 
-    fig2, axes2 = plt.subplots(n_rows, n_cols, figsize=fig_size)
-    axes2 = np.atleast_2d(axes2)
-    plot_panel(axes2, plot_selectivity=True)
-    fig2.tight_layout(rect=[0, 0.2, 1, 0.97])
-    add_legends(fig2, model_list)
-    filename2 = f"{filename_prefix}classifier_selectivity.png"
-    fig2.savefig(os.path.join(output_dir, filename2), bbox_inches="tight")
-    print(f"Saved attention selectivity figure to {os.path.join(output_dir, filename2)}")
+    model_groups = {
+        "BERT_GPT": bert_gpt_models,
+        "Other": other_models
+    }
+
+    for model_type, models in model_groups.items():
+        if not models:
+            print(f"Skipping {model_type} models (no models found)")
+            continue
+
+        fig1, axes1 = plt.subplots(n_rows, n_cols, figsize=fig_size)
+        axes1 = np.atleast_2d(axes1)
+        plot_panel(axes1, models, plot_selectivity=False)
+        fig1.align_ylabels(axes1[:, 0])
+        fig1.tight_layout(rect=[0, 0.2, 1, 0.97]) 
+        add_legends(fig1, models)
+        os.makedirs(output_dir, exist_ok=True)
+        filename1 = f"{filename_prefix}{model_type.lower()}_linguistic_accuracy.png"
+        fig1.savefig(os.path.join(output_dir, filename1), bbox_inches="tight")
+        print(f"Saved {model_type} attention linguistic accuracy figure to {os.path.join(output_dir, filename1)}")
+
+        fig2, axes2 = plt.subplots(n_rows, n_cols, figsize=fig_size)
+        axes2 = np.atleast_2d(axes2)
+        plot_panel(axes2, models, plot_selectivity=True)
+        fig2.align_ylabels(axes2[:, 0])
+        fig2.tight_layout(rect=[0, 0.2, 1, 0.97])
+        add_legends(fig2, models)
+        filename2 = f"{filename_prefix}{model_type.lower()}_classifier_selectivity.png"
+        fig2.savefig(os.path.join(output_dir, filename2), bbox_inches="tight")
+        print(f"Saved {model_type} attention selectivity figure to {os.path.join(output_dir, filename2)}")
 
 
 def generate_attention_markdown_tables(model_to_dataset, model_list, output_dir="figures3"):
@@ -225,13 +265,13 @@ def generate_attention_markdown_tables(model_to_dataset, model_list, output_dir=
                     csv_path = find_csv_file_probe(model_key, dataset, task, probe_type, attn=attn)
                     file_availability[model_key][key] = csv_path
     
-    model_families = {"Qwen (Attention)": model_list}
+    model_families = {"Attention Models": model_list}  # Updated title
 
     for task in tasks:
         for probe_type in probe_types:
             probe_name = probe_names[probe_type]
-            print(f"\n## {task.title()} Accuracy - {probe_name} (Attention & Residual)\n")
-            family_models = model_families["Qwen (Attention)"]
+            print(f"\n## {task.title()} Accuracy - {probe_name} (Attention & Residual)\n")  # Updated title
+            family_models = model_families["Attention Models"]  # Updated key
 
             valid_models = []
             layer_counts = []
@@ -263,19 +303,19 @@ def generate_attention_markdown_tables(model_to_dataset, model_list, output_dir=
                 else:
                     headers.append(f"Layer {layer_idx}")
             
-            print(f"### Qwen (Attention)\n")
+            print(f"### Attention Models\n")
             header_row = "| Model | Dataset | Source | " + " | ".join(headers) + " |"
             separator_row = "|" + "|".join([" --- "] * (len(headers) + 3)) + "|"
             print(header_row)
             print(separator_row)
 
-            def qwen_sort_key(model_key):
+            def attention_sort_key(model_key):
                 base_model = model_key.split('_')[0]
                 size_priority = 0 if base_model in ['qwen2', 'qwen2-instruct'] else 1
                 type_priority = 0 if 'instruct' not in base_model else 1
                 return (size_priority, type_priority, base_model)
             
-            sorted_models = sorted(family_models, key=qwen_sort_key)
+            sorted_models = sorted(family_models, key=attention_sort_key)
 
             for model_key in sorted_models:
                 dataset = model_to_dataset[model_key]
@@ -305,10 +345,50 @@ def generate_attention_markdown_tables(model_to_dataset, model_list, output_dir=
             print()
 
 if __name__ == "__main__":
-    attention_models = [
+    model_names = {
+        "gpt2": "GPT-2-Small",
+        "gpt2-large": "GPT-2-Large",
+        "gpt2-xl": "GPT-2-XL",
+        "qwen2": "Qwen2.5-1.5B",
+        "qwen2-instruct": "Qwen2.5-1.5B-Instruct",
+        "qwen2.5-7B": "Qwen2.5-7B",
+        "qwen2.5-7B-instruct": "Qwen2.5-7B-Instruct",
+        "pythia1.4b": "Pythia-1.4B",
+        "gemma2b": "Gemma-2-2B",
+        "gemma2b-it": "Gemma-2-2B-Instruct",
+        "bert-base-uncased": "BERT-Base-Uncased",
+        "bert-large-uncased": "BERT-Large-Uncased",
+        "deberta-v3-large": "DeBERTa-v3-Large",
+        "llama3-8b": "Llama-3-8B",
+        "llama3-8b-instruct": "Llama-3-8B-Instruct",
+        "pythia-6.9b": "Pythia-6.9B",
+        "pythia-6.9b-tulu": "Pythia-6.9B-Tulu",
+        "olmo2-7b-instruct": "OLMo-2-1124-7B-Instruct",
+        "olmo2-7b": "OLMo-2-1124-7B",
+    }
+
+    models = [
+        "bert-base-uncased",
+        "bert-large-uncased",
+        "deberta-v3-large",
+        # "gpt2",
+        "gpt2-large",
+        "gpt2-xl",
         "qwen2",
         "qwen2-instruct",
+        "qwen2.5-7B",
+        "qwen2.5-7B-instruct",
+        "gemma2b",
+        "gemma2b-it",
+        "llama3-8b",
+        "llama3-8b-instruct",
+        "pythia-6.9b",
+        "pythia-6.9b-tulu",
+        "olmo2-7b-instruct",
+        "olmo2-7b"
     ]
+    
+    attention_models = models
     
     attention_datasets = [
         ("ud_gum_dataset", "English"),
@@ -318,16 +398,32 @@ if __name__ == "__main__":
     attention_model_to_dataset = {}
     
     temp_model_colors = {}
+    temp_model_colors["gpt2"] = "tab:brown"
+    temp_model_colors["gpt2-large"] = "tab:orange"
+    temp_model_colors["gpt2-xl"] = "tab:red"
     temp_model_colors["qwen2"] = "tab:blue"  
-    temp_model_colors["qwen2-instruct"] = "tab:cyan" 
-    MODEL_COLORS.update(temp_model_colors) # Update the imported MODEL_COLORS dict
+    temp_model_colors["qwen2-instruct"] = "tab:cyan"
+    temp_model_colors["qwen2.5-7B"] = "mediumseagreen"
+    temp_model_colors["qwen2.5-7B-instruct"] = "springgreen"
+    temp_model_colors["gemma2b"] = "darkviolet"
+    temp_model_colors["gemma2b-it"] = "deeppink"
+    temp_model_colors["bert-base-uncased"] = "steelblue"
+    temp_model_colors["bert-large-uncased"] = "navy"
+    temp_model_colors["deberta-v3-large"] = "darkkhaki"
+    temp_model_colors["llama3-8b"] = "lightcoral"
+    temp_model_colors["llama3-8b-instruct"] = "rosybrown"
+    temp_model_colors["pythia-6.9b"] = "darkgoldenrod"
+    temp_model_colors["pythia-6.9b-tulu"] = "lightsalmon"
+    temp_model_colors["olmo2-7b-instruct"] = "palegreen"
+    temp_model_colors["olmo2-7b"] = "forestgreen"
+    MODEL_COLORS.update(temp_model_colors)
 
     for model in attention_models:
         for dataset, lang in attention_datasets:
             model_key = f"{model}_{lang.lower()}"
             attention_all_models.append(model_key)
             attention_model_to_dataset[model_key] = dataset
-            model_names[model_key] = f"{model.replace('qwen2', 'Qwen2-1.5B').replace('instruct', 'Instruct')} ({lang})"
+            model_names[model_key] = f"{model_names.get(model, model).replace('qwen2', 'Qwen2.5-1.5B').replace('instruct', 'Instruct')} ({lang})"
 
     print("Generating plots for attention experiments...")
     plot_attention_results(attention_model_to_dataset, attention_all_models)

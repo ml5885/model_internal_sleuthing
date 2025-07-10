@@ -65,6 +65,8 @@ def train_probe(X_train, y_train, X_val, y_val, input_dim, n_classes, norm_weigh
     device = get_device()
 
     model = MLPProbe(input_dim, n_classes, norm_weight=norm_weight, norm_bias=norm_bias).to(device)
+    if norm_weight is not None and norm_bias is not None:
+        utils.log_info("Training MLP probe with pre-loaded LayerNorm parameters.")
     optim = torch.optim.AdamW(
         model.parameters(),
         lr=config.TRAIN_PARAMS["learning_rate"],
