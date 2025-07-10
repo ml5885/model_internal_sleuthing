@@ -144,7 +144,7 @@ def predict(arr, model):
     return torch.cat(out, dim=0).numpy()
 
 
-def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type, layer, pca_dim, outdir=None, indices=None, label_map=None, control_label_map=None):
+def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type, layer, pca_dim, outdir=None, indices=None, label_map=None, control_label_map=None, norm_weight=None):
     uniq, counts = np.unique(y_true, return_counts=True)
     keep_classes = uniq[counts >= 1]
     keep_mask = np.isin(y_true, keep_classes)
@@ -222,9 +222,9 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
     bs = config.TRAIN_PARAMS["batch_size"]
 
     if probe_type in ["mlp", "nn"]:
-        model = train_probe(X_train, y_train, X_val, y_val, input_dim=X_train.shape[1], n_classes=n_classes)
+        model = train_probe(X_train, y_train, X_val, y_val, input_dim=X_train.shape[1], n_classes=n_classes, norm_weight=norm_weight)
         scores = model.predict(X_test, batch_size=bs)
-        control_model = train_probe(X_train, yc_train_m, X_val, yc_val_m, input_dim=X_train.shape[1], n_classes=n_classes)
+        control_model = train_probe(X_train, yc_train_m, X_val, yc_val_m, input_dim=X_train.shape[1], n_classes=n_classes, norm_weight=norm_weight)
         control_scores = control_model.predict(X_test, batch_size=bs)
         preds = scores.argmax(1)
         preds_control = control_scores.argmax(1)
