@@ -66,6 +66,9 @@ class ModelWrapper:
         if hasattr(self.model, "encoder") and hasattr(self.model.encoder, "layer"):
             # BERT/DeBERTa style
             self.layers = self.model.encoder.layer
+        elif hasattr(self.model, "encoder") and hasattr(self.model.encoder, "block"):
+            # T5/mT5 style
+            self.layers = self.model.encoder.block
         elif hasattr(self.model, "model") and hasattr(self.model.model, "layers"):
             # Qwen2 or some HF wrapper style
             self.layers = self.model.model.layers
@@ -94,6 +97,9 @@ class ModelWrapper:
                 else:
                     # NeoX/Pythia style
                     target_module = attn_mod
+            elif hasattr(layer, "layer") and hasattr(layer.layer[0], "SelfAttention"):
+                # T5/mT5 style
+                target_module = layer.layer[0].SelfAttention
             elif hasattr(layer, "self_attn"):
                 # Qwen2, LLaMA, OLMo style
                 target_module = layer.self_attn

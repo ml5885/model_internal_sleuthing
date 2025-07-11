@@ -22,7 +22,7 @@ plt.rcParams.update({
     "grid.linewidth": 1.0
 })
 
-bbox_to_anchor = (0, -0.28, 1, 0.1)
+bbox_to_anchor = (0, -0.3, 1, 0.1)
 
 model_names = {
     "byt5": "ByT5-Base",
@@ -484,7 +484,7 @@ if __name__ == "__main__":
     
     multilingual_models = [
         # "byt5",
-        # "mt5",
+        "mt5",
         "qwen2",
         "qwen2-instruct",
         "qwen2.5-7B",
@@ -493,12 +493,12 @@ if __name__ == "__main__":
     
     # Goldfish models are language-specific
     goldfish_models = [
-        # ("goldfish_eng_latn_1000mb", "ud_gum_dataset", "English"),
-        # ("goldfish_zho_hans_1000mb", "ud_zh_gsd_dataset", "Chinese"),
-        # ("goldfish_deu_latn_1000mb", "ud_de_gsd_dataset", "German"),
-        # ("goldfish_fra_latn_1000mb", "ud_fr_gsd_dataset", "French"),
-        # ("goldfish_rus_cyrl_1000mb", "ud_ru_syntagrus_dataset", "Russian"),
-        # ("goldfish_tur_latn_1000mb", "ud_tr_imst_dataset", "Turkish"),
+        ("goldfish_eng_latn_1000mb", "ud_gum_dataset", "English"),
+        ("goldfish_zho_hans_1000mb", "ud_zh_gsd_dataset", "Chinese"),
+        ("goldfish_deu_latn_1000mb", "ud_de_gsd_dataset", "German"),
+        ("goldfish_fra_latn_1000mb", "ud_fr_gsd_dataset", "French"),
+        ("goldfish_rus_cyrl_1000mb", "ud_ru_syntagrus_dataset", "Russian"),
+        ("goldfish_tur_latn_1000mb", "ud_tr_imst_dataset", "Turkish"),
     ]
     
     # Add multilingual models (tested on all languages)
@@ -516,8 +516,8 @@ if __name__ == "__main__":
         model_to_dataset[model_key] = dataset
         model_names[model_key] = f"{model_names[goldfish_model]} ({lang})"
     
-    # print("Plotting multilingual models across all languages...")
-    # plot_t5_results(model_to_dataset, all_models)
+    print("Plotting multilingual models across all languages...")
+    plot_t5_results(model_to_dataset, all_models)
     
-    print("\nGenerating markdown tables for multilingual models...")
-    generate_t5_markdown_tables(model_to_dataset, all_models)
+    # print("\nGenerating markdown tables for multilingual models...")
+    # generate_t5_markdown_tables(model_to_dataset, all_models)

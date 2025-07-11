@@ -200,8 +200,8 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
                         ax.set_ylim(0, 1.0)
                         ax.set_yticks(np.arange(0, 1.01, 0.2))
                     else:
-                        ax.set_ylim(0.6, 1.0)
-                        ax.set_yticks(np.arange(0.6, 1.01, 0.1))
+                        ax.set_ylim(0.5, 1.0)
+                        ax.set_yticks(np.arange(0.5, 1.01, 0.1))
                 if col == 0:
                     ylabel = f"{task.title()} {'Selectivity' if plot_selectivity else 'Accuracy'}"
                     ax.set_ylabel(ylabel, labelpad=15)
@@ -431,5 +431,5 @@ if __name__ == "__main__":
     print("Generating plots for attention experiments...")
     plot_attention_results(attention_model_to_dataset, attention_all_models)
     
-    print("\nGenerating markdown tables for attention experiments...")
-    generate_attention_markdown_tables(attention_model_to_dataset, attention_all_models)
+    # print("\nGenerating markdown tables for attention experiments...")
+    # generate_attention_markdown_tables(attention_model_to_dataset, attention_all_models)
