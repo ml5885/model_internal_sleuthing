@@ -123,8 +123,8 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
     if missing_files:
         print(f"[INFO] Missing {len(missing_files)} probe result files (will skip in plots)")
         for (model, task, probe, attn) in missing_files:
-            if probe != "rf":
-                print(f"  - {model} {task} {probe} {'attn' if attn else 'residual'}")
+            # if probe != "rf":
+            print(f"  - {model} {task} {probe} {'attn' if attn else 'residual'}")
 
     def plot_panel(axes, model_list_subset, plot_selectivity=False):
         for row, task in enumerate(tasks):
@@ -209,13 +209,11 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
                 if row == 1:
                     ax.set_xlabel("Normalized layer number (%)", labelpad=15)
 
-    bert_models = [m for m in model_list if "bert" in m]
-    gpt_models = [m for m in model_list if "gpt2" in m]
-    bert_gpt_models = bert_models + gpt_models
-    other_models = [m for m in model_list if m not in bert_gpt_models]
+    bert_models = [m for m in model_list if "bert" in m or "gpt" in m]
+    other_models = [m for m in model_list if "bert" not in m and "gpt" not in m]
 
     model_groups = {
-        "BERT_GPT": bert_gpt_models,
+        "BERT": bert_models,
         "Other": other_models
     }
 
@@ -262,7 +260,12 @@ def generate_attention_markdown_tables(model_to_dataset, model_list, output_dir=
             for probe_type in probe_types:
                 for attn in [True, False]:
                     key = (task, probe_type, attn)
-                    csv_path = find_csv_file_probe(model_key, dataset, task, probe_type, attn=attn)
+                    if probe_type == "mlp":
+                        csv_path = find_csv_file_probe(model_key, dataset, task, "mlp", attn=attn)
+                        if not csv_path:
+                            csv_path = find_csv_file_probe(model_key, dataset, task, "nn", attn=attn)
+                    else:
+                        csv_path = find_csv_file_probe(model_key, dataset, task, probe_type, attn=attn)
                     file_availability[model_key][key] = csv_path
     
     model_families = {"Attention Models": model_list}  # Updated title
@@ -371,7 +374,7 @@ if __name__ == "__main__":
         "bert-base-uncased",
         "bert-large-uncased",
         "deberta-v3-large",
-        # "gpt2",
+        "gpt2",
         "gpt2-large",
         "gpt2-xl",
         "qwen2",
