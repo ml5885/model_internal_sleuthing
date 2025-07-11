@@ -184,13 +184,18 @@ class ModelWrapper:
         )
         
         with torch.no_grad():
-            outputs = self.model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                output_hidden_states=not use_attention,
-                output_attentions=use_attention,
-                return_dict=True
-            )
+            model_kwargs = {
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+                "output_hidden_states": not use_attention,
+                "output_attentions": use_attention,
+                "return_dict": True
+            }
+            # T5-family models are encoder-decoder and require decoder_input_ids
+            if 't5' in self.model_config["model_name"].lower():
+                model_kwargs["decoder_input_ids"] = input_ids
+
+            outputs = self.model(**model_kwargs)
 
         if not use_attention:
             hidden_states = outputs.hidden_states
