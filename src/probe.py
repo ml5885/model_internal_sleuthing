@@ -274,7 +274,22 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
                     with open(label_map_path, 'w') as f:
                         json.dump(label_map, f)
     else:
-        scores = solve_ridge(X_train, y_train, X_test, lambda_reg, n_classes)
+        d = X_train.shape[1]
+        cov = X_train.T.dot(X_train) + lambda_reg * np.eye(d)
+        W = np.linalg.solve(cov, X_train.T.dot(np.eye(n_classes)[y_train]))
+        
+        scores = X_test.dot(W)
+
+        if outdir:
+            os.makedirs(outdir, exist_ok=True)
+            model_path = os.path.join(outdir, f"probe_layer_{layer}.npy")
+            np.save(model_path, W)
+            if label_map and isinstance(label_map, list):
+                label_map_path = os.path.join(outdir, "label_map.json")
+                if not os.path.exists(label_map_path):
+                    with open(label_map_path, 'w') as f:
+                        json.dump(label_map, f)
+        
         control_scores = solve_ridge(X_train, yc_train_m, X_test, lambda_reg, n_classes)
         preds = scores.argmax(1)
         preds_control = control_scores.argmax(1)

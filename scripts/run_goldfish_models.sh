@@ -25,7 +25,7 @@ MODELS=(
 )
 PROBE_TYPES=(
     "reg"
-    "nn"
+    "mlp"
 )
 TASKS=(
     "lexeme"

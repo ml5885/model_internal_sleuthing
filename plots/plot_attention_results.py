@@ -200,8 +200,12 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
                         ax.set_ylim(0, 1.0)
                         ax.set_yticks(np.arange(0, 1.01, 0.2))
                     else:
-                        ax.set_ylim(0.5, 1.0)
-                        ax.set_yticks(np.arange(0.5, 1.01, 0.1))
+                        if col != 2:
+                            ax.set_ylim(0.5, 1.0)
+                            ax.set_yticks(np.arange(0.5, 1.01, 0.1))
+                        else:
+                            ax.set_ylim(0.4, 1.0)
+                            ax.set_yticks(np.arange(0.4, 1.01, 0.1))
                 if col == 0:
                     ylabel = f"{task.title()} {'Selectivity' if plot_selectivity else 'Accuracy'}"
                     ax.set_ylabel(ylabel, labelpad=15)

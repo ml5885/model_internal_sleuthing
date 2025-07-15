@@ -161,7 +161,7 @@ def plot_t5_results(model_to_dataset, model_list, output_dir="figures3", filenam
         dataset = model_to_dataset[model_key]
         file_availability[model_key] = {}
         for task in ["lexeme", "inflection"]:
-            for probe in ["reg", "mlp"]:
+            for probe in ["reg", "mlp", "rf"]:
                 csv_path = find_csv_file(model_key, dataset, task, probe)
                 file_availability[model_key][(task, probe)] = csv_path
                 if csv_path is None and (model_key, task, probe) not in missing_files:
@@ -170,11 +170,10 @@ def plot_t5_results(model_to_dataset, model_list, output_dir="figures3", filenam
     # Print summary of missing files once
     if missing_files:
         print(f"[INFO] Missing {len(missing_files)} probe result files (will skip in plots)")
-        # Only show a few examples to avoid spam
-        for i, (model, task, probe) in enumerate(missing_files[:5]):
+        for model, task, probe in missing_files:
+            if task == "lexeme" and probe == "rf":
+                continue
             print(f"  - {model} {task} {probe}")
-        if len(missing_files) > 5:
-            print(f"  ... and {len(missing_files) - 5} more")
 
     def plot_panel(fig, axes, plot_selectivity=False):
         for row, task in enumerate(tasks):
