@@ -80,7 +80,8 @@ def main():
     parser.add_argument("--pca_dim", type=int, default=0, help="Dimensionality for PCA reduction.")
     parser.add_argument("--no_analysis", action="store_true", default=True, help="Skip analysis after running experiments.")
     parser.add_argument("--activations_dir", type=str, default=None, help="Custom base output directory for activation files/shards.")
-    parser.add_argument("--output_dir", type=str, default=None, help="Custom base output directory for probe results.")
+    parser.add_argument("--output_dir", type=str, default=None, help="Custom base output directory for steering results.")
+    parser.add_argument("--probe_dir", type=str, default=None, help="Custom base output directory for probe results.")
     parser.add_argument("--max_rows", type=int, default=75000, help="Maximum number of rows to sample from dataset for activation extraction.")
     parser.add_argument("--use_attention", action="store_true", help="Run extraction on attention outputs rather than residual stream.")
     parser.add_argument("--steering", action="store_true", help="Run steering experiment after probing.")
@@ -100,7 +101,8 @@ def main():
 
     reps_path = run_activation_extraction(model_key, dataset, revision, args.activations_dir, args.max_rows, args.use_attention)
 
-    base_probe_dir = args.output_dir if args.output_dir else os.path.join(config.OUTPUT_DIR, "probes")
+    # Use --probe_dir if provided, otherwise default to config.OUTPUT_DIR/probes
+    base_probe_dir = args.probe_dir if args.probe_dir else os.path.join(config.OUTPUT_DIR, "probes")
     attention_component = "_attn" if args.use_attention else ""
     probe_output_dirs = {
         task: os.path.join(
@@ -110,6 +112,9 @@ def main():
         )
         for task in ["inflection", "lexeme"]
     }
+
+    # Use a separate steering directory for steering results
+    base_steering_dir = args.output_dir if args.output_dir else os.path.join(config.OUTPUT_DIR, "steering")
 
     if not args.steering:
         for task in ([args.experiment] if args.experiment else ["inflection", "lexeme"]):
@@ -131,7 +136,7 @@ def main():
                 "--dataset", dataset,
                 "--probe_type", probe_type,
                 "--pca_dim", str(pca_dim),
-                "--output_dir", probe_output_dirs[task],
+                "--output_dir", probe_output_dirs[task],  # always probes dir
             ]
             
             utils.log_info(f"Running probe for task={task}, model_config={effective_model_key_for_paths}, dataset={dataset}")
@@ -139,13 +144,10 @@ def main():
 
     if args.steering:
         utils.log_info("Proceeding to steering experiment...")
-        # The steering experiment is for inflection only.
         task = "inflection"
         probe_dir_for_steering = probe_output_dirs.get(task)
         if not probe_dir_for_steering or not os.path.exists(probe_dir_for_steering):
             utils.log_info(f"Probe directory for inflection task not found at {probe_dir_for_steering}. Running probe training first.")
-            # This part is to ensure probes are trained if steering is run directly.
-            # The slurm script already runs this, but it's good for robustness.
             exp_args = [
                 "--activations", reps_path,
                 "--labels", os.path.join("data", f"{dataset}.csv"),
@@ -155,7 +157,7 @@ def main():
                 "--dataset", dataset,
                 "--probe_type", probe_type,
                 "--pca_dim", str(pca_dim),
-                "--output_dir", probe_dir_for_steering,
+                "--output_dir", probe_dir_for_steering,  # always probes dir
             ]
             subprocess.run(["python", "-m", "src.train"] + exp_args, check=True)
 
@@ -166,18 +168,15 @@ def main():
         from src.steering import run_steering as run_single_steering
 
         def run_steering_for_lambda(lambda_val):
-            base_steering_dir = args.output_dir if args.output_dir else os.path.join(config.OUTPUT_DIR, "steering")
-            
             steering_output_dir = os.path.join(
                 base_steering_dir,
                 f"{dataset}_{effective_model_key_for_paths}_{probe_type}{attention_component}_lambda{lambda_val:.1f}"
             )
-            
             steering_args = argparse.Namespace(
                 activations=reps_path,
                 labels=os.path.join("data", f"{dataset}.csv"),
                 probe_dir=probe_dir_for_steering,
-                output_dir=steering_output_dir,
+                output_dir=steering_output_dir,  # always steering dir
                 probe_type=probe_type,
                 lambda_steer=lambda_val,
                 num_samples=args.num_samples
@@ -202,5 +201,7 @@ def main():
 
     utils.log_info(f"All experiments and analysis completed for {effective_model_key_for_paths} on {dataset}.")
 
+if __name__ == "__main__":
+    main()
 if __name__ == "__main__":
     main()
