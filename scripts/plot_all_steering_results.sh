@@ -7,8 +7,27 @@ PLOT_SCRIPT="../plots/plot_steering_results.py"
 
 mkdir -p "$OUTPUT_DIR"
 
-# Extract unique model names from steering output directories
-MODELS=$(ls "$STEERING_DIR" | grep "^${DATASET}_" | sed -E "s/^${DATASET}_([^_]+).*$/\1/" | sort | uniq)
+MODELS=(
+    "bert-base-uncased"
+    "bert-large-uncased"
+    "deberta-v3-large"
+    "gemma2b"
+    "gemma2b-it"
+    "gpt2"
+    "gpt2-large"
+    "gpt2-xl"
+    # "llama3-8b"
+    # "llama3-8b-instruct"
+    # "olmo2-7b"
+    # "olmo2-7b-instruct"
+    # "pythia-6.9b"
+    # "pythia-6.9b-tulu"
+    "qwen2"
+    "qwen2-instruct"
+    # "qwen2.5-7B"
+    # "qwen2.5-7B-instruct"
+)
+MODELS="${MODELS[@]}"
 
 echo "Plotting steering results for models: $MODELS"
 python "$PLOT_SCRIPT" \
@@ -16,5 +35,3 @@ python "$PLOT_SCRIPT" \
     --models $MODELS \
     --dataset "$DATASET" \
     --output_dir "$OUTPUT_DIR"
-        --output_dir "$OUTPUT_DIR"
-done

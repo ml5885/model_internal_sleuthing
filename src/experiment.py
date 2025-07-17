@@ -189,12 +189,9 @@ def main():
             utils.log_info("Running first lambda value sequentially...")
             run_steering_for_lambda(args.lambda_steer[0])
 
-        # Run the rest in parallel
-        if len(args.lambda_steer) > 1:
-            utils.log_info(f"Running remaining {len(args.lambda_steer) - 1} lambda values in parallel...")
-            Parallel(n_jobs=max(1, os.cpu_count() // 2))(
-                delayed(run_steering_for_lambda)(l) for l in args.lambda_steer[1:]
-            )
+        # Run the rest sequentially (avoids duplicate 40 GB arrays per process)
+        for l in args.lambda_steer[1:]:
+            run_steering_for_lambda(l)
 
     if not args.no_analysis:
         run_analysis(reps_path, effective_model_key_for_paths, dataset)
@@ -202,6 +199,9 @@ def main():
     utils.log_info(f"All experiments and analysis completed for {effective_model_key_for_paths} on {dataset}.")
 
 if __name__ == "__main__":
+    main()
+if __name__ == "__main__":
+    main()
     main()
 if __name__ == "__main__":
     main()

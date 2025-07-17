@@ -24,15 +24,8 @@ def load_shards(path):
 def load_layer(shards, layer_idx):
     parts = []
     for shard in shards:
-        try:
-            with np.load(shard, mmap_mode="r") as data:
-                arr = data["activations"]
-        except EOFError:
-            raise RuntimeError(f"Corrupt or empty shard: {shard}")
-        except Exception:
-            with np.load(shard) as data:
-                arr = data["activations"]
-        parts.append(arr[:, layer_idx, :])
+        # mmap_mode keeps the shard on disk; no in‑RAM copy
+        parts.append(np.load(shard, mmap_mode="r")["activations"][:, layer_idx, :])
     return np.concatenate(parts, axis=0)
 
 def run_probes(activations, labels, task, lambda_reg, exp_label,

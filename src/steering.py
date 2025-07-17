@@ -6,6 +6,7 @@ import torch
 import joblib
 from tqdm import tqdm
 import json
+import gc
 
 from src import config, utils
 from src.probe import MLPProbe, get_device
@@ -172,6 +173,9 @@ def run_steering(args):
 
         if layer_results:
             all_results.extend(layer_results)
+
+        del activations
+        gc.collect()
 
     if not all_results:
         utils.log_info("Steering experiment produced no results.")
