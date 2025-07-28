@@ -165,7 +165,7 @@ def plot_components_by_threshold_multiplot(dfs, models, thresholds, out_base, no
 
     fig, axs = plt.subplots(
         nrows, ncols,
-        figsize=(24, 8),
+        figsize=(28, 10),
         sharex=True, sharey=True,
         constrained_layout={'hspace': 0.1, 'wspace': 0.05}
     )
@@ -207,16 +207,26 @@ def plot_components_by_threshold_multiplot(dfs, models, thresholds, out_base, no
 
     fig.supylabel('Components (fraction of max)', x=-0.03)
 
-    handles, labels = axs[0].get_legend_handles_labels()
-    fig.legend(
-        handles, labels,
-        loc='lower center',
-        bbox_to_anchor=(0.5, -0.3),
-        ncol=min(4, len(models)),
-        frameon=True,
-        edgecolor='black',
-        facecolor='white'
-    )
+    handles_labels = [ax.get_legend_handles_labels() for ax in axs if hasattr(ax, "get_legend_handles_labels")]
+    handles = sum([hl[0] for hl in handles_labels], [])
+    labels = sum([hl[1] for hl in handles_labels], [])
+    seen = set()
+    legend_items = []
+    for h, l in zip(handles, labels):
+        if l not in seen:
+            legend_items.append((h, l))
+            seen.add(l)
+    if legend_items:
+        handles, labels = zip(*legend_items)
+        fig.legend(
+            handles, labels,
+            loc='lower center',
+            bbox_to_anchor=(0, -0.26, 1, 0.1),
+            ncol=min(6, len(labels)),
+            mode="expand",
+            frameon=True,
+            fontsize=28
+        )
 
     out_path = os.path.join(out_base, 'multi_components_by_thresholds.png')
     fig.savefig(out_path, bbox_inches='tight')
@@ -278,6 +288,27 @@ def plot_variance_by_model_multiplot(dfs, models, thresholds, out_base):
 
     for j in range(n, len(axs)):
         axs[j].axis('off')
+
+    handles_labels = [ax.get_legend_handles_labels() for ax in axs if hasattr(ax, "get_legend_handles_labels")]
+    handles = sum([hl[0] for hl in handles_labels], [])
+    labels = sum([hl[1] for hl in handles_labels], [])
+    seen = set()
+    legend_items = []
+    for h, l in zip(handles, labels):
+        if l not in seen:
+            legend_items.append((h, l))
+            seen.add(l)
+    if legend_items:
+        handles, labels = zip(*legend_items)
+        fig.legend(
+            handles, labels,
+            loc='lower center',
+            bbox_to_anchor=(0, -0.25, 1, 0.1),
+            ncol=min(6, len(labels)),
+            mode="expand",
+            frameon=True,
+            fontsize=28
+        )
 
     cbar = fig.colorbar(
         sm,

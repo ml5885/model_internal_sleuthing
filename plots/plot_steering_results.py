@@ -1,231 +1,341 @@
-import os
 import argparse
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+import os
 import re
 import sys
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import seaborn as sns
 from matplotlib import cm
+import matplotlib.colors as mcolors
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
 from src.config import MODEL_DISPLAY_NAMES
 
-# Use the same color mapping as plot_attention_results.py
+sns.set_style("white")
+mpl.rcParams["figure.dpi"] = 100
+plt.rcParams.update(
+    {
+        "font.size": 30,
+        "axes.labelsize": 34,
+        "axes.titlesize": 26,
+        "xtick.labelsize": 30,
+        "ytick.labelsize": 30,
+        "legend.fontsize": 30,
+        "legend.title_fontsize": 30,
+        "axes.linewidth": 1.5,
+        "grid.linewidth": 1.5,
+        "lines.markersize": 6,
+    }
+)
+
+LINEWIDTH = 1.0
+
 MODEL_COLORS = {
-    "gpt2": "tab:brown",
-    "gpt2-large": "tab:orange",
-    "gpt2-xl": "tab:red",
-    "qwen2": "tab:blue",
-    "qwen2-instruct": "tab:cyan",
-    "qwen2.5-7B": "mediumseagreen",
-    "qwen2.5-7B-instruct": "springgreen",
-    "gemma2b": "darkviolet",
-    "gemma2b-it": "deeppink",
-    "bert-base-uncased": "steelblue",
-    "bert-large-uncased": "navy",
-    "deberta-v3-large": "darkkhaki",
-    "llama3-8b": "lightcoral",
-    "llama3-8b-instruct": "rosybrown",
-    "pythia-6.9b": "darkgoldenrod",
-    "pythia-6.9b-tulu": "lightsalmon",
-    "olmo2-7b-instruct": "palegreen",
-    "olmo2-7b": "forestgreen",
+    "gpt2": "#1f77b4",
+    "gpt2-large": "#ff7f0e",
+    "gpt2-xl": "#2ca02c",
+    "qwen2": "#d62728",
+    "qwen2-instruct": "#9467bd",
+    "qwen2.5-7B": "#8c564b",
+    "qwen2.5-7B-instruct": "#e377c2",
+    "gemma2b": "#7f7f7f",
+    "gemma2b-it": "#bcbd22",
+    "bert-base-uncased": "#17becf",
+    "bert-large-uncased": "#aec7e8",
+    "deberta-v3-large": "#ffbb78",
+    "llama3-8b": "#98df8a",
+    "llama3-8b-instruct": "#c5b0d5",
+    "pythia-6.9b": "#ff9896",
+    "pythia-6.9b-tulu": "#c49c94",
+    "olmo2-7b-instruct": "#f7b6d2",
+    "olmo2-7b": "#dbdb8d",
 }
 
-def collect_all_results(steering_dir, models, dataset):
-    """
-    Collect all steering results into a single DataFrame.
-    Returns: DataFrame with columns: model, probe_type, lambda, layer, mean_prob_change, flip_rate, ...
-    """
-    records = []
+LAMBDA_STYLES = {
+    1: dict(marker="o"),
+    5: dict(marker="s"),
+    10: dict(marker="^"),
+    20: dict(marker="D"),
+    100: dict(marker="*"),
+}
+
+def collect_all_results(steering_dir: str, models: list[str], dataset: str) -> pd.DataFrame:
+    rows = []
     for model in models:
-        pattern = re.compile(rf"^{re.escape(dataset)}_{re.escape(model)}_(?P<probe_type>\w+)_lambda(?P<lambda_val>\d+\.?\d*)$")
-        for dirname in os.listdir(steering_dir):
-            match = pattern.match(dirname)
-            if match:
-                probe_type = match.group("probe_type")
-                lambda_val = float(match.group("lambda_val"))
-                results_dir = os.path.join(steering_dir, dirname)
-                summary_file = os.path.join(results_dir, "steering_summary.csv")
-                if not os.path.exists(summary_file):
-                    continue
-                df = pd.read_csv(summary_file)
-                df["model"] = model
-                df["probe_type"] = probe_type
-                df["lambda"] = lambda_val
-                records.append(df)
-    if not records:
+        pat = re.compile(
+            rf"^{re.escape(dataset)}_{re.escape(model)}_(?P<probe>\w+)_lambda(?P<lam>\d+\.?\d*)$"
+        )
+        for d in os.listdir(steering_dir):
+            m = pat.match(d)
+            if not m:
+                continue
+            probe_type = m.group("probe")
+            lam = float(m.group("lam"))
+            csv = os.path.join(steering_dir, d, "steering_summary.csv")
+            if not os.path.exists(csv):
+                continue
+            df = pd.read_csv(csv)
+            df["model"] = model
+            df["probe_type"] = probe_type
+            df["lambda"] = lam
+            rows.append(df)
+    if not rows:
         return pd.DataFrame()
-    df_all = pd.concat(records, ignore_index=True)
-    df_all["layer"] = df_all["layer"].astype(int)
-    return df_all
+    out = pd.concat(rows, ignore_index=True)
+    out["layer"] = out["layer"].astype(int)
 
-def get_model_cmap(model, n):
-    """
-    Return a matplotlib colormap instance for a given model and number of lambdas.
-    """
-    # Map model to a base colormap
-    model_cmaps = {
-        "gpt2": cm.Oranges,
-        "gpt2-large": cm.YlOrBr,
-        "gpt2-xl": cm.Reds,
-        "qwen2": cm.Blues,
-        "qwen2-instruct": cm.cividis,
-        "qwen2.5-7B": cm.Greens,
-        "qwen2.5-7B-instruct": cm.Greens,
-        "gemma2b": cm.Purples,
-        "gemma2b-it": cm.Purples,
-        "bert-base-uncased": cm.Blues,
-        "bert-large-uncased": cm.Blues,
-        "deberta-v3-large": cm.YlGn,
-        "llama3-8b": cm.Reds,
-        "llama3-8b-instruct": cm.Reds,
-        "pythia-6.9b": cm.YlOrBr,
-        "pythia-6.9b-tulu": cm.YlOrBr,
-        "olmo2-7b-instruct": cm.Greens,
-        "olmo2-7b": cm.Greens,
+    # Normalize layer number per model
+    max_layers = out.groupby("model")["layer"].transform("max")
+    out["normalized_layer"] = 100 * out["layer"] / max_layers
+
+    return out
+
+
+def lambda_legend_handles(lam_values):
+    handles = []
+    labels = []
+    for lam in sorted(lam_values):
+        style = LAMBDA_STYLES.get(lam, dict(marker="o"))
+        h = plt.Line2D(
+            [], [],
+            color="black",
+            marker=style["marker"],
+            linestyle="none",
+            markersize=6,
+        )
+        handles.append(h)
+        labels.append(f"lambda {lam:g}")
+    return handles, labels
+
+def model_legend_handles(model_values):
+    handles = []
+    labels = []
+    sorted_models = sorted(model_values, key=lambda m: list(MODEL_COLORS.keys()).index(m) if m in MODEL_COLORS else m)
+    for model in sorted_models:
+        h = plt.Line2D(
+            [], [],
+            color=MODEL_COLORS.get(model, "gray"),
+            marker="s",
+            linestyle="-",
+            linewidth=LINEWIDTH,
+        )
+        handles.append(h)
+        labels.append(MODEL_DISPLAY_NAMES.get(model, model))
+    return handles, labels
+
+def adjust_color_brightness(color, factor):
+    rgb = mcolors.to_rgb(color)
+    return tuple(min(1, max(0, c * factor)) for c in rgb)
+
+def plot_each_model_separately(df: pd.DataFrame, dataset: str, out_dir: str) -> None:
+    if df.empty:
+        return
+
+    figsize = (18, 12)
+    grid = dict(linestyle="--", alpha=0.4, linewidth=0.8)
+    metrics = {
+        "mean_prob_change": "Mean Probability Change",
+        "flip_rate": "Prediction Flip Rate",
     }
-    return model_cmaps.get(model, cm.Greys)(np.linspace(0.35, 0.95, n))
 
-def plot_all_models(df_all, dataset, output_dir):
-    """
-    Plot each model separately for each probe_type, showing all lambdas for that model.
-    """
-    if df_all.empty:
-        print("No results to plot.")
+    for metric in metrics:
+        os.makedirs(os.path.join(out_dir, metric), exist_ok=True)
+
+    model_values = sorted(df["model"].unique())
+
+    all_lam_values = sorted(df["lambda"].unique())
+    n_lam = len(all_lam_values)
+    viridis_cmap = cm.get_cmap("viridis", n_lam)
+    lam_to_color = {lam: viridis_cmap(i) for i, lam in enumerate(all_lam_values)}
+
+    for model in model_values:
+        model_df = df[df["model"] == model]
+        probe_values = sorted(model_df["probe_type"].unique())
+        lam_values = sorted(model_df["lambda"].unique())
+
+        for probe in probe_values:
+            sub_probe = model_df[model_df["probe_type"] == probe]
+            for metric, ylabel in metrics.items():
+                fig, ax = plt.subplots(figsize=figsize)
+
+                for lam in lam_values:
+                    g = sub_probe[sub_probe["lambda"] == lam]
+                    if not g.empty:
+                        color = lam_to_color[lam]
+                        ax.plot(
+                            g["normalized_layer"],
+                            g[metric],
+                            color=color,
+                            marker="o",
+                            markersize=6,
+                            linestyle="-",
+                            linewidth=LINEWIDTH,
+                            label=f"λ={lam:g}",
+                        )
+
+                ax.set_title(f"{ylabel} - {probe.upper()} - {MODEL_DISPLAY_NAMES.get(model, model)}")
+                ax.set_xlabel("Normalized Layer Number (%)")
+                ax.set_ylabel(ylabel)
+                ax.grid(**grid)
+                ax.legend(title="Lambda", fontsize=16, title_fontsize=18, loc="best")
+                fig.tight_layout()
+                fname = f"{metric}/{dataset}_{model}_{probe}_{metric}.png"
+                fig.savefig(os.path.join(out_dir, fname), dpi=300, bbox_inches="tight")
+                print(f"Saved plot: {fname}")
+                plt.close(fig)
+
+def plot_all_models_one_figure(df: pd.DataFrame, dataset: str, out_dir: str) -> None:
+    if df.empty:
         return
+    figsize = (18, 12)
+    grid = dict(linestyle="--", alpha=0.4, linewidth=0.8)
+    metrics = {
+        "mean_prob_change": "Mean Probability Change",
+        "flip_rate": "Prediction Flip Rate",
+    }
+    for probe in df["probe_type"].unique():
+        sub_probe = df[df["probe_type"] == probe]
+        model_values = sorted(sub_probe["model"].unique())
+        lam_values = sorted(sub_probe["lambda"].unique())
+        for metric, ylabel in metrics.items():
+            fig, ax = plt.subplots(figsize=figsize)
+            for model in model_values:
+                for lam in lam_values:
+                    g = sub_probe[(sub_probe["model"] == model) & (sub_probe["lambda"] == lam)]
+                    if not g.empty:
+                        ax.plot(
+                            g["normalized_layer"],
+                            g[metric],
+                            color=MODEL_COLORS.get(model, "gray"),
+                            marker=LAMBDA_STYLES.get(lam, dict(marker="o"))["marker"],
+                            linestyle="-",
+                            linewidth=LINEWIDTH,
+                        )
+            ax.set_title(f"{ylabel} - {probe.upper()} - {dataset}")
+            ax.set_xlabel("Normalized Layer Number (%)")
+            ax.set_ylabel(ylabel)
+            ax.grid(**grid)
 
-    plt.rcParams.update({
-        "font.size": 22,
-        "axes.labelsize": 24,
-        "axes.titlesize": 26,
-        "xtick.labelsize": 20,
-        "ytick.labelsize": 20,
-        "legend.fontsize": 18,
-        "legend.title_fontsize": 22,
-        "axes.linewidth": 1.5,
-        "grid.linewidth": 1.0
-    })
-    legend_params = dict(
-        loc="lower center",
-        bbox_to_anchor=(0.5, -0.17),
-        fontsize=18,
-        ncol=5,
-        frameon=True,
-        title_fontsize=22
-    )
-    tight_layout_rect = [0, 0.05, 1, 1]
-    figsize = (18, 10)
-    grid_params = dict(linestyle="--", alpha=0.4, linewidth=1.0)
+            model_legend_h, model_legend_l = model_legend_handles(model_values)
+            model_legend = fig.legend(
+                model_legend_h,
+                model_legend_l,
+                loc="upper center",
+                bbox_to_anchor=(0.5, 0.25),
+                ncol=4,
+                frameon=True,
+            )
+            fig.add_artist(model_legend)
 
-    sns.set_theme(style="whitegrid")
-    probe_types = df_all["probe_type"].unique()
-    for probe_type in probe_types:
-        df_probe = df_all[df_all["probe_type"] == probe_type].copy()
-        df_probe["model_display"] = df_probe["model"].map(MODEL_DISPLAY_NAMES).fillna(df_probe["model"])
-        df_probe["color"] = df_probe["model"].map(MODEL_COLORS).fillna("gray")
-        for model in df_probe["model"].unique():
-            df_model = df_probe[df_probe["model"] == model]
-            model_display = df_model["model_display"].iloc[0]
-            base_color = df_model["color"].iloc[0]
-            lambdas = sorted(df_model["lambda"].unique())
-            colors = get_model_cmap(model, len(lambdas))
+            lambda_legend_h, lambda_legend_l = lambda_legend_handles(lam_values)
+            fig.legend(
+                lambda_legend_h,
+                lambda_legend_l,
+                title="Lambda",
+                loc="upper center",
+                bbox_to_anchor=(0.5, 0.33),
+                ncol=5,
+                frameon=True,
+            )
+            fig.tight_layout(rect=[0, 0.3, 1, 1])
+            fname = f"{dataset}_{probe}_{metric}_ALL_MODELS.png"
+            fig.savefig(os.path.join(out_dir, fname), dpi=300, bbox_inches="tight")
+            print(f"Saved plot: {fname}")
+            plt.close(fig)
 
-            # Mean Probability Change
-            plt.figure(figsize=figsize)
-            handles = []
-            labels = []
-            for i, (lambda_val, lambda_group) in enumerate(df_model.groupby("lambda")):
-                color = colors[i]
-                label = f"λ={lambda_val:g}"
-                h, = plt.plot(
-                    lambda_group["layer"],
-                    lambda_group["mean_prob_change"],
-                    marker="o",
-                    label=label,
-                    color=color,
-                )
-                handles.append(h)
-                labels.append(label)
-            plt.title(f"Mean Probability Change ({model_display} on {dataset} - {probe_type.upper()})", fontsize=26)
-            plt.xlabel("Layer", fontsize=24)
-            plt.ylabel("Mean Probability Change", fontsize=24)
-            plt.grid(**grid_params)
-            plt.xticks(fontsize=22)
-            plt.yticks(fontsize=22)
-            plt.tight_layout(rect=tight_layout_rect)
-            plt.legend(handles, labels, **legend_params)
-            plot_path = os.path.join(output_dir, f"{dataset}_{model}_{probe_type}_prob_change_multi_lambda.png")
-            plt.savefig(plot_path, bbox_inches="tight")
-            plt.close()
-            print(f"Saved probability change plot to {plot_path}")
-
-            # Flip Rate
-            plt.figure(figsize=figsize)
-            handles = []
-            labels = []
-            for i, (lambda_val, lambda_group) in enumerate(df_model.groupby("lambda")):
-                color = colors[i]
-                label = f"λ={lambda_val:g}"
-                h, = plt.plot(
-                    lambda_group["layer"],
-                    lambda_group["flip_rate"],
-                    marker="o",
-                    label=label,
-                    color=color,
-                )
-                handles.append(h)
-                labels.append(label)
-            plt.title(f"Prediction Flip Rate ({model_display} on {dataset} - {probe_type.upper()})", fontsize=26)
-            plt.xlabel("Layer", fontsize=24)
-            plt.ylabel("Flip Rate", fontsize=24)
-            plt.grid(**grid_params)
-            plt.xticks(fontsize=22)
-            plt.yticks(fontsize=22)
-            plt.tight_layout(rect=tight_layout_rect)
-            plt.legend(handles, labels, **legend_params)
-            plot_path = os.path.join(output_dir, f"{dataset}_{model}_{probe_type}_flip_rate_multi_lambda.png")
-            plt.savefig(plot_path, bbox_inches="tight")
-            plt.close()
-            print(f"Saved flip rate plot to {plot_path}")
-
-def print_markdown_tables(df_all):
-    """
-    Print wide-format markdown tables grouped by model and probe_type.
-    """
-    if df_all.empty:
-        print("No results for markdown tables.")
+def plot_each_lambda_separately(df: pd.DataFrame, dataset: str, out_dir: str) -> None:
+    if df.empty:
         return
-    for probe_type in df_all["probe_type"].unique():
-        df_probe = df_all[df_all["probe_type"] == probe_type]
-        for model in df_probe["model"].unique():
-            df_model = df_probe[df_probe["model"] == model]
-            mean_pivot = df_model.pivot_table(index="layer", columns="lambda", values="mean_prob_change")
-            flip_pivot = df_model.pivot_table(index="layer", columns="lambda", values="flip_rate")
-            print(f"\n## {model} | {probe_type.upper()} | Mean Probability Change")
-            print(mean_pivot.to_markdown(floatfmt=".4f"))
-            print(f"\n## {model} | {probe_type.upper()} | Flip Rate")
-            print(flip_pivot.to_markdown(floatfmt=".4f"))
+    figsize = (29, 16)
+    grid = dict(linestyle="--", alpha=0.4, linewidth=0.8)
+    metrics = {
+        "mean_prob_change": "Mean Probability Change",
+        "flip_rate": "Prediction Flip Rate",
+    }
+    lam_values = sorted(df["lambda"].unique())
+    n_lam = len(lam_values)
+    n_plots = min(n_lam, 5)
+    ncols = 3
+    nrows = 2
+    for probe in sorted(df["probe_type"].unique()):
+        sub_probe = df[df["probe_type"] == probe]
+        model_values = sorted(sub_probe["model"].unique())
+        for metric, ylabel in metrics.items():
+            fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
+            axes = axes.flatten()
+            for idx, lam in enumerate(lam_values[:5]):
+                ax = axes[idx]
+                sub_lam = sub_probe[sub_probe["lambda"] == lam]
+                for model in model_values:
+                    g = sub_lam[sub_lam["model"] == model]
+                    if not g.empty:
+                        ax.plot(
+                            g["normalized_layer"],
+                            g[metric],
+                            color=MODEL_COLORS.get(model, "gray"),
+                            marker="o",
+                            linestyle="-",
+                            linewidth=LINEWIDTH,
+                            label=MODEL_DISPLAY_NAMES.get(model, model),
+                        )
+                ax.set_title(r"$\lambda$={:g}".format(lam), fontsize=36)
+                if idx // ncols == nrows - 1 or idx % ncols == ncols - 1:
+                    ax.set_xlabel("Normalized Layer Number (%)")
+                else:
+                    ax.set_xlabel("")
+                if idx % ncols == 0:
+                    ax.set_ylabel(ylabel)
+                else:
+                    ax.set_ylabel("")
+                ax.grid(**grid)
+            for idx in range(n_lam, 5):
+                axes[idx].axis("off")
+            legend_ax = axes[5]
+            legend_ax.axis("off")
+            handles, labels = [], []
+            for model in model_values:
+                handles.append(
+                    plt.Line2D(
+                        [], [],
+                        color=MODEL_COLORS.get(model, "gray"),
+                        marker="o",
+                        linestyle="-",
+                        linewidth=LINEWIDTH,
+                        label=MODEL_DISPLAY_NAMES.get(model, model),
+                    )
+                )
+                labels.append(MODEL_DISPLAY_NAMES.get(model, model))
+            legend_ax.legend(
+                handles, labels, title="Model", fontsize=24, title_fontsize=26, loc="center",
+                ncol=2, borderaxespad=0.2, handletextpad=0.5, columnspacing=1.2
+            )
+            fig.subplots_adjust(top=0.88)
+            fig.tight_layout(rect=[0, 0, 1, 0.93])
+            fname = f"{dataset}_{probe}_{metric}_LAMBDAS_MULTIPLOT.png"
+            fig.savefig(os.path.join(out_dir, fname), dpi=200, bbox_inches="tight")
+            print(f"Saved plot: {fname}")
+            plt.close(fig)
 
 def main():
-    parser = argparse.ArgumentParser(description="Plot steering experiment results for one or more models and a dataset.")
-    parser.add_argument("--steering_dir", required=True, help="Base directory containing all steering experiment subdirectories.")
-    parser.add_argument("--models", required=True, nargs="+", help="Model names to filter experiments by (e.g., 'qwen2 qwen1').")
-    parser.add_argument("--dataset", required=True, help="Dataset name to filter experiments by (e.g., 'ud_gum_dataset').")
-    parser.add_argument("--output_dir", required=True, help="Directory to save the combined plots and markdown files.")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--steering_dir", required=True)
+    parser.add_argument("--models", required=True, nargs="+")
+    parser.add_argument("--dataset", required=True)
+    parser.add_argument("--output_dir", required=True)
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
-
-    df_all = collect_all_results(args.steering_dir, args.models, args.dataset)
-    if df_all.empty:
-        print(f"No steering results found for models '{args.models}' and dataset '{args.dataset}' in '{args.steering_dir}'.")
+    df = collect_all_results(args.steering_dir, args.models, args.dataset)
+    if df.empty:
+        print("No steering results found.")
         return
 
-    plot_all_models(df_all, args.dataset, args.output_dir)
-    # print_markdown_tables(df_all)
+    plot_all_models_one_figure(df, args.dataset, args.output_dir)
+    # plot_each_model_separately(df, args.dataset, args.output_dir)
+    plot_each_lambda_separately(df, args.dataset, args.output_dir)
 
 if __name__ == "__main__":
     main()

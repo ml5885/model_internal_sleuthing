@@ -6,7 +6,11 @@ from sklearn.model_selection import train_test_split
 DATA_DIR = "../data"
 DATASETS = [
     "ud_gum_dataset",
-    # "ud_ru_syntagrus_dataset", "ud_tr_imst_dataset",
+    "ud_ru_syntagrus_dataset", 
+    "ud_tr_imst_dataset",
+    "ud_zh_gsd_dataset",
+    "ud_de_gsd_dataset",
+    "ud_fr_gsd_dataset",
 ]
 TASKS = ["lexeme", "inflection"]
 THRESHOLDS = [2, 3, 4, 5]
@@ -22,18 +26,22 @@ def get_labels(df, task):
         labels = df["Inflection Label"].astype('category').cat.codes.values
     else:
         raise ValueError(f"Unknown task: {task}")
+    # Remove negative codes (which represent NaN/missing)
+    labels = labels[labels >= 0]
     return labels
 
 def get_control_labels(df):
     if "Word Form" not in df.columns: return None
-    return df["Word Form"].astype('category').cat.codes.values
+    labels = df["Word Form"].astype('category').cat.codes.values
+    labels = labels[labels >= 0]
+    return labels
 
 def analyze_splits(y_true):
     if len(y_true) == 0:
         return "no rows to split"
     try:
-        _, y_tmp = train_test_split(
-            np.zeros(len(y_true)), y_true,
+        y_train, y_tmp = train_test_split(
+            y_true,
             train_size=SPLIT_CONFIG["train_size"],
             random_state=SEED,
             stratify=y_true
@@ -77,27 +85,48 @@ def main():
                 print(f"  - Column '{col}' not found.")
         for task in TASKS:
             print(f"\n--- Task: {task.upper()} ---")
-            y_true = get_labels(df, task)
-            y_control = get_control_labels(df)
-            if y_true is None:
-                print("  Task labels not available, skipping.")
+            # Determine which columns are needed for this task
+            if task == "lexeme":
+                task_col = "Lemma"
+            elif task == "inflection":
+                task_col = "Inflection Label"
+            else:
+                print("  Unknown task, skipping.")
+                continue
+            # Only keep rows where both task_col and "Word Form" are not null
+            if task_col not in df.columns or "Word Form" not in df.columns:
+                print("  Task or control labels not available, skipping.")
+                continue
+            nonnull_mask = df[task_col].notnull() & df["Word Form"].notnull()
+            df_valid = df[nonnull_mask]
+            if len(df_valid) == 0:
+                print("  No valid rows after filtering missing values, skipping.")
+                continue
+            y_true = get_labels(df_valid, task)
+            y_control = get_control_labels(df_valid)
+            if y_true is None or y_control is None:
+                print("  Task or control labels not available, skipping.")
+                continue
+            # Defensive: skip if empty after filtering
+            if len(y_true) == 0 or len(y_control) == 0:
+                print("  No valid rows after filtering negative codes, skipping.")
                 continue
             true_counts = np.bincount(y_true)
             control_counts = np.bincount(y_control)
+            print("  Threshold | Rows kept | % kept | Classes kept | Split status")
             for threshold in THRESHOLDS:
-                print(f"\n  [Filtering with Threshold >= {threshold}]")
                 keep_mask_true = true_counts[y_true] >= threshold
                 keep_mask_control = control_counts[y_control] >= threshold
                 final_mask = keep_mask_true & keep_mask_control
                 n_kept_rows = np.sum(final_mask)
                 y_filtered = y_true[final_mask]
                 n_kept_classes = len(np.unique(y_filtered))
-                print(f"    - Rows remaining: {n_kept_rows} / {len(df)} ({n_kept_rows/len(df):.1%})")
-                print(f"    - Classes remaining: {n_kept_classes} / {len(true_counts)}")
+                pct_kept = n_kept_rows / len(df) * 100
                 split_status = analyze_splits(y_filtered)
-                print(f"    - Splitting status: {split_status}")
+                warn = ""
                 if "failed" in split_status or "singleton" in split_status or "empty" in split_status:
-                    print("      [WARNING] This configuration may cause issues during probe training.")
+                    warn = " [!]"
+                print(f"    {threshold:>5}    | {n_kept_rows:>8} | {pct_kept:6.1f}% | {n_kept_classes:>12} | {split_status}{warn}")
     print(f"\n{'='*20} Analysis Complete {'='*20}\n")
 
 if __name__ == "__main__":

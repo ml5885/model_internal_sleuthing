@@ -202,7 +202,6 @@ def get_tick_values(ymin, ymax, min_ticks=6):
 def plot_linguistic_and_selectivity(
     dataset: str,
     model_list: list[str],
-    probe_type: str = "nn",
     output_dir="figures3",
     save_name="linguistic_selectivity",
     pca: bool = False,
@@ -211,60 +210,30 @@ def plot_linguistic_and_selectivity(
     selectivity_filename: str = None,
     ylim: tuple = ((0, 1.0), (0, 1.0)),
 ):
-    probe_types = ["reg", probe_type, "rf"]
-    titles = ["Linear Regression", "MLP", "Random Forest"]
+    probe_types = ["reg", "nn"]
+    titles = ["Linear Regression", "MLP"]
     tasks = ["lexeme", "inflection"]
-    n_rows, n_cols = len(tasks), len(probe_types)
+    n_rows, n_cols = len(tasks), len(probe_types) * 2
     all_regression_results = []
-    aspect_ratio, base_height = 8 / 3, 5
-    fig_size = (n_cols * base_height * aspect_ratio / n_rows, n_rows * base_height)
 
-    def plot_panel(fig, axes, plot_selectivity=False):
+    aspect_ratio, base_height = 3.5, 5
+    fig_width = n_cols * base_height * aspect_ratio / 2.0
+    fig_height = n_rows * base_height
+    fig_size = (fig_width, fig_height)
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=fig_size, constrained_layout=True)
+    axes = np.atleast_2d(axes)
+
+    def plot_panel(fig, axes):
         for row, task in enumerate(tasks):
-            for col, probe in enumerate(probe_types):
+            for col in range(n_cols):
+                if col < 2:
+                    probe = probe_types[col]
+                    sel = 0
+                else:
+                    probe = probe_types[col - 2]
+                    sel = 1
                 ax = axes[row, col]
-                if task == "lexeme" and probe == "rf":
-                    ax.text(0.5, 0.5, "(computationally infeasible: too many classes,\nprone to overfitting)",
-                            ha="center", va="center", transform=ax.transAxes, fontsize=18, color="gray")
-                    ax.set_xlim(0, 1)
-                    ax.set_xticks(np.arange(0, 1.1, 0.2))
-                    ax.set_xticklabels([f"{x*100:.0f}" for x in np.arange(0, 1.1, 0.2)])
-                    
-                    if plot_selectivity:
-                        ax.set_ylim(0, 1.0)
-                        ax.set_yticks(np.arange(0, 1.01, 0.2))
-                        if col == 0:
-                            ax.set_yticklabels([f"{y:.1f}" for y in np.arange(0, 1.01, 0.2)])
-                            if row == 0:
-                                ax.set_ylabel("Lexeme Selectivity", labelpad=15, fontsize=24)
-                            elif row == 1:
-                                ax.set_ylabel("Inflection Selectivity", labelpad=15, fontsize=24)
-                        else:
-                            ax.set_yticklabels([])
-                    else:
-                        ax.set_ylim(0, 1)
-                        ax.set_yticks(np.arange(0, 1.1, 0.2))
-                        if col == 0:
-                            ax.set_yticklabels([f"{y:.1f}" for y in np.arange(0, 1.1, 0.2)])
-                            if row == 0:
-                                ax.set_ylabel("Lexeme Accuracy", labelpad=15)
-                            elif row == 1:
-                                ax.set_ylabel("Inflection Accuracy", labelpad=15)
-                        else:
-                            ax.set_yticklabels([])
-                    
-                    ax.grid(True, linestyle="--", alpha=0.4, linewidth=0.8)
-                    if row == 1:
-                        ax.set_xlabel("Normalized layer number (%)", labelpad=15)
-                    else:
-                        ax.set_xticklabels([])
-                        ax.set_xlabel("")
-                    if row == 0:
-                        ax.set_title(titles[col], pad=15)
-                    ax.tick_params(axis='y', which='major', length=10, width=2)
-                    continue
-                
-                # Main plotting loop
                 for i, model in enumerate(model_list):
                     probe_dir = os.path.join("..", "output", "probes",
                                 f"{dataset}_{model}_{task}_{probe}")
@@ -280,7 +249,139 @@ def plot_linguistic_and_selectivity(
                         df["Layer_Normalized"] = (
                             df["Layer"] - df["Layer"].min()
                         ) / (df["Layer"].max() - df["Layer"].min())
-                        y = df[acc_col] if not plot_selectivity else df[acc_col] - df[ctrl_col]
+                        if sel == 0:
+                            y = df[acc_col]
+                            fit_and_store_regression(df, model, task, probe, all_regression_results)
+                        else:
+                            y = df[acc_col] - df[ctrl_col]
+                        ax.plot(
+                            df["Layer_Normalized"], y,
+                            label=model_names.get(model, model),
+                            linewidth=3.0,
+                            color=get_model_color(model, model_list),
+                        )
+                    except Exception:
+                        ax.text(0.5, 0.5, f"No {task} data", ha="center", va="center",
+                                transform=ax.transAxes, fontsize=22)
+                ax.tick_params(axis='both', which='major', length=10, width=2)
+                ax.set_xlim(0, 1)
+                ax.set_xticks(np.arange(0, 1.1, 0.2))
+                ax.set_xticklabels([f"{x*100:.0f}" for x in np.arange(0, 1.1, 0.2)])
+                if sel == 1:
+                    row_ylim = (0, 0.2) if row == 0 else (0, 0.8)
+                    ylabel = "Lexeme Selectivity" if row == 0 else "Inflection Selectivity"
+                else:
+                    row_ylim = ylim[row] if isinstance(ylim, (list, tuple)) and len(ylim) > row else (0, 1)
+                    if task == "inflection": row_ylim = (0.8, 1.0)
+                    ylabel = "Lexeme Accuracy" if row == 0 else "Inflection Accuracy"
+                yticks, ylabels = get_tick_values(row_ylim[0], row_ylim[1])
+                ax.set_ylim(*row_ylim)
+                ax.set_yticks(yticks)
+                if col == 0 or col == 2:
+                    ax.yaxis.set_tick_params(labelleft=True)
+                    ax.set_yticklabels(ylabels, fontsize=24)
+                    if row == 0 and col == 0:
+                        ax.set_ylabel(ylabel, labelpad=30, fontsize=34)
+                    elif row == 0 and col == 2:
+                        ax.set_ylabel(ylabel, labelpad=0, fontsize=34)
+                    else:
+                        ax.set_ylabel(ylabel, labelpad=15, fontsize=34)
+                else:
+                    ax.yaxis.set_tick_params(labelleft=False)
+                    ax.set_yticklabels([])
+                ax.grid(True, linestyle="--", alpha=0.4, linewidth=0.8)
+                if row == 1:
+                    ax.set_xlabel("Normalized layer number (%)", labelpad=15, fontsize=34)
+                else:
+                    ax.set_xticklabels([])
+                    ax.set_xlabel("")
+                if row == 0:
+                    title_idx = col % 2
+                    ax.set_title(f"{titles[title_idx]}", pad=10, loc='center', fontsize=34)
+
+    plot_panel(fig, axes)
+    handles_labels = [ax.get_legend_handles_labels() for ax in axes.flatten()]
+    handles = sum([hl[0] for hl in handles_labels], [])
+    labels = sum([hl[1] for hl in handles_labels], [])
+    seen = set()
+    legend_items = []
+    for h, l in zip(handles, labels):
+        if l not in seen:
+            legend_items.append((h, l))
+            seen.add(l)
+    if legend_items:
+        handles, labels = zip(*legend_items)
+        fig.legend(
+            handles, labels,
+            loc="lower center",
+            bbox_to_anchor=(0, -0.25, 1, 0.1),
+            ncol=min(6, len(labels)),
+            mode="expand",
+            frameon=True,
+            fontsize=28
+        )
+    os.makedirs(output_dir, exist_ok=True)
+    filename = linguistic_filename or f"linguistic_and_selectivity{'_pca_' + str(pca_dim) if pca else ''}.png"
+    fig.savefig(os.path.join(output_dir, filename), bbox_inches="tight")
+    print(f"Saved combined linguistic/selectivity figure to {os.path.join(output_dir, filename)}")
+
+    regression_df = pd.DataFrame(all_regression_results)
+    regression_filepath = os.path.join(output_dir, "all_regression_results.csv")
+    regression_df.to_csv(regression_filepath, index=False)
+    print(f"Saved all regression results to {regression_filepath}")
+
+def plot_rf_only(
+    dataset: str,
+    model_list: list[str],
+    output_dir="figures3",
+    linguistic_filename="rf_linguistic_accuracy.png",
+    selectivity_filename="rf_classifier_selectivity.png",
+    pca: bool = False,
+    pca_dim: int = 50,
+    ylim: tuple = ((0, 1.0), (0, 1.0)),
+):
+    probe = "rf"
+    tasks = ["inflection"]
+    n_rows, n_cols = len(tasks), 2
+    all_regression_results = []
+    # Make plot much taller (like 2-row linguistic plot)
+    aspect_ratio, base_height = 5.5, 5  # Increased aspect_ratio for wider plots
+    fig_width = n_cols * base_height * aspect_ratio / 2.0
+    fig_height = 2 * base_height + 2  # extra space for legend
+    fig_size = (fig_width, fig_height)
+    titles = ["Random Forest Accuracy", "Random Forest Selectivity"]
+
+    def plot_panel(fig, axes):
+        axes = np.atleast_2d(axes)
+        for row, task in enumerate(tasks):
+            for col in range(n_cols):
+                ax = axes[row, col]
+                plot_selectivity = (col == 1)
+                # Main plotting loop for inflection only
+                for i, model in enumerate(model_list):
+                    probe_dir = os.path.join("..", "output", "probes",
+                                f"{dataset}_{model}_{task}_{probe}")
+                    if pca:
+                        probe_dir += f"_pca_{pca_dim}"
+                    csv_path = os.path.join(probe_dir, f"{task}_results.csv")
+                    if not os.path.exists(csv_path):
+                        print(f"[WARN] Missing results for model: {model} at {csv_path}")
+                        continue
+                    df = pd.read_csv(csv_path)
+                    try:
+                        acc_col, ctrl_col = get_acc_columns(df, task)
+                        df["Layer_Normalized"] = (
+                            df["Layer"] - df["Layer"].min()
+                        ) / (df["Layer"].max() - df["Layer"].min())
+                        if plot_selectivity:
+                            # If selectivity columns are missing, skip plotting
+                            if ctrl_col not in df.columns:
+                                ax.text(0.5, 0.5, "No selectivity data", ha="center", va="center",
+                                        transform=ax.transAxes, fontsize=22)
+                                continue
+                            y = df[acc_col] - df[ctrl_col]
+                        else:
+                            y = df[acc_col]
                         ax.plot(
                             df["Layer_Normalized"], y,
                             label=model_names.get(model, model),
@@ -292,130 +393,63 @@ def plot_linguistic_and_selectivity(
                     except Exception:
                         ax.text(0.5, 0.5, f"No {task} data", ha="center", va="center",
                                 transform=ax.transAxes, fontsize=22)
-                
+
                 # Set axis properties
-                ax.tick_params(axis='both', which='major', length=10, width=2)
+                ax.tick_params(axis='both', which='major', length=10, width=2, labelsize=20)
                 ax.set_xlim(0, 1)
                 ax.set_xticks(np.arange(0, 1.1, 0.2))
-                ax.set_xticklabels([f"{x*100:.0f}" for x in np.arange(0, 1.1, 0.2)])
-                
-                if plot_selectivity:
-                    row_ylim = (0, 0.2) if row == 0 else (0, 0.8)
+                ax.set_xticklabels([f"{x*100:.0f}" for x in np.arange(0, 1.1, 0.2)], fontsize=24)
+                # Set y-limits: inflection accuracy (col 0) and selectivity (col 1)
+                if col == 0:
+                    row_ylim = (0.6, 1.0)
+                    ylabel = "Inflection Accuracy"
                     yticks, ylabels = get_tick_values(row_ylim[0], row_ylim[1])
                     ax.set_ylim(*row_ylim)
                     ax.set_yticks(yticks)
-                    if col == 0:
-                        ax.yaxis.set_tick_params(labelleft=True)
-                        ax.set_yticklabels(ylabels)
-                        if row == 0:
-                            ax.set_ylabel("Lexeme Selectivity", labelpad=15, fontsize=24)
-                        elif row == 1:
-                            ax.set_ylabel("Inflection Selectivity", labelpad=15, fontsize=24)
-                    else:
-                        ax.yaxis.set_tick_params(labelleft=False)
+                    ax.set_yticklabels(ylabels, fontsize=24)
+                    ax.set_ylabel(ylabel, labelpad=15, fontsize=34)
+                    ax.yaxis.set_tick_params(labelleft=True)
                 else:
-                    # Use per-row ylim if available
-                    row_ylim = ylim[row] if isinstance(ylim, (list, tuple)) and len(ylim) > row else (0, 1)
+                    row_ylim = (0, 0.8)
+                    ylabel = "Inflection Selectivity"
                     yticks, ylabels = get_tick_values(row_ylim[0], row_ylim[1])
                     ax.set_ylim(*row_ylim)
                     ax.set_yticks(yticks)
-                    if col == 0:
-                        ax.yaxis.set_tick_params(labelleft=True)
-                        ax.set_yticklabels(ylabels)
-                        if row == 0:
-                            ax.set_ylabel("Lexeme Accuracy", labelpad=15)
-                        elif row == 1:
-                            ax.set_ylabel("Inflection Accuracy", labelpad=15)
-                    else:
-                        ax.yaxis.set_tick_params(labelleft=False)
-                
+                    ax.set_yticklabels(ylabels, fontsize=24)
+                    ax.set_ylabel(ylabel, labelpad=15, fontsize=34)
+                    ax.yaxis.set_tick_params(labelleft=True)
+                yticks, _ = get_tick_values(row_ylim[0], row_ylim[1])
+                ax.set_ylim(*row_ylim)
+                ax.set_yticks(yticks)
+                ax.set_xlabel("Normalized layer number (%)", labelpad=15, fontsize=34)
                 ax.grid(True, linestyle="--", alpha=0.4, linewidth=0.8)
-                
-                if row == 1:
-                    ax.set_xlabel("Normalized layer number (%)", labelpad=15)
-                else:
-                    ax.set_xticklabels([])
-                    ax.set_xlabel("")
-                
-                if row == 0:
-                    ax.set_title(titles[col], pad=15)
+                ax.set_title(titles[col], pad=15, fontsize=34)
 
-    fig1, axes1 = plt.subplots(n_rows, n_cols, figsize=fig_size)
-    axes1 = np.atleast_2d(axes1)
-    plot_panel(fig1, axes1, plot_selectivity=False)
-    handles, labels = axes1[0, 0].get_legend_handles_labels()
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=fig_size)
+    axes = np.atleast_2d(axes)
+    plot_panel(fig, axes)
+    # Reduce horizontal spacing between plots
+    fig.tight_layout(rect=[0, 0.18, 1, 1], w_pad=0.5)
+    handles, labels = axes[0, 0].get_legend_handles_labels()
     if handles and labels:
-        fig1.legend(handles, labels, loc="lower center", bbox_to_anchor=bbox_to_anchor,
-                    ncol=min(4, len(labels)), mode="expand", frameon=True)
-    fig1.tight_layout(rect=[0, 0.05, 1, 0.97])
+        fig.legend(
+            handles, labels,
+            loc="lower center",
+            bbox_to_anchor=(0, -0.02, 1, 0.16),
+            ncol=min(4, len(labels)),
+            mode="expand",
+            frameon=True,
+            fontsize=28,
+            title_fontsize=34
+        )
     os.makedirs(output_dir, exist_ok=True)
-    filename1 = linguistic_filename or f"linguistic_accuracy{'_pca_' + str(pca_dim) if pca else ''}.png"
-    fig1.savefig(os.path.join(output_dir, filename1), bbox_inches="tight")
-    print(f"Saved linguistic accuracy figure to {os.path.join(output_dir, filename1)}")
-
-    fig2, axes2 = plt.subplots(n_rows, n_cols, figsize=fig_size)
-    axes2 = np.atleast_2d(axes2)
-    plot_panel(fig2, axes2, plot_selectivity=True)
-    handles2, labels2 = axes2[0, 0].get_legend_handles_labels()
-    if handles2 and labels2:
-        fig2.legend(handles2, labels2, loc="lower center", bbox_to_anchor=bbox_to_anchor,
-                    ncol=min(4, len(labels2)), mode="expand", frameon=True)
-    fig2.tight_layout(rect=[0, 0.05, 1, 0.97])
-    filename2 = selectivity_filename or f"classifier_selectivity{'_pca_' + str(pca_dim) if pca else ''}.png"
-    fig2.savefig(os.path.join(output_dir, filename2), bbox_inches="tight")
-    print(f"Saved selectivity figure to {os.path.join(output_dir, filename2)}")
+    fig.savefig(os.path.join(output_dir, linguistic_filename), bbox_inches="tight")
+    print(f"Saved RF combined accuracy/selectivity figure to {os.path.join(output_dir, linguistic_filename)}")
 
     regression_df = pd.DataFrame(all_regression_results)
-    regression_filepath = os.path.join(output_dir, "all_regression_results.csv")
+    regression_filepath = os.path.join(output_dir, "rf_regression_results.csv")
     regression_df.to_csv(regression_filepath, index=False)
-    print(f"Saved all regression results to {regression_filepath}")
-
-# pythia_models = [
-#     "pythia-6.9b_step1",
-#     "pythia-6.9b_step64",
-#     "pythia-6.9b_step6000",
-#     "pythia-6.9b_step19000",
-#     "pythia-6.9b_step37000",
-#     "pythia-6.9b_step57000",
-#     "pythia-6.9b_step82000",
-#     "pythia-6.9b_step111000",
-#     "pythia-6.9b",
-# ]
-# dataset = "ud_gum_dataset"
-# linguistic_filename = "pythia_linguistic_accuracy.png"
-# select_filename = "pythia_classifier_selectivity.png"
-# plot_linguistic_and_selectivity(
-#     dataset,
-#     pythia_models,
-#     probe_type="nn",
-#     pca=False,
-#     linguistic_filename=linguistic_filename,
-#     selectivity_filename=select_filename,
-#     ylim=[(0, 1.0), (0.6, 1.0)],
-# )
-
-# olmo_models = [
-#     "olmo2-7b_stage1-step5000-tokens21B",
-#     "olmo2-7b_stage1-step40000-tokens168B",
-#     "olmo2-7b_stage1-step97000-tokens407B",
-#     "olmo2-7b_stage1-step179000-tokens751B",
-#     "olmo2-7b_stage1-step282000-tokens1183B",
-#     "olmo2-7b_stage1-step409000-tokens1716B",
-#     "olmo2-7b_stage1-step559000-tokens2345B",
-#     "olmo2-7b_stage1-step734000-tokens3079B",
-#     "olmo2-7b",
-# ]
-# linguistic_filename = "olmo_linguistic_accuracy.png"
-# select_filename = "olmo_classifier_selectivity.png"
-# plot_linguistic_and_selectivity(
-#     dataset,
-#     olmo_models,
-#     probe_type="nn",
-#     pca=False,
-#     linguistic_filename=linguistic_filename,
-#     selectivity_filename=select_filename,
-#     ylim=[(0.6, 1.0), (0.6, 1.0)],
-# )
+    print(f"Saved RF regression results to {regression_filepath}")
 
 # Plot with all models
 all_models = [
@@ -429,14 +463,23 @@ all_models = [
     "llama3-8b", "llama3-8b-instruct",
 ]
 dataset = "ud_gum_dataset"
-linguistic_filename = "linguistic_accuracy.png"
-select_filename = "classifier_selectivity.png"
+linguistic_filename = "linguistic_and_selectivity.png"
 plot_linguistic_and_selectivity(
     dataset,
     all_models,
-    probe_type="nn",
     pca=False,
     linguistic_filename=linguistic_filename,
-    selectivity_filename=select_filename,
+    selectivity_filename=None,
+    ylim=[(0, 1.0), (0.8, 1.0)],
+)
+
+# Plot with all models for random forest only (now combined plot)
+rf_combined_filename = "rf_combined_accuracy_selectivity.png"
+plot_rf_only(
+    dataset,
+    all_models,
+    pca=False,
+    linguistic_filename=rf_combined_filename,
+    selectivity_filename=None,  # Not used anymore
     ylim=[(0, 1.0), (0.6, 1.0)],
 )

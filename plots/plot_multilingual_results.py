@@ -31,12 +31,12 @@ model_names = {
     "qwen2-instruct": "Qwen2.5-1.5B-Instruct",
     "qwen2.5-7B": "Qwen2.5-7B",
     "qwen2.5-7B-instruct": "Qwen2.5-7B-Instruct",
-    "goldfish_eng_latn_1000mb": "Goldfish English (1GB)",
-    "goldfish_zho_hans_1000mb": "Goldfish Chinese (1GB)",
-    "goldfish_deu_latn_1000mb": "Goldfish German (1GB)",
-    "goldfish_fra_latn_1000mb": "Goldfish French (1GB)",
-    "goldfish_rus_cyrl_1000mb": "Goldfish Russian (1GB)",
-    "goldfish_tur_latn_1000mb": "Goldfish Turkish (1GB)",
+    "goldfish_eng_latn_1000mb": "Goldfish English",
+    "goldfish_zho_hans_1000mb": "Goldfish Chinese",
+    "goldfish_deu_latn_1000mb": "Goldfish German",
+    "goldfish_fra_latn_1000mb": "Goldfish French",
+    "goldfish_rus_cyrl_1000mb": "Goldfish Russian",
+    "goldfish_tur_latn_1000mb": "Goldfish Turkish",
 }
 
 MODEL_COLORS = [
@@ -50,14 +50,13 @@ MODEL_COLORS = [
     "#c7e9c0", "#fdae6b", "#9ecae1", "#fd8d3c"
 ]
 
-# Language-based color palettes - each language gets a gradient
 LANGUAGE_COLORS = {
-    "English": ["#1f77b4", "#4a90c2", "#7fabd0", "#b3c6de"],  # Blues
-    "Chinese": ["#d62728", "#e04a4f", "#ea6d77", "#f490a0"],  # Reds
-    "German": ["#2ca02c", "#4fb84f", "#72cf72", "#95e695"],   # Greens
-    "French": ["#ff7f0e", "#ff9533", "#ffaa58", "#ffbf7d"],  # Oranges
-    "Russian": ["#9467bd", "#a67dca", "#b893d7", "#caa9e4"], # Purples
-    "Turkish": ["#8c564b", "#a06b5f", "#b48073", "#c89587"], # Browns
+    "English": ["#1f77b4", "#4a90c2", "#7fabd0", "#b3c6de"],
+    "Chinese": ["#d62728", "#e04a4f", "#ea6d77", "#f490a0"],
+    "German": ["#2ca02c", "#4fb84f", "#72cf72", "#95e695"],
+    "French": ["#ff7f0e", "#ff9533", "#ffaa58", "#ffbf7d"],
+    "Russian": ["#9467bd", "#a67dca", "#b893d7", "#caa9e4"],
+    "Turkish": ["#8c564b", "#a06b5f", "#b48073", "#c89587"],
 }
 
 def get_model_color(model, model_list):
@@ -144,329 +143,180 @@ def find_csv_file(model_key, dataset, task, probe_type):
     
     return None
 
-def plot_t5_results(model_to_dataset, model_list, output_dir="figures3", filename_prefix=""):
-    probe_types = ["reg", "mlp", "rf"]
-    titles = ["Linear Regression", "MLP", "Random Forest"]
-    tasks = ["lexeme", "inflection"]
-    n_rows, n_cols = len(tasks), len(probe_types)
-    
-    aspect_ratio, base_height = 8 / 3, 5
-    fig_size = (n_cols * base_height * aspect_ratio / n_rows, n_rows * base_height)
+def plot_combined_accuracy_selectivity(
+    model_to_dataset, model_list, output_dir="figures3", filename_prefix="", rf_only=False
+):
+    """
+    Plot combined accuracy and selectivity for reg/mlp probes (2x4 grid) or RF probe (1x2 grid).
+    If rf_only=True, only plot RF probe for inflection (1x2 grid).
+    """
+    if rf_only:
+        probes = ["rf"]
+        tasks = ["inflection"]
+        n_rows, n_cols = 1, 2
+        titles = ["Random Forest Accuracy", "Random Forest Selectivity"]
+        aspect_ratio, base_height = 6.5, 5
+        fig_width = n_cols * base_height * aspect_ratio / 2.0
+        fig_height = 2 * base_height
+        fig_size = (fig_width, fig_height)
+    else:
+        probes = ["reg", "mlp"]
+        tasks = ["lexeme", "inflection"]
+        n_rows, n_cols = len(tasks), len(probes) * 2
+        titles = ["Linear Regression", "MLP"]
+        aspect_ratio, base_height = 3.5, 5
+        fig_width = n_cols * base_height * aspect_ratio / 2.0
+        fig_height = n_rows * base_height
+        fig_size = (fig_width, fig_height)
 
-    # Pre-check which files exist to reduce redundant warnings
-    file_availability = {}
-    missing_files = []
-    
-    for model_key in model_list:
-        dataset = model_to_dataset[model_key]
-        file_availability[model_key] = {}
-        for task in ["lexeme", "inflection"]:
-            for probe in ["reg", "mlp", "rf"]:
-                csv_path = find_csv_file(model_key, dataset, task, probe)
-                file_availability[model_key][(task, probe)] = csv_path
-                if csv_path is None and (model_key, task, probe) not in missing_files:
-                    missing_files.append((model_key, task, probe))
-    
-    # Print summary of missing files once
-    if missing_files:
-        print(f"[INFO] Missing {len(missing_files)} probe result files (will skip in plots)")
-        for model, task, probe in missing_files:
-            if task == "lexeme" and probe == "rf":
-                continue
-            print(f"  - {model} {task} {probe}")
-
-    def plot_panel(fig, axes, plot_selectivity=False):
-        for row, task in enumerate(tasks):
-            for col, probe in enumerate(probe_types):
-                ax = axes[row, col]
-                
-                if task == "lexeme" and probe == "rf":
-                    ax.text(0.5, 0.5, "(computationally infeasible: too many classes,\nprone to overfitting)",
-                            ha="center", va="center", transform=ax.transAxes, fontsize=18, color="gray")
-                    ax.set_xlim(0, 1)
-                    ax.set_xticks(np.arange(0, 1.1, 0.2))
-                    ax.set_xticklabels([f"{x*100:.0f}" for x in np.arange(0, 1.1, 0.2)])
-                    ax.set_ylim(0, 1)
-                    ax.set_yticks(np.arange(0, 1.1, 0.2))
-                    if col == 0:
-                        ax.set_yticklabels([f"{y:.1f}" for y in np.arange(0, 1.1, 0.2)])
-                        if row == 0:
-                            ylabel = "Lexeme Selectivity" if plot_selectivity else "Lexeme Accuracy"
-                            ax.set_ylabel(ylabel, labelpad=15)
-                        elif row == 1:
-                            ylabel = "Inflection Selectivity" if plot_selectivity else "Inflection Accuracy"
-                            ax.set_ylabel(ylabel, labelpad=15)
-                    else:
-                        ax.set_yticklabels([])
-                    ax.grid(True, linestyle="--", alpha=0.4, linewidth=0.8)
-                    if row == 1:
-                        ax.set_xlabel("Normalized layer number (%)", labelpad=15)
-                    if row == 0:
-                        ax.set_title(titles[col], pad=15)
-                    continue
-                
-                # Main plotting loop
-                for i, model_key in enumerate(model_list):
-                    csv_path = file_availability[model_key].get((task, probe))
-                    
-                    if csv_path is None:
-                        continue  # Skip silently since we already reported missing files
-                        
-                    try:
-                        df = pd.read_csv(csv_path)
-                        acc_col, ctrl_col = get_acc_columns(df, task)
-                        df["Layer_Normalized"] = (df["Layer"] - df["Layer"].min()) / (df["Layer"].max() - df["Layer"].min())
-                        
-                        if plot_selectivity:
-                            y = df[acc_col] - df[ctrl_col]
-                        else:
-                            y = df[acc_col]
-                            
-                        ax.plot(
-                            df["Layer_Normalized"], y,
-                            label=model_names.get(model_key, model_key),
-                            linewidth=3.0,
-                            color=get_model_color_by_language(model_key, model_list),
-                            linestyle=get_model_linestyle(model_key),
-                        )
-                    except Exception as e:
-                        print(f"[WARN] Error processing {model_key} {task} {probe}: {e}")
-                        continue
-                
-                # Set axis properties
-                ax.set_xlim(0, 1)
-                ax.set_xticks(np.arange(0, 1.1, 0.2))
-                ax.set_xticklabels([f"{x*100:.0f}" for x in np.arange(0, 1.1, 0.2)])
-                
-                if plot_selectivity:
-                    row_ylim = (-0.3, 0.3) if row == 0 else (0, 0.8)
-                else:
-                    if row == 0:  # lexeme accuracy
-                        row_ylim = (0, 1.0)
-                    else:  # inflection accuracy
-                        row_ylim = (0.6, 1.0)
-                    
-                ax.set_ylim(*row_ylim)
-                
-                if col == 0:
-                    if row == 0:
-                        ylabel = "Lexeme Selectivity" if plot_selectivity else "Lexeme Accuracy"
-                        ax.set_ylabel(ylabel, labelpad=15)
-                    elif row == 1:
-                        ylabel = "Inflection Selectivity" if plot_selectivity else "Inflection Accuracy"
-                        ax.set_ylabel(ylabel, labelpad=15)
-                
-                ax.grid(True, linestyle="--", alpha=0.4, linewidth=0.8)
-                
-                if row == 1:
-                    ax.set_xlabel("Normalized layer number (%)", labelpad=15)
-                if row == 0:
-                    ax.set_title(titles[col], pad=15)
-
-    # Plot linguistic accuracy
-    fig1, axes1 = plt.subplots(n_rows, n_cols, figsize=fig_size)
-    axes1 = np.atleast_2d(axes1)
-    plot_panel(fig1, axes1, plot_selectivity=False)
-    
-    # Create language-grouped legend
-    grouped_handles, grouped_labels = create_language_grouped_legend(axes1[0, 0], model_list)
-    if grouped_handles and grouped_labels:
-        fig1.legend(grouped_handles, grouped_labels, loc="lower center", bbox_to_anchor=bbox_to_anchor,
-                    ncol=min(4, len(grouped_labels)), mode="expand", frameon=True)
-    
-    fig1.tight_layout(rect=[0, 0.05, 1, 0.97])
-    os.makedirs(output_dir, exist_ok=True)
-    filename1 = f"{filename_prefix}all_languages_linguistic_accuracy.png"
-    fig1.savefig(os.path.join(output_dir, filename1), bbox_inches="tight")
-    print(f"Saved linguistic accuracy figure to {os.path.join(output_dir, filename1)}")
-
-    # Plot selectivity
-    fig2, axes2 = plt.subplots(n_rows, n_cols, figsize=fig_size)
-    axes2 = np.atleast_2d(axes2)
-    plot_panel(fig2, axes2, plot_selectivity=True)
-    
-    # Create language-grouped legend
-    grouped_handles2, grouped_labels2 = create_language_grouped_legend(axes2[0, 0], model_list)
-    if grouped_handles2 and grouped_labels2:
-        fig2.legend(grouped_handles2, grouped_labels2, loc="lower center", bbox_to_anchor=bbox_to_anchor,
-                    ncol=min(4, len(grouped_labels2)), mode="expand", frameon=True)
-    
-    fig2.tight_layout(rect=[0, 0.05, 1, 0.97])
-    filename2 = f"{filename_prefix}all_languages_classifier_selectivity.png"
-    fig2.savefig(os.path.join(output_dir, filename2), bbox_inches="tight")
-    print(f"Saved selectivity figure to {os.path.join(output_dir, filename2)}")
-
-def create_language_grouped_legend(axes, model_list):
-    """Create a legend grouped by language with proper ordering."""
-    # Get all handles and labels from the plot
-    handles, labels = axes.get_legend_handles_labels()
-    
-    # Group by language
-    language_groups = {}
-    for handle, label in zip(handles, labels):
-        # Extract language from label (assumes format "Model (Language)")
-        if "(" in label and ")" in label:
-            language = label.split("(")[-1].split(")")[0]
-        else:
-            language = "Unknown"
-        
-        if language not in language_groups:
-            language_groups[language] = []
-        language_groups[language].append((handle, label))
-    
-    # Sort languages and create grouped handles/labels
-    grouped_handles = []
-    grouped_labels = []
-    
-    for language in sorted(language_groups.keys()):
-        for handle, label in language_groups[language]:
-            grouped_handles.append(handle)
-            grouped_labels.append(label)
-    
-    return grouped_handles, grouped_labels
-
-def generate_t5_markdown_tables(model_to_dataset, model_list, output_dir="figures3"):
-    """Generate markdown tables for T5 models across all languages."""
-    percentages = [0, 25, 50, 75, 100]
-    
-    probe_types = ["reg", "mlp"]
-    tasks = ["lexeme", "inflection"]
-    
-    probe_names = {
-        "reg": "Linear Regression",
-        "mlp": "MLP"
-    }
-    
     # Pre-check file availability
     file_availability = {}
     for model_key in model_list:
         dataset = model_to_dataset[model_key]
         file_availability[model_key] = {}
         for task in tasks:
-            for probe_type in probe_types:
+            for probe_type in probes:
                 csv_path = find_csv_file(model_key, dataset, task, probe_type)
                 file_availability[model_key][(task, probe_type)] = csv_path
-    
-    # Group models by family
-    model_families = {}
-    for model_key in model_list:
-        if model_key.startswith('goldfish_'):
-            family = "Goldfish"
-        elif model_key.startswith('mt5_'):
-            family = "mT5"
-        elif model_key.startswith('qwen2.5-7B-instruct_'):
-            family = "Qwen2.5-7B-Instruct"
-        elif model_key.startswith('qwen2.5-7B_'):
-            family = "Qwen2.5-7B"
-        elif model_key.startswith('qwen2-instruct_'):
-            family = "Qwen2.5-1.5B-Instruct"
-        elif model_key.startswith('qwen2_'):
-            family = "Qwen2.5-1.5B"
-        else:
-            family = "Other"
-        
-        if family not in model_families:
-            model_families[family] = []
-        model_families[family].append(model_key)
-    
-    for task in tasks:
-        for probe_type in probe_types:
-            probe_name = probe_names[probe_type]
-            
-            print(f"\n## {task.title()} Accuracy - {probe_name}\n")
-            
-            # Process each model family separately
-            for family_name in sorted(model_families.keys()):
-                family_models = model_families[family_name]
-                
-                # Collect all valid CSVs and their layer counts for this family
-                valid_models = []
-                layer_counts = []
-                
-                for model_key in family_models:
-                    csv_path = file_availability[model_key].get((task, probe_type))
-                    if csv_path:
-                        try:
-                            df = pd.read_csv(csv_path)
-                            valid_models.append((model_key, csv_path))
-                            layer_counts.append(len(df))
-                        except:
-                            continue
-                
-                if not valid_models:
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=fig_size, constrained_layout=True)
+    axes = np.atleast_2d(axes)
+
+    for row, task in enumerate(tasks):
+        for col in range(n_cols):
+            if rf_only:
+                probe_type = "rf"
+                plot_selectivity = (col == 1)
+                ax = axes[0, col]
+            else:
+                probe_idx = col % 2
+                probe_type = probes[probe_idx]
+                plot_selectivity = (col >= 2)
+                ax = axes[row, col]
+            for i, model_key in enumerate(model_list):
+                csv_path = file_availability[model_key].get((task, probe_type))
+                if csv_path is None:
                     continue
-                
-                # Use the most common layer count for header generation
-                from collections import Counter
-                most_common_layers = Counter(layer_counts).most_common(1)[0][0]
-                
-                layer_indices = [int(most_common_layers * p / 100) for p in percentages]
-                layer_indices[-1] = most_common_layers - 1
-                
-                headers = []
-                for i, (layer_idx, pct) in enumerate(zip(layer_indices, percentages)):
-                    if pct == 0:
-                        headers.append(f"Layer {layer_idx} (first)")
-                    elif pct == 100:
-                        headers.append(f"Layer {layer_idx} (last)")
+                try:
+                    df = pd.read_csv(csv_path)
+                    acc_col, ctrl_col = get_acc_columns(df, task)
+                    df["Layer_Normalized"] = (df["Layer"] - df["Layer"].min()) / (df["Layer"].max() - df["Layer"].min())
+                    if plot_selectivity:
+                        if ctrl_col not in df.columns:
+                            ax.text(0.5, 0.5, "No selectivity data", ha="center", va="center",
+                                    transform=ax.transAxes, fontsize=22)
+                            continue
+                        y = df[acc_col] - df[ctrl_col]
                     else:
-                        headers.append(f"Layer {layer_idx}")
-                
-                print(f"### {family_name}\n")
-                header_row = "| Model | Dataset | " + " | ".join(headers) + " |"
-                separator_row = "|" + "|".join([" --- "] * (len(headers) + 2)) + "|"
-                
-                print(header_row)
-                print(separator_row)
-                
-                # Group models in this family by language
-                language_groups = {}
-                for model_key in family_models:
-                    dataset = model_to_dataset[model_key]
-                    language = model_names.get(model_key, model_key)
-                    
-                    # Extract language from model name (assumes format "Model (Language)")
-                    if "(" in language and ")" in language:
-                        lang_part = language.split("(")[-1].split(")")[0]
-                    else:
-                        lang_part = "Unknown"
-                    
-                    if lang_part not in language_groups:
-                        language_groups[lang_part] = []
-                    language_groups[lang_part].append((model_key, dataset, language))
-                
-                # Sort languages alphabetically
-                for lang in sorted(language_groups.keys()):
-                    models_in_lang = language_groups[lang]
-                    
-                    for model_key, dataset, language in models_in_lang:
-                        csv_path = file_availability[model_key].get((task, probe_type))
-                        
-                        if csv_path is None:
-                            row_data = ["N/A"] * len(percentages)
-                        else:
-                            try:
-                                df = pd.read_csv(csv_path)
-                                acc_col, _ = get_acc_columns(df, task)
-                                
-                                actual_n_layers = len(df)
-                                actual_layer_indices = [int(actual_n_layers * p / 100) for p in percentages]
-                                actual_layer_indices[-1] = actual_n_layers - 1
-                                
-                                row_data = []
-                                for layer_idx in actual_layer_indices:
-                                    if 0 <= layer_idx < len(df):
-                                        accuracy = df.iloc[layer_idx][acc_col]
-                                        row_data.append(f"{accuracy:.3f}")
-                                    else:
-                                        row_data.append("N/A")
-                            except Exception as e:
-                                row_data = ["N/A"] * len(percentages)
-                        
-                        row = f"| {language} | {dataset} | " + " | ".join(row_data) + " |"
-                        print(row)
-                
-                print()  # Add blank line between families
+                        y = df[acc_col]
+                    ax.plot(
+                        df["Layer_Normalized"], y,
+                        label=model_names.get(model_key, model_key),
+                        linewidth=3.0,
+                        color=get_model_color_by_language(model_key, model_list),
+                        linestyle=get_model_linestyle(model_key),
+                    )
+                except Exception as e:
+                    ax.text(0.5, 0.5, f"No {task} data", ha="center", va="center",
+                            transform=ax.transAxes, fontsize=22)
+            ax.tick_params(axis='both', which='major', length=10, width=2, labelsize=20)
+            ax.set_xlim(0, 1)
+            ax.set_xticks(np.arange(0, 1.1, 0.2))
+            ax.set_xticklabels([f"{x*100:.0f}" for x in np.arange(0, 1.1, 0.2)], fontsize=24)
+            # Set y-limits and labels
+            if rf_only:
+                if col == 0:
+                    row_ylim = (0.6, 1.0)
+                    ylabel = "Inflection Accuracy"
+                else:
+                    row_ylim = (0, 0.8)
+                    ylabel = "Inflection Selectivity"
+            else:
+                if plot_selectivity:
+                    row_ylim = (-0.3, 0.3) if row == 0 else (0, 0.8)
+                    ylabel = "Lexeme Selectivity" if row == 0 else "Inflection Selectivity"
+                else:
+                    row_ylim = (0, 1.0) if row == 0 else (0.6, 1.0)
+                    ylabel = "Lexeme Accuracy" if row == 0 else "Inflection Accuracy"
+            yticks = np.arange(row_ylim[0], row_ylim[1] + 0.01, 0.2)
+            ax.set_ylim(*row_ylim)
+            ax.set_yticks(yticks)
+            if (not rf_only and (col == 0 or col == 2)) or (rf_only):
+                ax.yaxis.set_tick_params(labelleft=True)
+                ax.set_yticklabels([f"{y:.1f}" for y in yticks], fontsize=24)
+                if (not rf_only and row == 0 and col == 0) or (rf_only and col == 0):
+                    ax.set_ylabel(ylabel, labelpad=20, fontsize=34)
+                elif (not rf_only and row == 0 and col == 2) or (rf_only and col == 1):
+                    ax.set_ylabel(ylabel, labelpad=20, fontsize=34)
+                else:
+                    ax.set_ylabel(ylabel, labelpad=20, fontsize=34)
+            else:
+                ax.yaxis.set_tick_params(labelleft=False)
+                ax.set_yticklabels([])
+            ax.grid(True, linestyle="--", alpha=0.4, linewidth=0.8)
+            if (rf_only and True) or (not rf_only and row == 1):
+                ax.set_xlabel("Normalized layer number (%)", labelpad=15, fontsize=34)
+            else:
+                ax.set_xticklabels([])
+                ax.set_xlabel("")
+            if not rf_only and row == 0:
+                title_idx = col % 2
+                ax.set_title(f"{titles[title_idx]}", pad=10, loc='center', fontsize=34)
+            elif rf_only:
+                ax.set_title(titles[col], pad=15, fontsize=34)
+
+    def get_language_from_label(label):
+        if "(" in label and ")" in label:
+            return label.split("(")[-1].split(")")[0]
+        return "Unknown"
+
+    # Legend grouping by language - use all models from model_list
+    language_groups = {}
+    for model_key in model_list:
+        label = model_names.get(model_key, model_key)
+        lang = get_language_from_label(label)
+        # Remove language in parentheses from label for legend
+        if "(" in label and ")" in label:
+            model_label = label[:label.rfind("(")].strip()
+        else:
+            model_label = label
+        if lang not in language_groups:
+            language_groups[lang] = []
+        # Create a dummy handle with the correct color and linestyle
+        color = get_model_color_by_language(model_key, model_list)
+        linestyle = get_model_linestyle(model_key)
+        handle = plt.Line2D([], [], color=color, linestyle=linestyle, linewidth=3.0)
+        language_groups[lang].append((handle, model_label))
+    
+    grouped_handles = []
+    grouped_labels = []
+    for lang in sorted(language_groups.keys()):
+        # Add language as a dummy handle (invisible)
+        grouped_handles.append(plt.Line2D([], [], color='none', label=lang))
+        grouped_labels.append(lang)
+        for handle, model_label in language_groups[lang]:
+            grouped_handles.append(handle)
+            grouped_labels.append(model_label)
+    if grouped_handles and grouped_labels:
+        fig.legend(
+            grouped_handles, grouped_labels,
+            loc="lower center",
+            bbox_to_anchor=(0, -0.45, 1, 0.16),
+            ncol=min(6, len(grouped_labels)),
+            mode="expand",
+            frameon=True,
+            fontsize=28,
+        )
+
+    os.makedirs(output_dir, exist_ok=True)
+    if rf_only:
+        filename = f"{filename_prefix}rf_combined_accuracy_selectivity.png"
+        printmsg = "Saved RF combined accuracy/selectivity figure to"
+    else:
+        filename = f"{filename_prefix}combined_linguistic_and_selectivity.png"
+        printmsg = "Saved combined linguistic/selectivity (reg/mlp) figure to"
+    fig.savefig(os.path.join(output_dir, filename), bbox_inches="tight")
+    print(f"{printmsg} {os.path.join(output_dir, filename)}")
 
 if __name__ == "__main__":
     all_models = []
@@ -516,7 +366,7 @@ if __name__ == "__main__":
         model_names[model_key] = f"{model_names[goldfish_model]} ({lang})"
     
     print("Plotting multilingual models across all languages...")
-    plot_t5_results(model_to_dataset, all_models)
-    
-    # print("\nGenerating markdown tables for multilingual models...")
-    # generate_t5_markdown_tables(model_to_dataset, all_models)
+    plot_combined_accuracy_selectivity(model_to_dataset, all_models, filename_prefix="all_languages_")
+    plot_combined_accuracy_selectivity(
+        model_to_dataset, all_models, output_dir="figures3", filename_prefix="all_languages_", rf_only=True
+    )

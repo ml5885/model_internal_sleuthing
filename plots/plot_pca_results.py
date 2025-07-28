@@ -183,17 +183,17 @@ def plot_pca_results(
     fig1.text(-0.03, 0.29, "Inflection", va="center", rotation="vertical", fontsize=22)
 
     handles, labels = axes1[0,0].get_legend_handles_labels()
-    fig1.legend(
-        handles, labels,
-        loc="upper center",
-        fontsize=20,
-        frameon=True,
-        ncol=6,
-        bbox_to_anchor=(0.5, 0.02),
-        borderaxespad=2.0,
-        fancybox=True,
-        title_fontsize=22
-    )
+    if handles and labels:
+        fig1.legend(
+            handles, labels,
+            loc="lower center",
+            bbox_to_anchor=(0, -0.25, 1, 0.1),
+            ncol=min(6, len(labels)),
+            mode="expand",
+            frameon=True,
+            fontsize=20,
+            title_fontsize=22
+        )
 
     os.makedirs(output_dir, exist_ok=True)
     filename1 = f"combined_probes_pca_{pca_dim}.png"

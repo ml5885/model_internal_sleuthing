@@ -130,6 +130,9 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
         for row, task in enumerate(tasks):
             for col, probe in enumerate(probe_types):
                 ax = axes[row, col]
+                # Add column titles for the first row
+                if row == 0 and col < len(titles):
+                    ax.set_title(titles[col], pad=15)
                 if task == "lexeme" and probe == "rf":
                     ax.text(0.5, 0.5, "(computationally infeasible: too many classes,\nprone to overfitting)",
                             ha="center", va="center", transform=ax.transAxes, fontsize=18, color="gray")
@@ -148,8 +151,7 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
                     ax.grid(True, linestyle="--", alpha=0.4, linewidth=0.8)
                     if row == 1:
                         ax.set_xlabel("Normalized layer number (%)", labelpad=15)
-                    if row == 0:
-                        ax.set_title(titles[col], pad=15)
+                    # Remove redundant set_title here
                     continue
 
                 for model_key in model_list_subset:
