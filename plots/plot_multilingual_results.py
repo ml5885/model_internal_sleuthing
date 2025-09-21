@@ -12,6 +12,7 @@ sns.set_style("white")
 mpl.rcParams["figure.dpi"] = 100
 plt.rcParams.update({
     "font.size": 22,
+    "font.family": "serif",
     "axes.labelsize": 24,
     "axes.titlesize": 26,
     "xtick.labelsize": 20,
@@ -238,7 +239,10 @@ def plot_combined_accuracy_selectivity(
                 else:
                     row_ylim = (0, 1.0) if row == 0 else (0.6, 1.0)
                     ylabel = "Lexeme Accuracy" if row == 0 else "Inflection Accuracy"
-            yticks = np.arange(row_ylim[0], row_ylim[1] + 0.01, 0.2)
+            if row_ylim == (0.6, 1.0):
+                yticks = np.arange(row_ylim[0], row_ylim[1] + 0.01, 0.1)
+            else:
+                yticks = np.arange(row_ylim[0], row_ylim[1] + 0.01, 0.2)
             ax.set_ylim(*row_ylim)
             ax.set_yticks(yticks)
             if (not rf_only and (col == 0 or col == 2)) or (rf_only):

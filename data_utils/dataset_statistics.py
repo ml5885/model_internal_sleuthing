@@ -159,7 +159,10 @@ dataset_stats = pd.DataFrame({
     ]
 })
 
-plt.rcParams.update({'font.size': 16})
+plt.rcParams.update({
+    'font.size': 16,
+    'font.family': 'serif'
+})
 
 category_counts = df['Category'].value_counts()
 category_percentages = (100 * category_counts / len(df)).round(1)

@@ -15,6 +15,7 @@ from sklearn.decomposition import PCA
 # set global plotting style
 sns.set_style('white')
 mpl.rcParams.update({
+    'font.family': 'serif',
     'figure.dpi': 100,
     'font.size': 24,
     'axes.labelsize': 26,
@@ -221,8 +222,8 @@ def plot_components_by_threshold_multiplot(dfs, models, thresholds, out_base, no
         fig.legend(
             handles, labels,
             loc='lower center',
-            bbox_to_anchor=(0, -0.26, 1, 0.1),
-            ncol=min(6, len(labels)),
+            bbox_to_anchor=(0, -0.3, 1, 0.1),
+            ncol=4,
             mode="expand",
             frameon=True,
             fontsize=28
@@ -303,7 +304,7 @@ def plot_variance_by_model_multiplot(dfs, models, thresholds, out_base):
         fig.legend(
             handles, labels,
             loc='lower center',
-            bbox_to_anchor=(0, -0.25, 1, 0.1),
+            bbox_to_anchor=(0, -0.1, 1, 0.1),
             ncol=min(6, len(labels)),
             mode="expand",
             frameon=True,

@@ -254,7 +254,7 @@ ANALOGY_MODEL_LIST = [
     "google/gemma-2-2b", "google/gemma-2-2b-it",
     "Qwen/Qwen2.5-1.5B", "Qwen/Qwen2.5-1.5B-Instruct",
     "meta-llama/Llama-3.1-8B", "meta-llama/Llama-3.1-8B-Instruct",
-    "qwen/Qwen2.5-7B", "qwen/Qwen2.5-7B-Instruct",
+    # "qwen/Qwen2.5-7B", "qwen/Qwen2.5-7B-Instruct",
 ]
 
 MODEL_TABLE_MAPPING = {

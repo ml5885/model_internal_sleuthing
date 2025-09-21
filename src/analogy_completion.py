@@ -90,8 +90,10 @@ def run_or_load_model(key: str, outdir: pathlib.Path) -> pd.DataFrame:
     path_subdir = model_dir / "results.csv"
     path_flat = outdir / f"{safe_key}_results.csv"
     if path_subdir.exists():
+        print(f"Loading results from {path_subdir}")
         return pd.read_csv(path_subdir)
     elif path_flat.exists():
+        print(f"Loading results from {path_flat}")
         return pd.read_csv(path_flat)
     df = run_models([key])
     df.to_csv(path_subdir, index=False)
@@ -100,7 +102,9 @@ def run_or_load_model(key: str, outdir: pathlib.Path) -> pd.DataFrame:
 def make_plots(df: pd.DataFrame, outdir: pathlib.Path):
     sns.set_style("white")
     outdir.mkdir(parents=True, exist_ok=True)
-
+    plt.rcParams.update({
+        'font.family': 'serif'
+    })
     sd = (
         df.pivot_table(index=["model", "analogy"], columns="method", values="rank")
           .dropna()
@@ -135,14 +139,14 @@ def make_plots(df: pd.DataFrame, outdir: pathlib.Path):
     ax.set_xscale("log", base=10)
     ax.set_yscale("log", base=10)
     ax.set_xlabel(
-        "No tokenization (subtoken-sum) - rank of correct word",
+        "Target rank (subtoken sum, no tokenization)",
         fontsize=14,
-        labelpad=16,
+        labelpad=10,
     )
     ax.set_ylabel(
-        "Apply tokenization (subtoken-average) - rank of correct word",
+        "Target rank (subtoken avg, tokenized)",
         fontsize=14,
-        labelpad=6,
+        labelpad=8,
     )
     ax.tick_params(axis="x", labelsize=14, length=4, width=1)
     ax.tick_params(axis="y", labelsize=14, length=4, width=1)

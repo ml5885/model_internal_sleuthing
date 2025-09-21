@@ -15,10 +15,11 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from src.config import MODEL_DISPLAY_NAMES
 
 sns.set_style("white")
-mpl.rcParams["figure.dpi"] = 100
+mpl.rcParams["figure.dpi"] = 150
 plt.rcParams.update(
     {
         "font.size": 30,
+        "font.family": "serif",
         "axes.labelsize": 34,
         "axes.titlesize": 26,
         "xtick.labelsize": 30,
@@ -94,42 +95,6 @@ def collect_all_results(steering_dir: str, models: list[str], dataset: str) -> p
     return out
 
 
-def lambda_legend_handles(lam_values):
-    handles = []
-    labels = []
-    for lam in sorted(lam_values):
-        style = LAMBDA_STYLES.get(lam, dict(marker="o"))
-        h = plt.Line2D(
-            [], [],
-            color="black",
-            marker=style["marker"],
-            linestyle="none",
-            markersize=6,
-        )
-        handles.append(h)
-        labels.append(f"lambda {lam:g}")
-    return handles, labels
-
-def model_legend_handles(model_values):
-    handles = []
-    labels = []
-    sorted_models = sorted(model_values, key=lambda m: list(MODEL_COLORS.keys()).index(m) if m in MODEL_COLORS else m)
-    for model in sorted_models:
-        h = plt.Line2D(
-            [], [],
-            color=MODEL_COLORS.get(model, "gray"),
-            marker="s",
-            linestyle="-",
-            linewidth=LINEWIDTH,
-        )
-        handles.append(h)
-        labels.append(MODEL_DISPLAY_NAMES.get(model, model))
-    return handles, labels
-
-def adjust_color_brightness(color, factor):
-    rgb = mcolors.to_rgb(color)
-    return tuple(min(1, max(0, c * factor)) for c in rgb)
-
 def plot_each_model_separately(df: pd.DataFrame, dataset: str, out_dir: str) -> None:
     if df.empty:
         return
@@ -183,68 +148,10 @@ def plot_each_model_separately(df: pd.DataFrame, dataset: str, out_dir: str) -> 
                 ax.legend(title="Lambda", fontsize=16, title_fontsize=18, loc="best")
                 fig.tight_layout()
                 fname = f"{metric}/{dataset}_{model}_{probe}_{metric}.png"
-                fig.savefig(os.path.join(out_dir, fname), dpi=300, bbox_inches="tight")
-                print(f"Saved plot: {fname}")
+                savepath = os.path.join(out_dir, fname)
+                fig.savefig(savepath, dpi=150, bbox_inches="tight")
+                print(f"Saved plot: {savepath}")
                 plt.close(fig)
-
-def plot_all_models_one_figure(df: pd.DataFrame, dataset: str, out_dir: str) -> None:
-    if df.empty:
-        return
-    figsize = (18, 12)
-    grid = dict(linestyle="--", alpha=0.4, linewidth=0.8)
-    metrics = {
-        "mean_prob_change": "Mean Probability Change",
-        "flip_rate": "Prediction Flip Rate",
-    }
-    for probe in df["probe_type"].unique():
-        sub_probe = df[df["probe_type"] == probe]
-        model_values = sorted(sub_probe["model"].unique())
-        lam_values = sorted(sub_probe["lambda"].unique())
-        for metric, ylabel in metrics.items():
-            fig, ax = plt.subplots(figsize=figsize)
-            for model in model_values:
-                for lam in lam_values:
-                    g = sub_probe[(sub_probe["model"] == model) & (sub_probe["lambda"] == lam)]
-                    if not g.empty:
-                        ax.plot(
-                            g["normalized_layer"],
-                            g[metric],
-                            color=MODEL_COLORS.get(model, "gray"),
-                            marker=LAMBDA_STYLES.get(lam, dict(marker="o"))["marker"],
-                            linestyle="-",
-                            linewidth=LINEWIDTH,
-                        )
-            ax.set_title(f"{ylabel} - {probe.upper()} - {dataset}")
-            ax.set_xlabel("Normalized Layer Number (%)")
-            ax.set_ylabel(ylabel)
-            ax.grid(**grid)
-
-            model_legend_h, model_legend_l = model_legend_handles(model_values)
-            model_legend = fig.legend(
-                model_legend_h,
-                model_legend_l,
-                loc="upper center",
-                bbox_to_anchor=(0.5, 0.25),
-                ncol=4,
-                frameon=True,
-            )
-            fig.add_artist(model_legend)
-
-            lambda_legend_h, lambda_legend_l = lambda_legend_handles(lam_values)
-            fig.legend(
-                lambda_legend_h,
-                lambda_legend_l,
-                title="Lambda",
-                loc="upper center",
-                bbox_to_anchor=(0.5, 0.33),
-                ncol=5,
-                frameon=True,
-            )
-            fig.tight_layout(rect=[0, 0.3, 1, 1])
-            fname = f"{dataset}_{probe}_{metric}_ALL_MODELS.png"
-            fig.savefig(os.path.join(out_dir, fname), dpi=300, bbox_inches="tight")
-            print(f"Saved plot: {fname}")
-            plt.close(fig)
 
 def plot_each_lambda_separately(df: pd.DataFrame, dataset: str, out_dir: str) -> None:
     if df.empty:
@@ -315,8 +222,9 @@ def plot_each_lambda_separately(df: pd.DataFrame, dataset: str, out_dir: str) ->
             fig.subplots_adjust(top=0.88)
             fig.tight_layout(rect=[0, 0, 1, 0.93])
             fname = f"{dataset}_{probe}_{metric}_LAMBDAS_MULTIPLOT.png"
-            fig.savefig(os.path.join(out_dir, fname), dpi=200, bbox_inches="tight")
-            print(f"Saved plot: {fname}")
+            savepath = os.path.join(out_dir, fname)
+            fig.savefig(savepath, dpi=150, bbox_inches="tight")
+            print(f"Saved plot: {savepath}")
             plt.close(fig)
 
 def main():
@@ -333,7 +241,7 @@ def main():
         print("No steering results found.")
         return
 
-    plot_all_models_one_figure(df, args.dataset, args.output_dir)
+    # plot_all_models_one_figure(df, args.dataset, args.output_dir)  # Removed as per request
     # plot_each_model_separately(df, args.dataset, args.output_dir)
     plot_each_lambda_separately(df, args.dataset, args.output_dir)
 

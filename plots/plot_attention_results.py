@@ -9,10 +9,11 @@ from sklearn.metrics import r2_score
 import matplotlib.colors as mcolors
 
 from plot_multilingual_results import (
-    plot_t5_results, generate_t5_markdown_tables, model_names,
-    get_acc_columns, MODEL_COLORS, LANGUAGE_COLORS,
-    get_model_color_by_language, get_model_linestyle, create_language_grouped_legend
+    model_names,
+    get_acc_columns, MODEL_COLORS
 )
+
+plt.rcParams.update({'font.family': 'serif'})
 
 if not isinstance(MODEL_COLORS, dict):
     MODEL_COLORS = {}
@@ -80,13 +81,13 @@ def add_legends(fig, model_list, title_model="Model", title_source="Source"):
     fig.legend(
         source_handles, [h.get_label() for h in source_handles],
         loc="lower center", bbox_to_anchor=(0.5, 0.16),
-        ncol=2, frameon=True, fontsize=18, title="", title_fontsize=18
+        ncol=2, frameon=True, fontsize=20, title="", title_fontsize=20
     )
 
     fig.legend(
         model_handles, [h.get_label() for h in model_handles],
         loc="lower center", bbox_to_anchor=model_bbox_anchor,
-        ncol=ncol, frameon=True, fontsize=18, title="", title_fontsize=18
+        ncol=ncol, frameon=True, fontsize=20, title="", title_fontsize=20
     )
 
 
@@ -95,7 +96,7 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
     titles = ["Linear Regression", "MLP", "Random Forest"]
     tasks = ["lexeme", "inflection"]
     n_rows, n_cols = len(tasks), len(probe_types)
-    aspect_ratio, base_height = 8 / 3, 5
+    aspect_ratio, base_height = 8 / 3, 6.5  # Increased base_height from 5 to 6.5 for larger plots
     fig_size = (n_cols * base_height * aspect_ratio / n_rows, n_rows * base_height)
 
     file_availability = {}
@@ -132,10 +133,10 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
                 ax = axes[row, col]
                 # Add column titles for the first row
                 if row == 0 and col < len(titles):
-                    ax.set_title(titles[col], pad=15)
+                    ax.set_title(titles[col], pad=15, fontsize=20)  # Added fontsize=20 to titles
                 if task == "lexeme" and probe == "rf":
                     ax.text(0.5, 0.5, "(computationally infeasible: too many classes,\nprone to overfitting)",
-                            ha="center", va="center", transform=ax.transAxes, fontsize=18, color="gray")
+                            ha="center", va="center", transform=ax.transAxes, fontsize=20, color="gray")  # Increased fontsize from 18 to 20
                     ax.set_xlim(0, 1)
                     ax.set_xticks(np.arange(0, 1.1, 0.2))
                     ax.set_xticklabels([f"{x*100:.0f}" for x in np.arange(0, 1.1, 0.2)])
@@ -150,7 +151,7 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
                         ax.set_yticklabels([])
                     ax.grid(True, linestyle="--", alpha=0.4, linewidth=0.8)
                     if row == 1:
-                        ax.set_xlabel("Normalized layer number (%)", labelpad=15)
+                        ax.set_xlabel("Normalized layer number (%)", labelpad=15, fontsize=20)  # Added fontsize=20 to x-labels
                     # Remove redundant set_title here
                     continue
 
@@ -210,10 +211,10 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
                             ax.set_yticks(np.arange(0.4, 1.01, 0.1))
                 if col == 0:
                     ylabel = f"{task.title()} {'Selectivity' if plot_selectivity else 'Accuracy'}"
-                    ax.set_ylabel(ylabel, labelpad=15)
+                    ax.set_ylabel(ylabel, labelpad=15, fontsize=20)  # Added fontsize=20 to y-labels
                 ax.grid(True, linestyle="--", alpha=0.4, linewidth=0.8)
                 if row == 1:
-                    ax.set_xlabel("Normalized layer number (%)", labelpad=15)
+                    ax.set_xlabel("Normalized layer number (%)", labelpad=15, fontsize=20)  # Added fontsize=20 to x-labels
 
     bert_models = [m for m in model_list if "bert" in m or "gpt" in m]
     other_models = [m for m in model_list if "bert" not in m and "gpt" not in m]
