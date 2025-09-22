@@ -29,7 +29,7 @@ declare -A DATASET_MAP=(
   [pos]="ud_gum_pos"
   [dep]="ud_gum_dep"
   [ner]="ud_gum_ner"
-  [coref]="ud_gum_coref"
+  [coref]="ud_gum_coref_pairs"
   [constituents]="ud_gum_constituents"
   [srl]="up_ewt_srl"
   [spr]="spr"
@@ -100,6 +100,8 @@ datafile_for_task() {
     echo "data/spr_all_properties.csv"
   elif [ "$task" = "relation" ]; then
     echo "data/semeval2010_relations_train.csv"
+  elif [ "$task" = "coref" ]; then
+    echo "data/ud_gum_coref_pairs_train.csv"
   else
     echo "data/${dataset}_train.csv"
   fi
