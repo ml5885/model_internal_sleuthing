@@ -2,6 +2,7 @@ import torch
 from transformers import AutoModel, AutoTokenizer
 from src import config, utils
 
+
 class ModelWrapper:
     def __init__(self, model_key: str, revision: str = None):
         if model_key not in config.MODEL_CONFIGS:
@@ -133,6 +134,8 @@ class ModelWrapper:
         )
 
     def _get_token_position(self, batch_idx, target_indices, batch_encoding):
+        # Handles mapping from word index to token index. If the underlying model/tokenizer uses word_ids,
+        # we take the last token corresponding to the word. Otherwise fall back to the last non-padding token.
         if 'byt5' in self.model_config["model_name"].lower():
             return self._extract_byt5_word_position(
                 batch_encoding.encodings[batch_idx].text,
@@ -157,7 +160,23 @@ class ModelWrapper:
             non_pad_positions = attention_mask[batch_idx].nonzero(as_tuple=False).squeeze(-1)
             return non_pad_positions[-1].item() if non_pad_positions.numel() > 0 else 0
 
-    def extract_activations(self, sentences, target_indices, use_attention=False):
+    def extract_activations(self, sentences, target_indices, use_attention: bool = False):
+        """
+        Extract hidden-state or attention activations for specified positions/spans in each sentence.
+
+        Args:
+            sentences (List[str]): List of sentences.
+            target_indices: For each sentence, this can be:
+                - An int (the index of the target word);
+                - A list of ints (a single span of word indices);
+                - A list of lists of ints (multiple spans, e.g. for multi-span tasks). All entries in the batch
+                  must have the same number of spans.
+            use_attention (bool): If True, extract attention outputs instead of hidden states.
+
+        Returns:
+            torch.Tensor: Activations of shape (batch_size, n_layers, hidden_size * n_spans).
+        """
+        # Normalize sentences into lists of words for word-level alignment
         word_lists = [sent.split() for sent in sentences]
         batch_encoding = self.tokenizer(
             word_lists,
@@ -175,44 +194,94 @@ class ModelWrapper:
         n_layers = len(self.layers)
         hidden_size = self.model.config.hidden_size
 
-        if use_attention:
-            # clear any stale hooks
-            self.attn_outputs = [None] * n_layers
-        
+        # Determine number of spans. We assume homogeneity across the batch.
+        # Convert target_indices into a canonical form: list of list of list-of-int positions.
+        normalized_targets = []
+        n_spans = None
+        for idx in target_indices:
+            # If element is a list of lists, treat as multi spans.
+            if isinstance(idx, list) and idx and all(isinstance(x, list) for x in idx):
+                spans = idx
+            # If element is a list of ints, treat as a single span.
+            elif isinstance(idx, list):
+                spans = [idx]
+            # Otherwise treat as single index.
+            else:
+                spans = [[int(idx)]]
+            # Update n_spans
+            if n_spans is None:
+                n_spans = len(spans)
+            elif n_spans != len(spans):
+                raise ValueError(
+                    "Inconsistent number of spans across samples; all examples must have the same number of spans"
+                )
+            normalized_targets.append(spans)
+        if n_spans is None:
+            n_spans = 1
+
+        # Prepare storage for activations: shape (batch_size, n_layers, hidden_size * n_spans)
         activations = torch.empty(
-            (batch_size, n_layers, hidden_size), device=self.model.device
+            (batch_size, n_layers, hidden_size * n_spans), device=self.model.device
         )
-        
+
+        if use_attention:
+            # Clear any stale hooks
+            self.attn_outputs = [None] * n_layers
+
         with torch.no_grad():
             model_kwargs = {
                 "input_ids": input_ids,
                 "attention_mask": attention_mask,
                 "output_hidden_states": not use_attention,
                 "output_attentions": use_attention,
-                "return_dict": True
+                "return_dict": True,
             }
             # T5-family models are encoder-decoder and require decoder_input_ids
-            if 't5' in self.model_config["model_name"].lower():
+            if "t5" in self.model_config["model_name"].lower():
                 model_kwargs["decoder_input_ids"] = input_ids
 
             outputs = self.model(**model_kwargs)
 
+        # Hidden states or attention outputs per layer
         if not use_attention:
             hidden_states = outputs.hidden_states
 
         for i in range(batch_size):
-            last_pos = self._get_token_position(i, target_indices, batch_encoding)
+            spans = normalized_targets[i]
             for layer_idx in range(n_layers):
+                # Prepare representation vector(s) for this layer and this sample
+                span_vectors = []
                 if use_attention:
                     ctx = self.attn_outputs[layer_idx]
                     if ctx is None:
                         raise RuntimeError(
                             f"Attention outputs for layer {layer_idx} were not set by hook."
                         )
-                    activations[i, layer_idx] = ctx[i, last_pos]
+                for span in spans:
+                    # For each span, gather token positions for each word index in span
+                    token_positions = []
+                    for word_idx in span:
+                        # Convert word-level index to token-level position
+                        pos = self._get_token_position(i, [word_idx], batch_encoding)
+                        token_positions.append(pos)
+                    # Compute the representation for this span: mean of token hidden states/attentions
+                    if use_attention:
+                        # ctx shape: (batch, seq_len, hidden_size)
+                        vecs = ctx[i, token_positions]
+                    else:
+                        vecs = hidden_states[layer_idx][i, token_positions]
+                    # Average across positions
+                    if vecs.ndim == 1:
+                        span_vec = vecs
+                    else:
+                        span_vec = vecs.mean(dim=0)
+                    span_vectors.append(span_vec)
+                # Concatenate vectors for all spans
+                if len(span_vectors) == 1:
+                    concat_vec = span_vectors[0]
                 else:
-                    activations[i, layer_idx] = hidden_states[layer_idx][i, last_pos]
-
+                    concat_vec = torch.cat(span_vectors, dim=-1)
+                activations[i, layer_idx] = concat_vec
         return activations.cpu()
 
     def _extract_byt5_word_position(self, sentence, target_index, batch_encoding, batch_idx):
