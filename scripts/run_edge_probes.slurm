@@ -8,24 +8,22 @@
 #SBATCH --time=2-00:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --gres=gpu:A100_40GB:1
+#SBATCH --gres=gpu:L40S:1
 #SBATCH --mem=64G
 #SBATCH --array=0-7
 
-# List of models to probe
 MODELS=(
     "bert-base-uncased" "bert-large-uncased" "deberta-v3-large" 
     "gpt2" "gpt2-large" "gpt2-xl"
     "pythia-6.9b" "pythia-6.9b-tulu" 
-    # "olmo2-7b" "olmo2-7b-instruct"
-    # "gemma2b" "gemma2b-it" "qwen2" "qwen2-instruct" "qwen2.5-7B" "qwen2.5-7B-instruct"
-    # "llama3-8b" "llama3-8b-instruct"
+    "olmo2-7b" "olmo2-7b-instruct"
+    "gemma2b" "gemma2b-it" "qwen2" "qwen2-instruct" "qwen2.5-7B" "qwen2.5-7B-instruct"
+    "llama3-8b" "llama3-8b-instruct"
 )
 
-# Probe architectures
 PROBES=("reg" "nn")
 
-# Eight probing tasks (map to array indices 0–7)
+# Eight probing tasks
 TASKS=("pos" "dep" "ner" "coref" "constituents" "srl" "spr" "relation")
 
 # Dataset and label-file mapping
@@ -52,21 +50,16 @@ LABELS_MAP=(
   [relation]="data/semeval2010_relations_train.csv"
 )
 
-# Determine which task to run based on the array index
-TASK=${TASKS[$SLURM_ARRAY_TASK_ID]}
-DATASET=${DATASET_MAP[$TASK]}
-LABELS_FILE=${LABELS_MAP[$TASK]}
-
-# Hugging Face caches and offline settings
 export HF_HOME=/data/user_data/ml6/.hf_cache
 export HF_HUB_CACHE=/data/hf_cache/hub
 export HF_DATASETS_CACHE=/data/hf_cache/datasets
 export HF_HUB_OFFLINE=0
+export HF_TOKEN_PATH=/home/ml6/.cache/huggingface/token
+
 
 mkdir -p /home/ml6/logs/sbatch
 mkdir -p /data/user_data/ml6/.hf_cache
 
-# Directories for activations and probe outputs
 REMOTE_ACTIVATIONS="/data/user_data/ml6/probing_outputs"
 LOCAL_PROBES="/home/ml6/model_internal_sleuthing/output/probes"
 mkdir -p "${LOCAL_PROBES}"
@@ -79,24 +72,61 @@ conda activate llm_probing
 
 cd /home/ml6/model_internal_sleuthing
 
-echo "=== Starting array task $SLURM_ARRAY_TASK_ID: task=$TASK ==="
+# Split models into 8 groups by index mod 8, one group per array task
+N_GROUPS=8
+SELECTED_MODELS=()
+for idx in "${!MODELS[@]}"; do
+  if (( idx % N_GROUPS == SLURM_ARRAY_TASK_ID )); then
+    SELECTED_MODELS+=("${MODELS[$idx]}")
+  fi
+done
 
-# Loop over all models and both probe types
-for MODEL in "${MODELS[@]}"; do
-  for PROBE in "${PROBES[@]}"; do
-    echo "---- Running model=${MODEL}, probe=${PROBE}, task=${TASK} ----"
-    python -m src.train \
-      --activations "${REMOTE_ACTIVATIONS}/${MODEL}_reps" \
-      --labels "${LABELS_FILE}" \
-      --task "${TASK}" \
-      --dataset "${DATASET}" \
-      --exp_label "${MODEL}" \
-      --probe_type "${PROBE}"
-    if [ $? -ne 0 ]; then
-      echo "Error: task ${TASK} on model ${MODEL} with probe ${PROBE} failed."
-      exit 1
-    fi
+echo "=== Starting array task $SLURM_ARRAY_TASK_ID: ${#SELECTED_MODELS[@]} models in this slice ==="
+if [ ${#SELECTED_MODELS[@]} -eq 0 ]; then
+  echo "No models assigned to this array index. Exiting."
+  exit 0
+fi
+
+# Loop over selected models, all tasks, and probe types
+for MODEL in "${SELECTED_MODELS[@]}"; do
+  for TASK in "${TASKS[@]}"; do
+    DATASET=${DATASET_MAP[$TASK]}
+    LABELS_FILE=${LABELS_MAP[$TASK]}
+    for PROBE in "${PROBES[@]}"; do
+      echo "---- Model=${MODEL}, task=${TASK}, probe=${PROBE} ----"
+
+        # Determine activation directory for this model/dataset
+        ACTIVATIONS_DIR="${REMOTE_ACTIVATIONS}/${MODEL}_${DATASET}_reps"
+
+        # If activations for this model/dataset do not exist, run extraction on the training split
+        if [ ! -d "$ACTIVATIONS_DIR" ] || ! ls "$ACTIVATIONS_DIR"/activations_part*.npz 1>/dev/null 2>&1; then
+        echo "No activations found for ${MODEL} on ${DATASET}. Extracting..."
+        python -m src.activation_extraction \
+            --data "data/${DATASET}_train.csv" \
+            --output-dir "$ACTIVATIONS_DIR" \
+            --model "$MODEL"
+        if [ $? -ne 0 ]; then
+          echo "Error: activation extraction failed for model=${MODEL}, dataset=${DATASET}"
+          exit 1
+        fi
+      else
+        echo "Using existing activations in $ACTIVATIONS_DIR"
+      fi
+
+      # Train the probe on the extracted activations
+      python -m src.train \
+        --activations "$ACTIVATIONS_DIR" \
+        --labels "$LABELS_FILE" \
+        --task "$TASK" \
+        --dataset "$DATASET" \
+        --exp_label "$MODEL" \
+        --probe_type "$PROBE"
+      if [ $? -ne 0 ]; then
+        echo "Error: training failed for model=${MODEL}, task=${TASK}, probe=${PROBE}"
+        exit 1
+      fi
+    done
   done
 done
 
-echo "Finished array task $SLURM_ARRAY_TASK_ID: task=$TASK"
+echo "Finished array task $SLURM_ARRAY_TASK_ID"
