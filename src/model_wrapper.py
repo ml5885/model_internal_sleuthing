@@ -1,6 +1,7 @@
 import torch
 from transformers import AutoModel, AutoTokenizer
 from src import config, utils
+import os
 
 
 class ModelWrapper:
@@ -10,6 +11,7 @@ class ModelWrapper:
 
         self.model_config = config.MODEL_CONFIGS[model_key]
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        cache_dir = os.environ.get("HF_HOME")
 
         # 1) Try loading PyTorch weights, else retry from TF
         try:
@@ -20,6 +22,7 @@ class ModelWrapper:
                 output_attentions=True,
                 trust_remote_code=self.model_config.get("trust_remote_code", False),
                 device_map="cuda" if torch.cuda.is_available() else "cpu",
+                cache_dir=cache_dir,
             )
         except OSError as e:
             msg = str(e).lower()
@@ -33,6 +36,7 @@ class ModelWrapper:
                     output_attentions=True,
                     trust_remote_code=self.model_config.get("trust_remote_code", False),
                     device_map="cuda" if torch.cuda.is_available() else "cpu",
+                    cache_dir=cache_dir,
                 )
             else:
                 raise
@@ -45,6 +49,7 @@ class ModelWrapper:
                 add_prefix_space=True,
                 use_fast=True,
                 trust_remote_code=self.model_config.get("trust_remote_code", False),
+                cache_dir=cache_dir,
             )
         except Exception as fast_err:
             utils.log_info(
@@ -56,6 +61,7 @@ class ModelWrapper:
                 add_prefix_space=True,
                 use_fast=False,
                 trust_remote_code=self.model_config.get("trust_remote_code", False),
+                cache_dir=cache_dir,
             )
 
         if self.tokenizer.pad_token is None:
@@ -133,26 +139,30 @@ class ModelWrapper:
             return_attention_mask=True,
         )
 
-    def _get_token_position(self, batch_idx, target_indices, batch_encoding):
-        # Handles mapping from word index to token index. If the underlying model/tokenizer uses word_ids,
-        # we take the last token corresponding to the word. Otherwise fall back to the last non-padding token.
+    def _get_token_position(self, batch_idx, target_index, batch_encoding):
+        """
+        Convert a single word-level target index for sample `batch_idx` into a token position.
+        `target_index` may be an int or a single-element list/tuple.
+        """
+        # normalize to int
+        if isinstance(target_index, (list, tuple)):
+            target_index = target_index[0]
+        tgt_word_idx = int(target_index)
+
+        # byt5 special case
         if 'byt5' in self.model_config["model_name"].lower():
             return self._extract_byt5_word_position(
                 batch_encoding.encodings[batch_idx].text,
-                target_indices[batch_idx],
+                tgt_word_idx,
                 batch_encoding,
                 batch_idx
             )
+
         try:
             word_id_map = batch_encoding.word_ids(batch_index=batch_idx)
-            tgt_word_idx = int(target_indices[batch_idx])
-            positions = [
-                pos for pos, wid in enumerate(word_id_map) if wid == tgt_word_idx
-            ]
+            positions = [pos for pos, wid in enumerate(word_id_map) if wid == tgt_word_idx]
             if not positions:
-                valid = [
-                    pos for pos, wid in enumerate(word_id_map) if wid is not None
-                ]
+                valid = [pos for pos, wid in enumerate(word_id_map) if wid is not None]
                 positions = [valid[-1]] if valid else [0]
             return positions[-1]
         except (AttributeError, ValueError):
@@ -262,7 +272,7 @@ class ModelWrapper:
                     token_positions = []
                     for word_idx in span:
                         # Convert word-level index to token-level position
-                        pos = self._get_token_position(i, [word_idx], batch_encoding)
+                        pos = self._get_token_position(i, word_idx, batch_encoding)
                         token_positions.append(pos)
                     # Compute the representation for this span: mean of token hidden states/attentions
                     if use_attention:
