@@ -48,6 +48,7 @@ declare -A LABELS_MAP=(
 
 export HF_HOME=/data/user_data/ml6/.hf_cache
 export HF_DATASETS_CACHE=/data/hf_cache/datasets
+export HF_TOKEN_PATH=/home/ml6/.cache/huggingface/token
 export HF_HUB_OFFLINE=0
 
 mkdir -p /home/ml6/logs/sbatch
