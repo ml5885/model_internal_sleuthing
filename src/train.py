@@ -219,9 +219,12 @@ def run_probes(activations, labels_path, task, lambda_reg, exp_label,
     all_preds = []
 
     # Optionally load LayerNorm weights for LLaMA3 models
-    use_llama3_norm = (
-        exp_label in ["llama3-8b", "llama3-8b-instruct"] and probe_type in ["mlp", "nn"]
-    )
+    use_llama3_norm = False
+    # Optionally enable LLaMA-3 LayerNorm usage with a flag
+    if getattr(args, "use_llama3_norm", False):
+        use_llama3_norm = (
+            exp_label in ["llama3-8b", "llama3-8b-instruct"] and probe_type in ["mlp", "nn"]
+        )
     model_wrapper = None
     if use_llama3_norm:
         from src.model_wrapper import ModelWrapper
@@ -324,6 +327,8 @@ def parse_args():
     parser.add_argument("--pca_dim", type=int, default=0)
     parser.add_argument("--output_dir", type=str, default=None,
                         help="Custom output directory for results")
+    parser.add_argument("--use_llama3_norm", action="store_true",
+                        help="If set, load LLaMA-3 to fetch LayerNorm weights (memory heavy).")
     return parser.parse_args()
 
 
