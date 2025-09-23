@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 create_edge_datasets.py
 
@@ -38,6 +36,24 @@ try:
     from conllu import parse_incr
 except Exception:
     parse_incr = None
+
+# --------------------------
+# Global config (set in main)
+# --------------------------
+MAX_ROWS: Optional[int] = 20000
+RNG_SEED: int = 1337
+
+def _write_csv_capped(df: pd.DataFrame, out_path: Path, label_for_log: str):
+    """Write df to csv, capping to MAX_ROWS with deterministic sampling if needed."""
+    global MAX_ROWS, RNG_SEED
+    n = len(df)
+    if MAX_ROWS is not None and n > MAX_ROWS:
+        # deterministic sampling
+        df = df.sample(n=MAX_ROWS, random_state=RNG_SEED).reset_index(drop=True)
+        logging.info(f"CAP: {label_for_log}: sampled {MAX_ROWS} rows from {n} -> {out_path.name}")
+    else:
+        logging.info(f"{label_for_log}: {n} rows -> {out_path.name}")
+    df.to_csv(out_path, index=False)
 
 # --------------------------
 # Constants / URLs
@@ -281,13 +297,10 @@ def build_pos_dep_ner_const(split: str):
                 "Source Type": f"UD_GUM_CONSTITUENTS_{split}",
             })
 
-    pd.DataFrame(pos_rows).to_csv(DATA_DIR / f"ud_gum_pos_{split}.csv", index=False)
-    pd.DataFrame(dep_rows).to_csv(DATA_DIR / f"ud_gum_dep_{split}.csv", index=False)
-    pd.DataFrame(ner_rows).to_csv(DATA_DIR / f"ud_gum_ner_{split}.csv", index=False)
-    pd.DataFrame(const_rows).to_csv(DATA_DIR / f"ud_gum_constituents_{split}.csv", index=False)
-    logging.info(f"Wrote POS/DEP/NER for {split}: "
-                 f"{len(pos_rows)} / {len(dep_rows)} / {len(ner_rows)} rows")
-    logging.info(f"Wrote Constituents for {split}: {len(const_rows)} rows -> ud_gum_constituents_{split}.csv")
+    _write_csv_capped(pd.DataFrame(pos_rows),  DATA_DIR / f"ud_gum_pos_{split}.csv",  f"Wrote POS for {split}")
+    _write_csv_capped(pd.DataFrame(dep_rows),  DATA_DIR / f"ud_gum_dep_{split}.csv",  f"Wrote DEP for {split}")
+    _write_csv_capped(pd.DataFrame(ner_rows),  DATA_DIR / f"ud_gum_ner_{split}.csv",  f"Wrote NER for {split}")
+    _write_csv_capped(pd.DataFrame(const_rows),DATA_DIR / f"ud_gum_constituents_{split}.csv", f"Wrote Constituents for {split}")
 
 
 def build_coref_pairs(split: str, negative_multiplier: float = 1.0, max_pairs_per_doc: int = 4000):
@@ -325,7 +338,7 @@ def build_coref_pairs(split: str, negative_multiplier: float = 1.0, max_pairs_pe
         doc_token_offset += len(tokens)
         sent_counter_in_doc += 1
 
-    rng = random.Random(1337)
+    rng = random.Random(RNG_SEED)
     for doc_id, data in docs.items():
         spans = data["spans"]
         chain_map: Dict[str, List[int]] = {}
@@ -379,8 +392,7 @@ def build_coref_pairs(split: str, negative_multiplier: float = 1.0, max_pairs_pe
             })
 
     out = DATA_DIR / f"ud_gum_coref_pairs_{split}.csv"
-    pd.DataFrame(rows).to_csv(out, index=False)
-    logging.info(f"Wrote COREF pairs for {split}: {len(rows)} rows -> {out.name}")
+    _write_csv_capped(pd.DataFrame(rows), out, f"Wrote COREF pairs for {split}")
 
 
 # --------------------------
@@ -477,8 +489,7 @@ def build_relations_from_official_zip():
     for split, path in (("train", train_path), ("test", test_path)):
         rows = _parse_semeval_official(path)
         out = DATA_DIR / f"semeval2010_relations_{split}.csv"
-        pd.DataFrame(rows).to_csv(out, index=False)
-        logging.info(f"Wrote SemEval-2010 {split}: {len(rows)} rows -> {out.name}")
+        _write_csv_capped(pd.DataFrame(rows), out, f"Wrote SemEval-2010 {split}")
 
 
 # --------------------------
@@ -615,15 +626,12 @@ def build_srl_up(split: str):
     src = download_up_ewt(split)
     rows = parse_conllup_srl(src)
     out = DATA_DIR / f"up_ewt_srl_{split}.csv"
-    pd.DataFrame(rows).to_csv(out, index=False)
-    logging.info(f"Wrote SRL (UP-EWT) for {split}: {len(rows)} rows -> {out.name}")
+    _write_csv_capped(pd.DataFrame(rows), out, f"Wrote SRL (UP-EWT) for {split}")
 
 
 # --------------------------
 # SPR (UD-EWT + PB)
 # --------------------------
-
-import tarfile
 
 SPR_URLS = {
     "pb": "https://decomp.io/projects/semantic-proto-roles/protoroles_eng_pb.tar.gz",
@@ -829,10 +837,9 @@ def build_spr():
                 sub["Label"] = (vals >= 0.5).astype(int) if vals.notna().any() else sub["Value"]
                 sub["Property"] = prop
                 sub["Source Type"] = f"SPR_{source}"
+                # per-property CSV (capped)
+                _write_csv_capped(sub, DATA_DIR / f"spr_{source}_{prop}.csv", f"[SPR {source}] {prop}")
                 out_chunks.append(sub)
-                out_path = DATA_DIR / f"spr_{source}_{prop}.csv"
-                sub.to_csv(out_path, index=False)
-                logging.info(f"[SPR {source}] {prop}: {len(sub)} rows -> {out_path.name}")
 
         # ---- per-argument long form (Property/Response per row) ----
         if _looks_like_per_arg(df) and "Property" in df.columns:
@@ -847,7 +854,6 @@ def build_spr():
                 except Exception: return None
             resp_col = "Response" if "Response" in long_df.columns else None
             if resp_col is None:
-                # some PB dumps use 'Value' or 'Response.Value'
                 resp_col = "Value" if "Value" in long_df.columns else ("Response.Value" if "Response.Value" in long_df.columns else None)
             if resp_col:
                 long_df["Value"] = long_df[resp_col].apply(resp_to_val)
@@ -866,8 +872,7 @@ def build_spr():
 
     if all_rows:
         merged_all = pd.concat(all_rows, ignore_index=True)
-        merged_all.to_csv(DATA_DIR / "spr_all_properties.csv", index=False)
-        logging.info(f"Wrote merged SPR file: {len(merged_all)} rows -> spr_all_properties.csv")
+        _write_csv_capped(merged_all, DATA_DIR / "spr_all_properties.csv", "Wrote merged SPR file")
 
 
 # --------------------------
@@ -877,11 +882,17 @@ def build_spr():
 TASKS = ["pos", "dep", "ner", "coref", "constituents", "srl", "spr", "relation"]
 
 def main():
+    global MAX_ROWS, RNG_SEED
     ap = argparse.ArgumentParser(description="Create edge-probing datasets (UD GUM, UP-EWT, SPR, SemEval2010).")
     ap.add_argument("--tasks", nargs="+", choices=TASKS, default=TASKS)
     ap.add_argument("--splits", nargs="+", choices=["train","dev","test"], default=["train","dev","test"])
     ap.add_argument("--coref_neg_mult", type=float, default=1.0)
+    ap.add_argument("--max_rows", type=int, default=20000, help="Cap each output CSV to at most this many rows (per file). Use 0 to disable.")
+    ap.add_argument("--seed", type=int, default=42, help="Sampling seed for caps.")
     args = ap.parse_args()
+
+    RNG_SEED = args.seed
+    MAX_ROWS = None if (args.max_rows is None or args.max_rows <= 0) else int(args.max_rows)
 
     if any(t in args.tasks for t in ("pos","dep","ner","constituents","coref")):
         for split in args.splits:
