@@ -46,7 +46,7 @@ eval "$(conda shell.bash hook)"
 conda activate llm_probing
 cd /home/ml6/model_internal_sleuthing
 
-N_GROUPS=8
+N_GROUPS=9
 GROUP_ID=${SLURM_ARRAY_TASK_ID}
 GROUP_MODELS=()
 for i in "${!MODELS[@]}"; do
