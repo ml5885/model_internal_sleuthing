@@ -36,8 +36,7 @@ mkdir -p /home/ml6/logs/sbatch
 mkdir -p /data/user_data/ml6/.hf_cache
 
 REMOTE_ACTIVATIONS="/data/user_data/ml6/probing_outputs2"
-# save probe outputs to output_spr
-LOCAL_PROBES="/home/ml6/model_internal_sleuthing/output_spr"
+LOCAL_PROBES="/home/ml6/model_internal_sleuthing/output_spr/probes"
 mkdir -p "${LOCAL_PROBES}"
 
 export CUDA_VISIBLE_DEVICES=0
@@ -110,6 +109,8 @@ for MODEL in "${GROUP_MODELS[@]}"; do
   # Train both probes for SPR and save to LOCAL_PROBES
   for PROBE in "${PROBES[@]}"; do
     echo "---- Training probe: model=$MODEL task=$TASK probe=$PROBE"
+    MODEL_PROBE_DIR="${LOCAL_PROBES}/${MODEL}_${DATASET}_${PROBE}"
+    mkdir -p "${MODEL_PROBE_DIR}"
     python -m src.train \
       --activations "$ACTIVATIONS_DIR" \
       --labels "$LABELS_FILE" \
@@ -117,7 +118,7 @@ for MODEL in "${GROUP_MODELS[@]}"; do
       --dataset "$DATASET" \
       --exp_label "$MODEL" \
       --probe_type "$PROBE" \
-      --output_dir "${LOCAL_PROBES}"
+      --output_dir "${MODEL_PROBE_DIR}"
     if [ $? -ne 0 ]; then
       echo "ERROR: training failed (model=$MODEL, task=$TASK, probe=$PROBE)"
       continue
