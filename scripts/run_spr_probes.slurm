@@ -4,7 +4,7 @@
 #SBATCH --error=/home/ml6/logs/sbatch/spr_probing_%x_%A_%a.err
 #SBATCH --mail-user=ml6@andrew.cmu.edu
 #SBATCH --mail-type=START,END,FAIL
-#SBATCH --partition=general
+#SBATCH --partition=preempt
 #SBATCH --time=2-00:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
@@ -117,7 +117,7 @@ for MODEL in "${GROUP_MODELS[@]}"; do
       --dataset "$DATASET" \
       --exp_label "$MODEL" \
       --probe_type "$PROBE" \
-      --output-dir "${LOCAL_PROBES}"
+      --output_dir "${LOCAL_PROBES}"
     if [ $? -ne 0 ]; then
       echo "ERROR: training failed (model=$MODEL, task=$TASK, probe=$PROBE)"
       continue
