@@ -244,6 +244,8 @@ def build_pos_dep_ner_const(split: str):
             deprel = tok.get("deprel")
             form = tok.get("form")
             lemma = tok.get("lemma")
+            head = tok.get("head")
+
             if upos:
                 pos_rows.append({
                     "Sentence": sentence_text,
@@ -253,13 +255,15 @@ def build_pos_dep_ner_const(split: str):
                     "Lemma": lemma,
                     "Source Type": f"UD_GUM_POS_{split}",
                 })
-            if deprel:
+            if deprel and head is not None:
+                # Span1 is the dependent, Span2 is the head
                 dep_rows.append({
                     "Sentence": sentence_text,
-                    "Target Index": idx,
+                    "Span1 Start": idx,
+                    "Span1 End": idx + 1,
+                    "Span2 Start": head - 1, # CONLLU is 1-indexed
+                    "Span2 End": head,
                     "Label": deprel,
-                    "Word Form": form,
-                    "Lemma": lemma,
                     "Source Type": f"UD_GUM_DEP_{split}",
                 })
 
@@ -297,9 +301,9 @@ def build_pos_dep_ner_const(split: str):
                 "Source Type": f"UD_GUM_CONSTITUENTS_{split}",
             })
 
-    _write_csv_capped(pd.DataFrame(pos_rows),  DATA_DIR / f"ud_gum_pos_{split}.csv",  f"Wrote POS for {split}")
-    _write_csv_capped(pd.DataFrame(dep_rows),  DATA_DIR / f"ud_gum_dep_{split}.csv",  f"Wrote DEP for {split}")
-    _write_csv_capped(pd.DataFrame(ner_rows),  DATA_DIR / f"ud_gum_ner_{split}.csv",  f"Wrote NER for {split}")
+    _write_csv_capped(pd.DataFrame(pos_rows),   DATA_DIR / f"ud_gum_pos_{split}.csv",   f"Wrote POS for {split}")
+    _write_csv_capped(pd.DataFrame(dep_rows),   DATA_DIR / f"ud_gum_dep_{split}.csv",   f"Wrote DEP for {split}")
+    _write_csv_capped(pd.DataFrame(ner_rows),   DATA_DIR / f"ud_gum_ner_{split}.csv",   f"Wrote NER for {split}")
     _write_csv_capped(pd.DataFrame(const_rows),DATA_DIR / f"ud_gum_constituents_{split}.csv", f"Wrote Constituents for {split}")
 
 
@@ -633,9 +637,12 @@ def build_srl_up(split: str):
 # SPR (UD-EWT + PB)
 # --------------------------
 
-SPR_URLS = {
-    "pb": "https://decomp.io/projects/semantic-proto-roles/protoroles_eng_pb.tar.gz",
-    "udewt": "https://decomp.io/projects/semantic-proto-roles/protoroles_eng_udewt.tar.gz",
+SPR1_PROPERTIES = {
+    "awareness", "change_of_location", "change_of_state", "changes_possession",
+    "created", "destroyed", "existed_after", "existed_before",
+    "existed_during", "exists_as_physical", "instigation",
+    "location_of_event", "makes_physical_contact", "manipulated_by_another",
+    "predicate_changed_argument", "sentient", "stationary", "volition",
 }
 
 def download_and_extract(url: str, dest_dir: Path) -> Path:
@@ -661,21 +668,10 @@ def _parse_table(path: Path) -> Optional[pd.DataFrame]:
         except Exception:
             return None
 
-KNOWN_PROPS = {
-    "instigation","volition","awareness","sentient",
-    "change_of_state","change_of_location","change_of_possession",
-    "existed_after","existed_before","existed_during","was_used",
-    "exists_as_physical","stationary","partitive","was_for_benefit",
-    "makes_physical_contact","predicate_changed_argument",
-    "location_of_event","changes_possession",
-    "location","time","manner","purpose",
-    "change_of_state_continuous",
-}
-
 def _looks_like_udewt_wide(df: pd.DataFrame) -> bool:
     has_core = {"predicate_index"}.issubset(df.columns) and \
                ("arg_span" in df.columns or {"Arg.Tokens.Begin","Arg.Tokens.End"}.issubset(df.columns))
-    prop_hit = len(KNOWN_PROPS.intersection(df.columns)) >= 3
+    prop_hit = len(SPR1_PROPERTIES.intersection(df.columns)) >= 3
     return bool(has_core and prop_hit)
 
 def _looks_like_per_arg(df: pd.DataFrame) -> bool:
@@ -745,8 +741,7 @@ def build_spr():
             if df is None or df.empty:
                 continue
             cols = set(df.columns)
-            # ignore admin/summary tables (no spans or no properties)
-            if not (("Property" in cols) or (len(KNOWN_PROPS.intersection(cols)) >= 3)):
+            if not (("Property" in cols) or (len(SPR1_PROPERTIES.intersection(cols)) >= 3)):
                 continue
             if _looks_like_udewt_wide(df) or _looks_like_per_arg(df):
                 candidates.append(df)
@@ -771,7 +766,6 @@ def build_spr():
         if "Arg.Tokens.Begin" in df.columns and "Arg.Tokens.End" in df.columns:
             df["Arg Start"] = pd.to_numeric(df["Arg.Tokens.Begin"], errors="coerce").astype("Int64")
             df["Arg End"]   = pd.to_numeric(df["Arg.Tokens.End"],   errors="coerce").astype("Int64")
-            # fix inclusive ends
             needs_fix = (df["Arg End"] <= df["Arg Start"])
             df.loc[needs_fix, "Arg End"] = df.loc[needs_fix, "Arg End"] + 1
         elif "arg_span" in df.columns:
@@ -783,7 +777,6 @@ def build_spr():
             df["Arg Start"] = pd.to_numeric(s.str.split("..").str[0], errors="coerce").astype("Int64")
             df["Arg End"]   = pd.to_numeric(s.str.split("..").str[1], errors="coerce").astype("Int64") + 1
         else:
-            # Head-only schema (PB often): Arg.Pos / Arg.Head / Arg_Head
             head_col = pick(*_ARG_POS_CANDIDATES)
             if head_col and head_col in df.columns:
                 df["Arg Start"] = df[head_col].apply(_parse_headish).astype("Int64")
@@ -792,41 +785,23 @@ def build_spr():
                 logging.warning(f"[SPR {source}] No recognizable span columns; skipping.")
                 continue
 
-        # Drop rows with bad spans
         df = df[df["Arg Start"].notna() & df["Arg End"].notna()].copy()
         if df.empty:
             logging.warning(f"[SPR {source}] All rows had invalid spans; skipping.")
             continue
 
-        # predicate index
         if pred_col and pred_col in df.columns:
             df["Predicate Index"] = pd.to_numeric(df[pred_col], errors="coerce").fillna(0).astype(int)
         else:
             df["Predicate Index"] = 0
 
-        # sentence text
         df["Sentence"] = df.apply(lambda r: _norm_sentence(r, sent_col), axis=1)
-
         out_chunks = []
 
-        # ---- wide (many proto-role columns on same row) ----
         if _looks_like_udewt_wide(df):
-            used_cols = {
-                "Sentence","Predicate Index","Arg Start","Arg End",
-                sent_col, pred_col, "arg_span","Arg.Tokens.Begin","Arg.Tokens.End"
-            }
-            prop_cols = [c for c in df.columns if (c not in used_cols) and (c in KNOWN_PROPS)]
-            if not prop_cols:
-                # fallback: any numeric-ish among others
-                for c in df.columns:
-                    if c in used_cols or c.startswith("Unnamed"): continue
-                    s = df[c].dropna()
-                    if s.empty: continue
-                    try:
-                        float(str(s.iloc[0]).replace(",", ""))
-                        prop_cols.append(c)
-                    except Exception:
-                        pass
+            used_cols = {"Sentence","Predicate Index","Arg Start","Arg End",
+                         sent_col, pred_col, "arg_span","Arg.Tokens.Begin","Arg.Tokens.End"}
+            prop_cols = [c for c in df.columns if (c not in used_cols) and (c in SPR1_PROPERTIES)]
             for prop in prop_cols:
                 sub = df[["Sentence","Predicate Index","Arg Start","Arg End", prop]].copy()
                 sub = sub.rename(columns={prop: "Value"})
@@ -837,11 +812,8 @@ def build_spr():
                 sub["Label"] = (vals >= 0.5).astype(int) if vals.notna().any() else sub["Value"]
                 sub["Property"] = prop
                 sub["Source Type"] = f"SPR_{source}"
-                # per-property CSV (capped)
-                _write_csv_capped(sub, DATA_DIR / f"spr_{source}_{prop}.csv", f"[SPR {source}] {prop}")
                 out_chunks.append(sub)
 
-        # ---- per-argument long form (Property/Response per row) ----
         if _looks_like_per_arg(df) and "Property" in df.columns:
             long_df = df.copy()
             long_df["Property"] = long_df["Property"].astype(str)
@@ -852,9 +824,7 @@ def build_spr():
                 if s in {"n","no","false"}: return 0.0
                 try: return float(s)
                 except Exception: return None
-            resp_col = "Response" if "Response" in long_df.columns else None
-            if resp_col is None:
-                resp_col = "Value" if "Value" in long_df.columns else ("Response.Value" if "Response.Value" in long_df.columns else None)
+            resp_col = "Response" if "Response" in long_df.columns else "Value" if "Value" in long_df.columns else None
             if resp_col:
                 long_df["Value"] = long_df[resp_col].apply(resp_to_val)
             else:
@@ -872,7 +842,9 @@ def build_spr():
 
     if all_rows:
         merged_all = pd.concat(all_rows, ignore_index=True)
-        _write_csv_capped(merged_all, DATA_DIR / "spr_all_properties.csv", "Wrote merged SPR file")
+        # Filter to only SPR1 properties
+        spr1_df = merged_all[merged_all['Property'].isin(SPR1_PROPERTIES)].copy()
+        _write_csv_capped(spr1_df, DATA_DIR / "spr_all_properties.csv", "Wrote merged SPR (SPR1 only) file")
 
 
 # --------------------------

@@ -33,7 +33,7 @@ def load_layer(shards, layer_idx):
 
 
 def run_probes(activations, labels_path, task, lambda_reg, exp_label,
-               dataset, probe_type, pca_dim, output_dir=None):
+               dataset, probe_type, pca_dim, output_dir=None, use_llama3_norm_flag=False):
     """
     Train probes on the provided activations and labels for a specified task. The
     activations argument should point to a directory of .npz shards produced by
@@ -43,7 +43,7 @@ def run_probes(activations, labels_path, task, lambda_reg, exp_label,
     """
     pca_suffix = f"_pca_{pca_dim}" if pca_dim > 0 else ""
     outdir = output_dir or os.path.join(config.OUTPUT_DIR, "probes",
-                               f"{dataset}_{exp_label}_{probe_type}{pca_suffix}")
+                                      f"{dataset}_{exp_label}_{task}_{probe_type}{pca_suffix}")
     os.makedirs(outdir, exist_ok=True)
     utils.log_info(f"Probe outputs will be saved to {outdir}")
 
@@ -68,13 +68,14 @@ def run_probes(activations, labels_path, task, lambda_reg, exp_label,
     y_control = None
     label_map = None
     control_label_map = None
+    indices = np.arange(len(df))
 
     if task in ["lexeme", "inflection"]:
-        # Original lexical/inflection tasks
         valid_label_mask = df["Lemma"].notna()
         if "Inflection Label" in df.columns:
             valid_label_mask &= df["Inflection Label"].notna()
         df = df[valid_label_mask].reset_index(drop=True)
+        indices = indices[valid_label_mask]
 
         lemmas = df["Lemma"].values
         uniq = sorted(list(set(lemmas)))
@@ -92,139 +93,75 @@ def run_probes(activations, labels_path, task, lambda_reg, exp_label,
         label_map = uniq_infl if task == "inflection" else uniq
         control_label_map = uniq_words
 
-    elif task in ["pos", "dep", "ner", "constituents"]:
-        # Single-span classification tasks. Use the 'Label' column for y_true.
-        if "Label" not in df.columns:
-            raise ValueError(f"Dataset for task {task} must contain a 'Label' column.")
-        labels = df["Label"].astype(str).values
-        uniq_labels = sorted(list(set(labels)))
-        y_true = np.array([uniq_labels.index(x) for x in labels], dtype=int)
-        # Control: lexical identity of the word form, if available; else use token at Target Index
-        control_tokens = []
-        if "Word Form" in df.columns:
-            control_tokens = df["Word Form"].astype(str).tolist()
+    elif task in ["pos", "dep", "ner", "constituents", "coref", "relation", "srl", "spr"]:
+        df = df[df["Label"].notna()].reset_index(drop=True)
+        indices = indices[df["Label"].notna()]
+
+        if task == "spr":
+            # Filter for rows where the property applies (Label=1), then predict the property.
+            df = df[df["Label"] == 1].reset_index(drop=True)
+            indices = indices[df["Label"] == 1]
+            if df.empty:
+                raise ValueError("No positive examples found for SPR task after filtering.")
+            labels = df["Property"].astype(str).values
         else:
-            # Fallback: derive the word form from sentence and target index
-            if "Target Index" not in df.columns:
-                raise ValueError(f"Dataset for task {task} must contain 'Word Form' or 'Target Index'.")
+            labels = df["Label"].astype(str).values
+
+        uniq_labels = sorted(list(set(labels)))
+        y_true = np.array([uniq_labels.index(x) for x in labels], dtype=int)
+        label_map = uniq_labels
+
+        # Define control task based on span type
+        control_tokens = []
+        if task in ["pos", "ner", "constituents"]:
+            # Single-span tasks: lexical identity of the word at Target Index
+            if "Word Form" in df.columns:
+                control_tokens = df["Word Form"].astype(str).tolist()
+            else:
+                for _, row in df.iterrows():
+                    tokens = str(row["Sentence"]).split()
+                    idx = int(row["Target Index"])
+                    control_tokens.append(tokens[idx] if idx < len(tokens) else "")
+        elif task in ["dep", "coref", "relation"]:
+            # Two-span tasks: lexical identity of the first word in Span1
             for _, row in df.iterrows():
-                tokens = str(row["Sentence"]).split()
-                idx = int(row["Target Index"])
-                control_tokens.append(tokens[idx] if idx < len(tokens) else "")
-        uniq_controls = sorted(list(set(control_tokens)))
-        y_control = np.array([uniq_controls.index(w) for w in control_tokens], dtype=int)
-        label_map = uniq_labels
-        control_label_map = uniq_controls
+                sent_tokens = str(row["Sentence"]).split()
+                s1_start = int(row.get("Span1 Start", 0))
+                token = sent_tokens[s1_start] if s1_start < len(sent_tokens) else ""
+                control_tokens.append(token)
+        elif task in ["srl", "spr"]:
+             # SRL/SPR: lexical identity of the first word in the argument span
+            for _, row in df.iterrows():
+                sent_tokens = str(row["Sentence"]).split()
+                arg_start = int(row.get("Arg Start", 0))
+                token = sent_tokens[arg_start] if arg_start < len(sent_tokens) else ""
+                control_tokens.append(token)
 
-    elif task == "coref":
-        # Coreference: binary label, two spans
-        if "Label" not in df.columns:
-            raise ValueError("Coref dataset must contain a 'Label' column.")
-        # y_true is 0/1
-        y_true = df["Label"].astype(int).values
-        label_map = [0, 1]
-        # Control: lexical identity of first word in Span1
-        control_tokens = []
-        for _, row in df.iterrows():
-            sent_tokens = str(row["Sentence"]).split()
-            s1_start = int(row.get("Span1 Start", 0))
-            token = sent_tokens[s1_start] if s1_start < len(sent_tokens) else ""
-            control_tokens.append(token)
         uniq_controls = sorted(list(set(control_tokens)))
         y_control = np.array([uniq_controls.index(w) for w in control_tokens], dtype=int)
         control_label_map = uniq_controls
-
-    elif task == "relation":
-        # Relation classification: multi-class labels based on relation string
-        if "Label" not in df.columns:
-            raise ValueError("Relation classification dataset must contain a 'Label' column.")
-        labels = df["Label"].astype(str).values
-        uniq_labels = sorted(list(set(labels)))
-        y_true = np.array([uniq_labels.index(x) for x in labels], dtype=int)
-        label_map = uniq_labels
-        # Control: lexical identity of first word in Span1
-        control_tokens = []
-        for _, row in df.iterrows():
-            sent_tokens = str(row["Sentence"]).split()
-            s1_start = int(row.get("Span1 Start", 0))
-            token = sent_tokens[s1_start] if s1_start < len(sent_tokens) else ""
-            control_tokens.append(token)
-        uniq_controls = sorted(list(set(control_tokens)))
-        y_control = np.array([uniq_controls.index(w) for w in control_tokens], dtype=int)
-        control_label_map = uniq_controls
-
-    elif task == "srl":
-        # Semantic role labeling: label is argument role (e.g., ARG0). Use lexical identity of argument as control.
-        if "Label" not in df.columns:
-            raise ValueError("SRL dataset must contain a 'Label' column.")
-        labels = df["Label"].astype(str).values
-        uniq_labels = sorted(list(set(labels)))
-        y_true = np.array([uniq_labels.index(x) for x in labels], dtype=int)
-        label_map = uniq_labels
-        # Control: lexical identity of first word in argument span
-        control_tokens = []
-        for _, row in df.iterrows():
-            sent_tokens = str(row["Sentence"]).split()
-            arg_start = int(row.get("Arg Start", 0))
-            token = sent_tokens[arg_start] if arg_start < len(sent_tokens) else ""
-            control_tokens.append(token)
-        uniq_controls = sorted(list(set(control_tokens)))
-        y_control = np.array([uniq_controls.index(w) for w in control_tokens], dtype=int)
-        control_label_map = uniq_controls
-
-    elif task == "spr":
-        # Semantic proto‑role classification. Each row represents a specific
-        # proto‑role property with an associated binary label (1 if the property
-        # applies to the argument span, 0 otherwise). We use the binary
-        # indicator (Label column) as the true task label. The Property name
-        # itself is not the class; instead, it is metadata describing which
-        # proto‑role is being probed. This mirrors the edge‑probing setup from
-        # the original paper, where each proto‑role property is treated as a
-        # separate binary classification problem.
-        if "Label" not in df.columns:
-            raise ValueError("SPR dataset must contain a 'Label' column (binary indicator).")
-        # Convert labels to integer 0/1 values
-        labels = df["Label"].astype(int).values
-        uniq_labels = sorted(list(set(labels)))
-        y_true = np.array([uniq_labels.index(x) for x in labels], dtype=int)
-        label_map = uniq_labels
-        # Control: lexical identity of the first token in the argument span.
-        # We do not differentiate by property here; the control task is
-        # intended to capture lexical memorization of the argument.
-        control_tokens = []
-        for _, row in df.iterrows():
-            sent_tokens = str(row["Sentence"]).split()
-            arg_start = int(row.get("Arg Start", 0))
-            token = sent_tokens[arg_start] if arg_start < len(sent_tokens) else ""
-            control_tokens.append(token)
-        uniq_controls = sorted(list(set(control_tokens)))
-        y_control = np.array([uniq_controls.index(w) for w in control_tokens], dtype=int)
-        control_label_map = uniq_controls
-
     else:
         raise ValueError(f"Unknown task: {task}")
 
-    # Filter out classes with too few examples in either the true task or the control task
+    # Filter out classes with too few examples
     true_counts = np.bincount(y_true)
     ctrl_counts = np.bincount(y_control)
-    # For classes with count < 4, drop those examples
     keep_true_mask = true_counts[y_true] >= 4
     keep_ctrl_mask = ctrl_counts[y_control] >= 4
     keep_mask = keep_true_mask & keep_ctrl_mask
 
-    y_true_filtered    = y_true[keep_mask]
+    y_true_filtered = y_true[keep_mask]
     y_control_filtered = y_control[keep_mask]
+    indices_filtered = indices[keep_mask]
 
     results = {}
     all_preds = []
 
-    # Optionally load LayerNorm weights for LLaMA3 models
-    use_llama3_norm = False
-    # Optionally enable LLaMA-3 LayerNorm usage with a flag
-    if getattr(args, "use_llama3_norm", False):
-        use_llama3_norm = (
-            exp_label in ["llama3-8b", "llama3-8b-instruct"] and probe_type in ["mlp", "nn"]
-        )
+    use_llama3_norm = (
+        use_llama3_norm_flag and
+        exp_label in ["llama3-8b", "llama3-8b-instruct"] and
+        probe_type in ["mlp", "nn"]
+    )
     model_wrapper = None
     if use_llama3_norm:
         from src.model_wrapper import ModelWrapper
@@ -248,12 +185,8 @@ def run_probes(activations, labels_path, task, lambda_reg, exp_label,
 
         # Load activations for this layer
         X_flat = load_layer(shards, layer_idx)
-        # Apply the same keep mask to activations
-        X_filtered = X_flat[keep_mask]
-        y_true_layer = y_true_filtered
-        y_control_layer = y_control_filtered
+        X_filtered = X_flat[indices_filtered]
 
-        # Optionally extract LayerNorm weight for normalization
         norm_weight = None
         if use_llama3_norm:
             try:
@@ -266,14 +199,15 @@ def run_probes(activations, labels_path, task, lambda_reg, exp_label,
             process_layer_kwargs = dict(
                 seed=seed,
                 X_flat=X_filtered,
-                y_true=y_true_layer,
-                y_control=y_control_layer,
+                y_true=y_true_filtered,
+                y_control=y_control_filtered,
                 lambda_reg=lambda_reg,
                 task=task,
                 probe_type=probe_type,
                 layer=layer_idx,
                 pca_dim=pca_dim,
                 outdir=outdir,
+                indices=indices_filtered,
                 label_map=label_map,
                 control_label_map=control_label_map,
             )
@@ -300,7 +234,6 @@ def run_probes(activations, labels_path, task, lambda_reg, exp_label,
             utils.log_info(f"Error saving predictions: {e}")
     else:
         utils.log_info(f"WARNING: No predictions to save for any layer. This may indicate an issue.")
-        # Create an empty predictions file
         pd.DataFrame().to_csv(predictions_path, index=False)
 
     if not results:
@@ -343,5 +276,6 @@ if __name__ == "__main__":
         args.dataset,
         args.probe_type,
         args.pca_dim,
-        output_dir=args.output_dir
+        output_dir=args.output_dir,
+        use_llama3_norm_flag=args.use_llama3_norm
     )
