@@ -846,11 +846,6 @@ def build_spr():
         spr1_df = merged_all[merged_all['Property'].isin(SPR1_PROPERTIES)].copy()
         _write_csv_capped(spr1_df, DATA_DIR / "spr_all_properties.csv", "Wrote merged SPR (SPR1 only) file")
 
-
-# --------------------------
-# CLI
-# --------------------------
-
 TASKS = ["pos", "dep", "ner", "coref", "constituents", "srl", "spr", "relation"]
 
 def main():
