@@ -45,6 +45,8 @@ model_names = {
     "gpt2-xl": "GPT-2-XL",
     "qwen2": "Qwen2.5-1.5B",
     "qwen2-instruct": "Qwen2.5-1.5B-Instruct",
+    "qwen2.5-7B": "Qwen2.5-7B",
+    "qwen2.5-7B-instruct": "Qwen2.5-7B-Instruct",
     "pythia1.4b": "Pythia-1.4B",
     "gemma2b": "Gemma-2-2B",
     "gemma2b-it": "Gemma-2-2B-Instruct",
@@ -57,19 +59,59 @@ model_names = {
     "pythia-6.9b-tulu": "Pythia-6.9B-Tulu",
     "olmo2-7b-instruct": "OLMo-2-1124-7B-Instruct",
     "olmo2-7b": "OLMo-2-1124-7B",
+    "goldfish_eng_latn_1000mb": "Goldfish English",
+    "goldfish_zho_hans_1000mb": "Goldfish Chinese",
+    "goldfish_deu_latn_1000mb": "Goldfish German",
+    "goldfish_fra_latn_1000mb": "Goldfish French",
+    "goldfish_rus_cyrl_1000mb": "Goldfish Russian",
+    "goldfish_tur_latn_1000mb": "Goldfish Turkish",
 }
 
 def get_acc_columns(df, prefix):
-    if f"{prefix}_Accuracy" in df.columns and f"{prefix}_ControlAccuracy" in df.columns:
-        return f"{prefix}_Accuracy", f"{prefix}_ControlAccuracy"
+    # First check for the simple format that's actually in the CSV files
     if "Acc" in df.columns and "controlAcc" in df.columns:
         return "Acc", "controlAcc"
+    
+    # Then check for the more specific format
+    if f"{prefix}_Accuracy" in df.columns and f"{prefix}_ControlAccuracy" in df.columns:
+        return f"{prefix}_Accuracy", f"{prefix}_ControlAccuracy"
+    
+    # Check for case-insensitive versions
     for acc_col in df.columns:
         if acc_col.lower() == f"{prefix}_accuracy":
             for ctrl_col in df.columns:
                 if ctrl_col.lower() == f"{prefix}_controlaccuracy":
                     return acc_col, ctrl_col
-    raise ValueError("Could not find accuracy columns in DataFrame.")
+    
+    # If none found, raise error with available columns for debugging
+    raise ValueError(f"Could not find accuracy columns in DataFrame. Available columns: {list(df.columns)}")
+
+def find_csv_file(dataset, model, task, probe_type):
+    """Find CSV file for a given model, checking both probes and probes2 directories."""
+    # Handle different probe type naming conventions
+    probe_type_variants = [probe_type]
+    if probe_type == "nn":
+        probe_type_variants = ["nn", "mlp"]
+    elif probe_type == "mlp":
+        probe_type_variants = ["mlp", "nn"]
+    elif probe_type == "reg":
+        probe_type_variants = ["reg", "linear"]
+    elif probe_type == "linear":
+        probe_type_variants = ["linear", "reg"]
+    
+    # Check both probes and probes2 directories
+    for probe_variant in probe_type_variants:
+        probe_dirs = [
+            os.path.join(f"../output/probes/{dataset}_{model}_{task}_{probe_variant}"),
+            os.path.join(f"../output/probes2/{dataset}_{model}_{task}_{probe_variant}")
+        ]
+        
+        for probe_dir in probe_dirs:
+            csv_path = os.path.join(probe_dir, f"{task}_results.csv")
+            if os.path.exists(csv_path):
+                return csv_path
+    
+    return None
 
 def plot_selectivity_comparison(
     model_list: list[str],
@@ -98,10 +140,10 @@ def plot_selectivity_comparison(
     for idx, model in enumerate(model_list):
         ax = axes[idx]
 
-        lex_csv = os.path.join(f"../output/probes/{dataset}_{model}_lexeme_{probe_type}", "lexeme_results.csv")
-        inf_csv = os.path.join(f"../output/probes/{dataset}_{model}_inflection_{probe_type}", "inflection_results.csv")
+        lex_csv = find_csv_file(dataset, model, "lexeme", probe_type)
+        inf_csv = find_csv_file(dataset, model, "inflection", probe_type)
 
-        if os.path.exists(lex_csv) and os.path.exists(inf_csv):
+        if lex_csv and inf_csv:
             lex_df = pd.read_csv(lex_csv)
             inf_df = pd.read_csv(inf_csv)
             try:
@@ -197,14 +239,17 @@ def plot_selectivity_comparison(
     for idx in range(len(model_list), len(axes)):
         axes[idx].set_visible(False)
 
-    fig.legend(handles, labels, loc="lower center",
-               ncol=2,
-               bbox_to_anchor=(0.5, PLOT_CONFIG['legend_y_offset']),
-               frameon=True)
+    # Only create legend if we have valid handles
+    if handles is not None and labels is not None:
+        fig.legend(handles, labels, loc="lower center",
+                   ncol=2,
+                   bbox_to_anchor=(0.5, PLOT_CONFIG['legend_y_offset']),
+                   frameon=True)
     os.makedirs(output_dir, exist_ok=True)
-    out = os.path.join(output_dir, f"selectivity_comparison_{probe_type}.png")
+    out = os.path.join(output_dir, f"selectivity_comparison_{dataset}_{probe_type}.png")
     fig.tight_layout()
     fig.savefig(out, bbox_inches="tight")
+    plt.close(fig)
     print(f"Saved figure to {out}")
 
 def plot_probe_advantage(
@@ -213,11 +258,15 @@ def plot_probe_advantage(
     dataset: str,
     output_dir: str = "figures2",
 ):
-    n_cols = PLOT_CONFIG['n_cols']
-    n_rows = (len(model_list) + n_cols - 1) // n_cols
+    plt.rcParams.update({
+        'font.family': 'serif'
+    })
+    n_models = len(model_list)
+    n_cols = int(np.ceil(np.sqrt(n_models)))
+    n_rows = int(np.ceil(n_models / n_cols))
     fig, axes = plt.subplots(n_rows, n_cols,
                              figsize=(PLOT_CONFIG['figure_width'] * n_cols, 
-                                    PLOT_CONFIG['figure_height'] * n_rows),
+                                      PLOT_CONFIG['figure_height'] * n_rows),
                              sharey=True)
     axes = axes.flatten()
     plt.subplots_adjust(top=PLOT_CONFIG['top_margin'], 
@@ -232,18 +281,18 @@ def plot_probe_advantage(
     for idx, model in enumerate(model_list):
         ax = axes[idx]
 
-        lin_csv = os.path.join(f"../output/probes/{dataset}_{model}_{task}_reg", f"{task}_results.csv")
-        mlp_csv = os.path.join(f"../output/probes/{dataset}_{model}_{task}_mlp", f"{task}_results.csv")
+        lin_csv = find_csv_file(dataset, model, task, "reg")
+        mlp_csv = find_csv_file(dataset, model, task, "mlp")
         
-        if not os.path.exists(lin_csv):
-            lin_csv = os.path.join(f"../output/probes/{dataset}_{model}_{task}_linear", f"{task}_results.csv")
-        if not os.path.exists(mlp_csv):
-            mlp_csv = os.path.join(f"../output/probes/{dataset}_{model}_{task}_nonlinear", f"{task}_results.csv")
+        if not lin_csv:
+            lin_csv = find_csv_file(dataset, model, task, "linear")
+        if not mlp_csv:
+            mlp_csv = find_csv_file(dataset, model, task, "nonlinear")
             
-        if not os.path.exists(mlp_csv):
-            mlp_csv = os.path.join(f"../output/probes/{dataset}_{model}_{task}_nn", f"{task}_results.csv")
+        if not mlp_csv:
+            mlp_csv = find_csv_file(dataset, model, task, "nn")
 
-        if os.path.exists(lin_csv) and os.path.exists(mlp_csv):
+        if lin_csv and mlp_csv:
             lin_df = pd.read_csv(lin_csv)
             mlp_df = pd.read_csv(mlp_csv)
             try:
@@ -259,14 +308,18 @@ def plot_probe_advantage(
                 min_layer = layers.min()
                 max_layer = layers.max()
                 
+                # Normalize layers to 0-1 range like in selectivity comparison
+                if max_layer == min_layer:
+                    norm_layers = np.zeros_like(layers, dtype=float)
+                else:
+                    norm_layers = (layers - min_layer) / (max_layer - min_layer)
+                
                 global_min = min(global_min, adv.min())
                 global_max = max(global_max, adv.max())
                 
                 plot_data_list.append({
-                    'layers': layers,
+                    'norm_layers': norm_layers,
                     'adv': adv,
-                    'min_layer': min_layer,
-                    'max_layer': max_layer,
                     'valid': True
                 })
             except Exception as e:
@@ -276,10 +329,10 @@ def plot_probe_advantage(
                 })
         else:
             missing_files = []
-            if not os.path.exists(lin_csv):
-                missing_files.append(f"Linear: {os.path.basename(lin_csv)}")
-            if not os.path.exists(mlp_csv):
-                missing_files.append(f"MLP: {os.path.basename(mlp_csv)}")
+            if not lin_csv:
+                missing_files.append(f"Linear probe not found")
+            if not mlp_csv:
+                missing_files.append(f"MLP probe not found")
             
             plot_data_list.append({
                 'error': f"Missing files:\n{chr(10).join(missing_files)}",
@@ -291,12 +344,11 @@ def plot_probe_advantage(
         if y_range == 0:
             y_padding = 0.1
         else:
-            y_padding = y_range * 0.15  # Increased padding
+            y_padding = y_range * 0.15
         
         y_min = global_min - y_padding
         y_max = global_max + y_padding
         
-        # Ensure we include zero in the range for reference
         if global_min > 0:
             y_min = min(y_min, -y_padding)
         if global_max < 0:
@@ -308,17 +360,19 @@ def plot_probe_advantage(
         ax = axes[idx]
 
         if plot_data['valid']:
-            layers = plot_data['layers']
+            norm_layers = plot_data['norm_layers']
             adv = plot_data['adv']
             
-            ax.bar(layers, adv, color=palette[2], alpha=0.7, width=0.8)
+            ax.bar(norm_layers, adv, color=palette[2], alpha=0.7, width=0.03)
             ax.axhline(0, linestyle="--", color="gray")
             ax.set_ylim(y_min, y_max)
-            ax.set_xlim(plot_data['min_layer'] - 0.5, plot_data['max_layer'] + 0.5)
+            ax.set_xlim(-0.05, 1.05)
             
             row, col = divmod(idx, n_cols)
             if row == n_rows - 1:
-                ax.set_xticks(layers[::max(1, len(layers)//5)])  # Show max 5 ticks
+                xticks = np.array([0, 0.5, 1.0])
+                ax.set_xticks(xticks)
+                ax.set_xticklabels([f"{int(x*100)}%" for x in xticks])
             else:
                 ax.set_xticks([])
         else:
@@ -336,7 +390,7 @@ def plot_probe_advantage(
             ax.set_xlabel("")
         else:
             ax.set_xlabel("")
-        ax.set_title(model_names.get(model, model))
+        ax.set_title(model_names.get(model, model), fontsize=24)
         ax.grid(True, linestyle="--", alpha=0.3)
         ax.tick_params(axis="x", rotation=45)
 
@@ -350,9 +404,10 @@ def plot_probe_advantage(
                 fontsize=28)
 
     os.makedirs(output_dir, exist_ok=True)
-    out = os.path.join(output_dir, f"mlp_advantage_{task}.png")
+    out = os.path.join(output_dir, f"mlp_advantage_{dataset}_{task}.png")
     fig.tight_layout()
     fig.savefig(out, bbox_inches="tight")
+    plt.close(fig)
     print(f"Saved figure to {out}")
 
 def create_peak_layer_table(
@@ -361,8 +416,8 @@ def create_peak_layer_table(
     results = []
     for model in model_list:
         mr = {"Model": model_names.get(model, model)}
-        lex_csv = os.path.join(f"../output/probes/{dataset}_{model}_lexeme_{probe_type}", "lexeme_results.csv")
-        if os.path.exists(lex_csv):
+        lex_csv = find_csv_file(dataset, model, "lexeme", probe_type)
+        if lex_csv:
             df = pd.read_csv(lex_csv)
             try:
                 ac, _ = get_acc_columns(df, "lexeme")
@@ -375,8 +430,8 @@ def create_peak_layer_table(
         else:
             mr["Lexeme Peak Layer"] = "N/A"
             mr["Lexeme Peak Acc"] = "N/A"
-        inf_csv = os.path.join(f"../output/probes/{dataset}_{model}_inflection_{probe_type}", "inflection_results.csv")
-        if os.path.exists(inf_csv):
+        inf_csv = find_csv_file(dataset, model, "inflection", probe_type)
+        if inf_csv:
             df = pd.read_csv(inf_csv)
             try:
                 ac, _ = get_acc_columns(df, "inflection")
@@ -400,7 +455,7 @@ def create_peak_layer_table(
 
     df = pd.DataFrame(results)
     os.makedirs(output_dir, exist_ok=True)
-    csv_path = os.path.join(output_dir, f"peak_layer_summary_{probe_type}.csv")
+    csv_path = os.path.join(output_dir, f"peak_layer_summary_{dataset}_{probe_type}.csv")
     df.to_csv(csv_path, index=False)
 
     for col in ["Lexeme Peak Acc", "Inflection Peak Acc"]:
@@ -412,7 +467,7 @@ def create_peak_layer_table(
         except ValueError:
             pass
 
-    tex_path = os.path.join(output_dir, f"peak_layer_summary_{probe_type}.tex")
+    tex_path = os.path.join(output_dir, f"peak_layer_summary_{dataset}_{probe_type}.tex")
     with open(tex_path, "w") as f:
         f.write("\\begin{table}[ht]\n")
         f.write("\\centering\n")
@@ -433,11 +488,46 @@ def create_peak_layer_table(
     print(f"Saved table to {csv_path} and {tex_path}")
     return df
 
-dataset = "ud_gum_dataset"
+# Define all datasets
+all_datasets = [
+    "ud_gum_dataset",
+    # "ud_zh_gsd_dataset", 
+    # "ud_de_gsd_dataset",
+    # "ud_fr_gsd_dataset",
+    # "ud_ru_syntagrus_dataset",
+    # "ud_tr_imst_dataset",
+]
+
+# Define models that should be available for each dataset
+def get_models_for_dataset(dataset):
+    """Return list of models that should have data for the given dataset."""
+    if dataset == "ud_gum_dataset":
+        # return models + ["goldfish_eng_latn_1000mb"]  # All models + English Goldfish
+        return models
+    elif dataset == "ud_zh_gsd_dataset":
+        return ["mt5", "qwen2", "qwen2-instruct", "qwen2.5-7B", "qwen2.5-7B-instruct", "goldfish_zho_hans_1000mb"]
+    elif dataset == "ud_de_gsd_dataset":
+        return ["mt5", "qwen2", "qwen2-instruct", "qwen2.5-7B", "qwen2.5-7B-instruct", "goldfish_deu_latn_1000mb"]
+    elif dataset == "ud_fr_gsd_dataset":
+        return ["mt5", "qwen2", "qwen2-instruct", "qwen2.5-7B", "qwen2.5-7B-instruct", "goldfish_fra_latn_1000mb"]
+    elif dataset == "ud_ru_syntagrus_dataset":
+        return ["mt5", "qwen2", "qwen2-instruct", "qwen2.5-7B", "qwen2.5-7B-instruct", "goldfish_rus_cyrl_1000mb"]
+    elif dataset == "ud_tr_imst_dataset":
+        return ["mt5", "qwen2", "qwen2-instruct", "qwen2.5-7B", "qwen2.5-7B-instruct", "goldfish_tur_latn_1000mb"]
+    else:
+        # For other datasets, only multilingual models
+        return ["mt5", "qwen2", "qwen2-instruct", "qwen2.5-7B", "qwen2.5-7B-instruct"]
+
 os.makedirs("figures2", exist_ok=True)
 
-plot_selectivity_comparison(models, dataset, probe_type="reg")
-plot_selectivity_comparison(models, dataset, probe_type="nn")
-plot_probe_advantage("lexeme", models, dataset)
-plot_probe_advantage("inflection", models, dataset)
-create_peak_layer_table(models, dataset, probe_type="nn")
+# Loop through all datasets
+for dataset in all_datasets:
+    print(f"Processing dataset: {dataset}")
+    dataset_models = get_models_for_dataset(dataset)
+    
+    # plot_selectivity_comparison(dataset_models, dataset, probe_type="reg")
+    # plot_selectivity_comparison(dataset_models, dataset, probe_type="mlp")
+    plot_probe_advantage("lexeme", dataset_models, dataset)
+    plot_probe_advantage("inflection", dataset_models, dataset)
+    # create_peak_layer_table(dataset_models, dataset, probe_type="mlp")
+    # create_peak_layer_table(dataset_models, dataset, probe_type="mlp")

@@ -12,6 +12,7 @@ sns.set_style("white")
 mpl.rcParams["figure.dpi"] = 100
 plt.rcParams.update({
     "font.size": 22,
+    "font.family": "serif",
     "axes.labelsize": 24,
     "axes.titlesize": 26,
     "xtick.labelsize": 20,
@@ -238,18 +239,21 @@ def plot_combined_accuracy_selectivity(
                 else:
                     row_ylim = (0, 1.0) if row == 0 else (0.6, 1.0)
                     ylabel = "Lexeme Accuracy" if row == 0 else "Inflection Accuracy"
-            yticks = np.arange(row_ylim[0], row_ylim[1] + 0.01, 0.2)
+            if row_ylim == (0.6, 1.0):
+                yticks = np.arange(row_ylim[0], row_ylim[1] + 0.01, 0.1)
+            else:
+                yticks = np.arange(row_ylim[0], row_ylim[1] + 0.01, 0.2)
             ax.set_ylim(*row_ylim)
             ax.set_yticks(yticks)
             if (not rf_only and (col == 0 or col == 2)) or (rf_only):
                 ax.yaxis.set_tick_params(labelleft=True)
                 ax.set_yticklabels([f"{y:.1f}" for y in yticks], fontsize=24)
                 if (not rf_only and row == 0 and col == 0) or (rf_only and col == 0):
-                    ax.set_ylabel(ylabel, labelpad=20, fontsize=34)
+                    ax.set_ylabel(ylabel, labelpad=40, fontsize=30)
                 elif (not rf_only and row == 0 and col == 2) or (rf_only and col == 1):
-                    ax.set_ylabel(ylabel, labelpad=20, fontsize=34)
+                    ax.set_ylabel(ylabel, labelpad=10, fontsize=30)
                 else:
-                    ax.set_ylabel(ylabel, labelpad=20, fontsize=34)
+                    ax.set_ylabel(ylabel, labelpad=25, fontsize=30)
             else:
                 ax.yaxis.set_tick_params(labelleft=False)
                 ax.set_yticklabels([])

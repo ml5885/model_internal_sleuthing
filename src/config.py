@@ -128,18 +128,6 @@ MODEL_CONFIGS = {
         "max_length": 128,
         "batch_size": 32,
     },
-    "xglm-2.9B": {
-        "model_name": "facebook/xglm-2.9B",
-        "tokenizer_name": "facebook/xglm-2.9B",
-        "max_length": 128,
-        "batch_size": 32,
-    },
-    "aya-23-8b": {
-        "model_name": "CohereLabs/aya-23-8B",
-        "tokenizer_name": "CohereLabs/aya-23-8B",
-        "max_length": 128,
-        "batch_size": 32,
-    },
     "qwen2.5-7B": {
         "model_name": "Qwen/Qwen2.5-7B",
         "tokenizer_name": "Qwen/Qwen2.5-7B",
@@ -209,16 +197,14 @@ MODEL_DISPLAY_NAMES = {
     "gpt2": "GPT-2-Small",
     "gpt2-large": "GPT-2-Large",
     "gpt2-xl": "GPT-2-XL",
-    "qwen2": "Qwen2.5-1.5B",
-    "qwen2-instruct": "Qwen2.5-1.5B-Instruct",
     "pythia-6.9b": "Pythia-6.9B",
     "pythia-6.9b-tulu": "Pythia-6.9B-Tulu",
     "gemma2b": "Gemma-2-2B",
     "gemma2b-it": "Gemma-2-2B-Instruct",
     "olmo2-7b": "OLMo-2-1124-7B",
     "olmo2-7b-instruct": "OLMo-2-1124-7B-Instruct",
-    "xglm-2.9B": "XGLM-2.9B",
-    "aya-23-8b": "Aya-23-8B",
+    "qwen2": "Qwen2.5-1.5B",
+    "qwen2-instruct": "Qwen2.5-1.5B-Instruct",
     "qwen2.5-7B": "Qwen2.5-7B",
     "qwen2.5-7B-instruct": "Qwen2.5-7B-Instruct",
     # Encoder-only masked LMs
@@ -254,7 +240,7 @@ ANALOGY_MODEL_LIST = [
     "google/gemma-2-2b", "google/gemma-2-2b-it",
     "Qwen/Qwen2.5-1.5B", "Qwen/Qwen2.5-1.5B-Instruct",
     "meta-llama/Llama-3.1-8B", "meta-llama/Llama-3.1-8B-Instruct",
-    "qwen/Qwen2.5-7B", "qwen/Qwen2.5-7B-Instruct",
+    # "qwen/Qwen2.5-7B", "qwen/Qwen2.5-7B-Instruct",
 ]
 
 MODEL_TABLE_MAPPING = {
@@ -275,6 +261,9 @@ MODEL_TABLE_MAPPING = {
     'Llama-3.1-8B (4096)': 'llama3-8b',
     'Llama-3.1-8B-Instruct (4096)': 'llama3-8b-instruct',
 }
+# Models: bert-base-uncased, bert-large-uncased, gpt2, gpt2-large, gpt2-xl, pythia-6.9b, pythia-6.9b-tulu, olmo2-7b, olmo2-7b-instruct, gemma2b, gemma2b-it, qwen2, qwen2-instruct, qwen2.5-7B, qwen2.5-7B-instruct, llama3-8b, llama3-8b-instruct
+# there are 17 models
+
 
 # Training hyperparameters for probing
 TRAIN_PARAMS = {
