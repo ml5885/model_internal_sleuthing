@@ -9,6 +9,7 @@ import seaborn as sns
 import argparse
 
 EXP_MIN_REL_GAIN = 0
+AVG_PROBES = True
 
 SMALL_BAR_FRAC = 0.3
 
@@ -62,9 +63,6 @@ model_names = {
     "olmo2-7b_stage1-step734000-tokens3079B": "OLMo2-7B (734k, 3079B tokens)"
 }
 
-# ---------------------------------------------------------------------
-# Your model list and task setup
-# ---------------------------------------------------------------------
 all_models = [
     "bert-base-uncased", "bert-large-uncased", "deberta-v3-large",
     "gpt2", "gpt2-large", "gpt2-xl",
@@ -77,10 +75,8 @@ all_models = [
     "llama3-8b", "llama3-8b-instruct",
 ]
 
-# Requested order (top to bottom): POS, Consts., Deps., Entities, SRL, Coref., SPR, Relations
 task_list = ["pos", "constituents", "dep", "ner", "srl", "coref", "spr", "relation"]
 
-# Display names for y-axis
 task_display = {
     "pos": "POS",
     "constituents": "Consts.",
@@ -138,10 +134,6 @@ def _to_unit_interval(arr):
 def _read_task_curve(dataset, model, probe, task, pca=False, pca_dim=50):
     base_probe_dir = os.path.join("..", "output", "edge_probes")
 
-    # Try a few common directory name formats:
-    #  - {dataset}_{model}_{probe}
-    #  - {dataset}_{model}_{task}_{probe}  (some runs include the task again)
-    #  - {dataset}_{task}_{model}_{probe}  (less common)
     candidate_names = [
         f"{dataset}_{model}_{probe}",
         f"{dataset}_{model}_{task}_{probe}",
@@ -154,7 +146,6 @@ def _read_task_curve(dataset, model, probe, task, pca=False, pca_dim=50):
 
     searched = []
     found_dir = None
-    # Check explicit candidate names first
     for cand in candidate_names:
         for suf in pca_suffixes:
             probe_dir = os.path.join(base_probe_dir, cand + suf)
@@ -166,8 +157,6 @@ def _read_task_curve(dataset, model, probe, task, pca=False, pca_dim=50):
         if found_dir:
             break
 
-    # If nothing found, try a looser match: any directory under edge_probes that contains
-    # the dataset, model and probe substrings (useful when naming varies a bit).
     matches = []
     if found_dir is None:
         try:
@@ -179,7 +168,6 @@ def _read_task_curve(dataset, model, probe, task, pca=False, pca_dim=50):
                     if os.path.exists(csv_path):
                         matches.append(probe_dir)
         except FileNotFoundError:
-            # base directory doesn't exist
             pass
 
         if matches:
@@ -264,7 +252,7 @@ def plot_task_layer_heatmaps(
     probe="nn", metric="accuracy", pca=False, pca_dim=50,
     cmap="Blues", output_dir="figures3",
     fname="heatmaps.png", share_scale=True, cols_per_row=3,
-    grid=None,  # None => auto: True if >1 model, False otherwise
+    grid=None,
 ):
     if grid is None:
         grid = len(model_list) > 1
@@ -273,9 +261,21 @@ def plot_task_layer_heatmaps(
     cols = min(cols_per_row, n) if n > 0 else 1
     rows = int(math.ceil(n / max(cols, 1)))
 
-    # Always use [0, 1] for colorbar limits
     def limits():
+        if metric == "selectivity":
+            return -1.0, 1.0
         return 0.0, 1.0
+
+    if metric == "selectivity":
+        neg_color = "#d73027"
+        pos_color = "#4575b4"
+        chosen_cmap = mpl.colors.LinearSegmentedColormap.from_list(
+            "selectivity_div", [neg_color, "white", pos_color]
+        )
+        center_val = 0.0
+    else:
+        chosen_cmap = cmap
+        center_val = None
     
     if not grid:
         model = model_list[0]
@@ -292,11 +292,12 @@ def plot_task_layer_heatmaps(
         hm = sns.heatmap(
             M_plot,
             ax=ax,
-            cmap=cmap,
+            cmap=chosen_cmap,
             vmin=vmin, vmax=vmax,
             cbar=True,
             linewidths=0.0,
             square=False,
+            center=center_val,
         )
 
         # y labels
@@ -352,11 +353,12 @@ def plot_task_layer_heatmaps(
         hm = sns.heatmap(
             M_plot,
             ax=ax,
-            cmap=cmap,
+            cmap=chosen_cmap,
             vmin=vmin, vmax=vmax,
             cbar=False,  # one shared cbar later
             linewidths=0.0,
             square=False,
+            center=center_val,
         )
         if first_mappable is None and len(hm.collections) > 0:
             first_mappable = hm.collections[0]
@@ -438,17 +440,35 @@ def _expected_layer_from_curve(layers: np.ndarray,
     b = np.maximum.accumulate(np.asarray(acc, dtype=float))
     deltas = np.maximum(b[1:] - b[:-1], 0.0)
     total = float(np.sum(deltas))
-    if not np.isfinite(total) or total <= 0:
+    
+    # If the total gain is zero (e.g. accuracy flat or decreasing), 
+    # then the expectation is effectively the first layer in the sequence.
+    # We return 0.0 (relative index) here.
+    if total <= 0:
+        return 0.0
+    
+    if not np.isfinite(total):
         return np.nan
 
     # zero-out tiny increments that are just jitter
     thr = float(min_rel_gain) * total
     deltas = np.where(deltas >= thr, deltas, 0.0)
     denom = float(np.sum(deltas))
-    if denom <= 0:
-        return np.nan
-
+    
     layers_ge1 = L[1:]
+    
+    # If the total gain is zero (e.g. accuracy flat or decreasing), 
+    # then the expectation is effectively the first layer in the sequence.
+    # In relative terms (L starts at 0), this is 0.
+    # But wait, layers_ge1 corresponds to indices [1, 2, ...].
+    # The deltas are gains at index 1, index 2, etc.
+    # If all deltas are 0, it means no gain after index 0.
+    # So the "mass" is effectively at index 0 (which isn't in deltas).
+    # Since we are asking "at which layer is the information gained?", and it's already there at index 0,
+    # the answer is index 0.
+    if denom <= 0:
+        return 0.0
+
     return float(np.sum(layers_ge1 * deltas) / denom)
 
 def _compute_summary_stats_for_plot(
@@ -466,51 +486,59 @@ def _compute_summary_stats_for_plot(
 
         # Linear probe (reg)
         info_reg = _read_task_curve(dataset, model, "reg", task, pca=pca, pca_dim=pca_dim)
-        if info_reg is None or len(info_reg["acc"]) == 0:
-            summary_data[task]["linear_acc"] = np.nan
-            summary_data[task]["selectivity_reg"] = np.nan  # <-- add this line
-        else:
-            layers_r = info_reg["layers"].astype(int)
-            layers_r = layers_r - layers_r.min()
-            summary_data[task]["linear_acc"] = info_reg["acc"][-1]
-            # Compute selectivity for reg
-            if info_reg["ctrl"] is not None and len(info_reg["ctrl"]) == len(info_reg["acc"]):
-                summary_data[task]["selectivity_reg"] = float(info_reg["acc"][-1] - info_reg["ctrl"][-1])
-            else:
-                summary_data[task]["selectivity_reg"] = np.nan
-            max_depth_global = max(max_depth_global, int(layers_r.max()))
-
+        
+        layers_r = info_reg["layers"].astype(int)
+        layers_r = layers_r - layers_r.min()
+        summary_data[task]["linear_acc"] = info_reg["acc"][-1]
+        
+        # Compute selectivity for reg
+        summary_data[task]["selectivity_reg"] = float(info_reg["acc"][-1] - info_reg["ctrl"][-1])
+        max_depth_global = max(max_depth_global, int(layers_r.max()))
 
         # MLP probe (nn)
         info_nn = _read_task_curve(dataset, model, "nn", task, pca=pca, pca_dim=pca_dim)
-        if info_nn is None or len(info_nn["acc"]) == 0:
-            summary_data[task].update(
-                {"mlp_acc": np.nan, "selectivity": np.nan, "exp_layer": np.nan, "cog": np.nan}
-            )
-            continue
-
+        
         layers = info_nn["layers"].astype(int)
         layers = layers - layers.min()
         max_depth_global = max(max_depth_global, int(layers.max()))
 
-        y = np.asarray(info_nn["acc"], dtype=float)
-        summary_data[task]["mlp_acc"] = float(y[-1])
+        y_nn = np.asarray(info_nn["acc"], dtype=float)
+        summary_data[task]["mlp_acc"] = float(y_nn[-1])
 
-        if info_nn["ctrl"] is not None and len(info_nn["ctrl"]) == len(y):
-            summary_data[task]["selectivity"] = float(y[-1] - info_nn["ctrl"][-1])
+        summary_data[task]["selectivity"] = float(y_nn[-1] - info_nn["ctrl"][-1])
+
+        # Compute Averaged Metrics (Reg + MLP) / 2
+        y_reg = np.asarray(info_reg["acc"], dtype=float)
+        
+        # Ensure lengths match (they should for same model/task)
+        min_len = min(len(y_reg), len(y_nn))
+        
+        if AVG_PROBES:
+            y_use = (y_reg[:min_len] + y_nn[:min_len]) / 2.0
         else:
-            summary_data[task]["selectivity"] = np.nan
+            y_use = y_nn[:min_len]
+            
+        layers_use = layers[:min_len]
 
-        summary_data[task]["exp_layer"] = _expected_layer_from_curve(layers, y)
+        # DEBUG: Check what Exp Layer would be WITH Layer 0
+        exp_layer_with_L0 = _expected_layer_from_curve(layers_use, y_use)
 
-        # Center of gravity (Eq. 2) using proxy: nonnegative scores as soft weights.
-        s_proxy = y - np.nanmin(y)
+        mask_no0 = layers_use > 0
+        
+        min_l = layers_use[mask_no0].min()
+        val_no0 = _expected_layer_from_curve(layers_use[mask_no0], y_use[mask_no0])
+        summary_data[task]["exp_layer"] = val_no0 + min_l
+        
+        layers_no0 = layers_use[mask_no0]
+        y_use_no0 = y_use[mask_no0]
+        s_proxy = y_use_no0 - np.nanmin(y_use_no0)
+        
         if np.sum(s_proxy) > 1e-8:
             s_proxy = s_proxy / np.sum(s_proxy)
-            summary_data[task]["cog"] = float(np.sum(layers * s_proxy))
+            summary_data[task]["cog"] = float(np.sum(layers_no0 * s_proxy))
         else:
-            summary_data[task]["cog"] = np.nan
-
+            summary_data[task]["cog"] = float(min_l)
+            
     return summary_data, max_depth_global
 
 def plot_bertology_summary(
@@ -548,12 +576,12 @@ def plot_bertology_summary(
     n_tasks = len(task_list)
     y_pos = np.arange(n_tasks)
 
-    fig_w = 11.2
+    fig_w = 15.0  # Increased width
     fig_h = max(4.8, 1.1 + 0.55 * n_tasks)
     fig, (ax_names, ax_left, ax_bar) = plt.subplots(
         1, 3,
         figsize=(fig_w, fig_h),
-        gridspec_kw={"width_ratios": [1.00, 1.10, 5.60]},
+        gridspec_kw={"width_ratios": [1.00, 1.10, 7.20]},
         sharey=True,
     )
 
@@ -590,7 +618,7 @@ def plot_bertology_summary(
         if not np.isfinite(val):
             return None
         xr = ax_bar.get_xlim()[1]
-        inside = (val >= 1.2) and not force_outside
+        inside = (val >= 1.4) and not force_outside
         if inside:
             x = min(max(0.35, val - 0.35), xr - 0.05)
             ha = "right"
@@ -717,7 +745,7 @@ def plot_bertology_summary_grid(
     cols = min(cols_per_row, n) if n > 0 else 1
     rows = int(np.ceil(n / max(cols, 1)))
     n_tasks = len(task_list)
-    fig_w = 11.2 * cols
+    fig_w = 15.0 * cols
     fig_h = max(6.5, 1.6 + 0.85 * n_tasks) * rows
     # Add an extra column for row labels
     fig = plt.figure(figsize=(fig_w, fig_h))
@@ -726,7 +754,7 @@ def plot_bertology_summary_grid(
         r = idx // cols
         c = idx % cols
         # Add a 3-column layout: [row labels | number columns | bar plot]
-        inner_gs = gridspec.GridSpecFromSubplotSpec(1, 3, subplot_spec=outer_gs[r, c], width_ratios=[1.8, 1.2, 5.6], wspace=0.04)
+        inner_gs = gridspec.GridSpecFromSubplotSpec(1, 3, subplot_spec=outer_gs[r, c], width_ratios=[1.8, 1.2, 7.2], wspace=0.04)
         # Row labels axis
         ax_labels = fig.add_subplot(inner_gs[0, 0])
         # Number columns
@@ -757,7 +785,7 @@ def plot_bertology_summary_grid(
         ax_labels.axis("off")
         ax_labels.invert_yaxis()
         for yi, name in enumerate(row_labels):
-            ax_labels.text(0.0, yi, name, va="center", ha="right", fontsize=18)
+            ax_labels.text(0.0, yi, name, va="center", ha="right", fontsize=24)
         # --- Number columns ---
         ax_left.set_xlim(0, 1)
         ax_left.set_ylim(-0.5, n_tasks - 0.5)
@@ -782,10 +810,10 @@ def plot_bertology_summary_grid(
             clip_on=False,
         )
         for yi, (lin_v, mlp_v, sel_mlp_v, sel_lin_v) in enumerate(left_vals):
-            ax_left.text(col_x[0], yi, lin_v, va="center", ha="center", fontsize=18, color="black", zorder=5, fontfamily="sans-serif", fontweight="bold")
-            ax_left.text(col_x[1], yi, sel_lin_v, va="center", ha="center", fontsize=18, color="black", zorder=5, fontfamily="sans-serif", fontweight="bold")
-            ax_left.text(col_x[2], yi, mlp_v, va="center", ha="center", fontsize=18, color="black", zorder=5, fontfamily="sans-serif", fontweight="bold")
-            ax_left.text(col_x[3], yi, sel_mlp_v, va="center", ha="center", fontsize=18, color="black", zorder=5, fontfamily="sans-serif", fontweight="bold")
+            ax_left.text(col_x[0], yi, lin_v, va="center", ha="center", fontsize=19, color="black", zorder=5, fontfamily="sans-serif", fontweight="bold")
+            ax_left.text(col_x[1], yi, sel_lin_v, va="center", ha="center", fontsize=19, color="black", zorder=5, fontfamily="sans-serif", fontweight="bold")
+            ax_left.text(col_x[2], yi, mlp_v, va="center", ha="center", fontsize=19, color="black", zorder=5, fontfamily="sans-serif", fontweight="bold")
+            ax_left.text(col_x[3], yi, sel_mlp_v, va="center", ha="center", fontsize=19, color="black", zorder=5, fontfamily="sans-serif", fontweight="bold")
 
         # --- Bar plot ---
         bar_h = 0.85
@@ -793,7 +821,7 @@ def plot_bertology_summary_grid(
         ax_bar.set_yticklabels([])
         ax_bar.set_ylim(-0.5, n_tasks - 0.5)
         ax_bar.invert_yaxis()
-        ax_bar.set_title(model_names.get(model, model), pad=12, fontsize=20)
+        ax_bar.set_title(model_names.get(model, model), pad=12, fontsize=28)
         
         finite = np.concatenate([exp_arr[np.isfinite(exp_arr)], cog_arr[np.isfinite(cog_arr)]])
         xmax = float(np.nanmax(finite)) if finite.size else 1.0
@@ -802,9 +830,8 @@ def plot_bertology_summary_grid(
         
         ax_bar.set_xticks(np.arange(0, ax_bar.get_xlim()[1] + 0.1, major_step))
         ax_bar.set_xticks(np.arange(0, ax_bar.get_xlim()[1] + 0.1, 1), minor=True)
-        ax_bar.set_xlabel("Layer", fontsize=14, labelpad=10)
-        # Custom tick marks: large for major, short for minor
-        ax_bar.tick_params(axis="x", which="major", length=12, width=2.5, top=False, bottom=True, direction="out", labelsize=12)
+        ax_bar.set_xlabel("Layer", fontsize=20, labelpad=10)
+        ax_bar.tick_params(axis="x", which="major", length=12, width=2.5, top=False, bottom=True, direction="out", labelsize=20)
         ax_bar.tick_params(axis="x", which="minor", length=5, width=1.5, top=False, bottom=True, direction="out", labelbottom=False)
         
         ax_bar.spines["top"].set_visible(False)
@@ -863,9 +890,9 @@ def plot_bertology_summary_grid(
                     color_c = "white" if k2 == "exp" else "black"
 
             if np.isfinite(c):
-                ax_bar.text(x_c, yi, f"{c:.2f}", va="center", ha=ha_c, fontsize=18, color=color_c, clip_on=True, zorder=6, fontfamily="sans-serif", fontweight="bold")
+                ax_bar.text(x_c, yi, f"{c:.2f}", va="center", ha=ha_c, fontsize=22, color=color_c, clip_on=True, zorder=6, fontfamily="sans-serif", fontweight="bold")
             if np.isfinite(e):
-                ax_bar.text(x_e, yi, f"{e:.2f}", va="center", ha=ha_e, fontsize=18, color=color_e, clip_on=True, zorder=6, fontfamily="sans-serif", fontweight="bold")
+                ax_bar.text(x_e, yi, f"{e:.2f}", va="center", ha=ha_e, fontsize=22, color=color_e, clip_on=True, zorder=6, fontfamily="sans-serif", fontweight="bold")
 
     plt.tight_layout(rect=[0.03, 0.04, 0.98, 0.98])
     os.makedirs(output_dir, exist_ok=True)
@@ -1098,7 +1125,10 @@ if __name__ == "__main__":
     parser.add_argument("--bertology", action="store_true", help="Generate bertology summary plots.")
     parser.add_argument("--similarity", action="store_true", help="Generate model similarity plots.")
     parser.add_argument("--examples", action="store_true", help="Generate example task curves.")
+    parser.add_argument("--no-avg", action="store_true", help="Use only MLP probes for metrics (disable averaging).")
     args = parser.parse_args()
+
+    AVG_PROBES = not args.no_avg
 
     if args.examples:
         output_dir = "heatmap_figures2"
@@ -1166,7 +1196,7 @@ if __name__ == "__main__":
             task_list=task_list,
             task_to_dataset=task_to_dataset,
             output_dir=output_dir,
-            fname="grid_bertology_summary.png",
+            fname="pipeline_summary_stats_three_models.png",
             cols_per_row=3,
         )
 

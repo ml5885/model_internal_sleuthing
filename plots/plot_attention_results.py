@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 import matplotlib as mpl
@@ -18,9 +20,452 @@ plt.rcParams.update({'font.family': 'serif'})
 if not isinstance(MODEL_COLORS, dict):
     MODEL_COLORS = {}
 
+
+def _normalize_layer(df: pd.DataFrame) -> pd.Series:
+    """
+    Normalize Layer indices into [0, 1] for cross-model averaging.
+    """
+    if "Layer_Normalized" in df.columns:
+        return df["Layer_Normalized"]
+    if "Layer" not in df.columns:
+        raise ValueError("Missing 'Layer' column for normalization.")
+    layer = df["Layer"].astype(float)
+    denom = (layer.max() - layer.min())
+    if denom == 0:
+        return pd.Series(np.zeros(len(df)), index=df.index)
+    return (layer - layer.min()) / denom
+
+
+def _load_attention_curve(csv_path: str, task: str, plot_selectivity: bool) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Returns (x_normalized, y_values) for one result csv.
+    """
+    df = pd.read_csv(csv_path)
+    df = df.sort_values("Layer")
+    acc_col, ctrl_col = get_acc_columns(df, task)
+    x = _normalize_layer(df).to_numpy()
+    if plot_selectivity:
+        y = (df[acc_col] - df[ctrl_col]).to_numpy()
+    else:
+        y = df[acc_col].to_numpy()
+    return x, y
+
+
+def plot_condensed_attention_summary(
+    model_to_dataset,
+    model_list,
+    output_dir="figures3",
+    filename="attention_condensed_singlecol.png",
+    probe_types=("reg", "mlp"),
+    metric="selectivity",
+    aggregate_over_probes=True,
+    shading=False,
+):
+    """
+    Condensed, single-column attention summary for the paper.
+
+    Produces a 2x1 vertical figure:
+    - Top: Attention Output
+    - Bottom: Residual Stream
+    Each axis plots averaged curves for Lemma vs Inflection.
+
+    Averaging recipe (mirrors grouped classifier plots):
+    - For each (model, task, source), load per-layer curve(s) for the requested probe_types
+    - Interpolate onto a common normalized layer grid common_x
+    - Optionally average across probe_types within each model (aggregate_over_probes=True)
+    - Average across models (and optionally shade min–max envelope)
+    """
+    if metric not in {"selectivity", "accuracy"}:
+        raise ValueError(f"metric must be 'selectivity' or 'accuracy', got: {metric}")
+
+    tasks = ["lexeme", "inflection"]
+    plot_selectivity = (metric == "selectivity")
+    sources = [
+        (True, "Attention Output"),
+        (False, "Residual Stream"),
+    ]
+
+    common_x = np.linspace(0, 1, 101)
+
+    # Precompute file availability once.
+    file_availability = {}
+    for model_key in model_list:
+        dataset = model_to_dataset[model_key]
+        file_availability[model_key] = {}
+        for task in tasks:
+            for probe in probe_types:
+                for attn in [True, False]:
+                    key = (task, probe, attn)
+                    if probe == "mlp":
+                        csv_path = find_csv_file_probe(model_key, dataset, task, "mlp", attn=attn)
+                        if not csv_path:
+                            csv_path = find_csv_file_probe(model_key, dataset, task, "nn", attn=attn)
+                    else:
+                        csv_path = find_csv_file_probe(model_key, dataset, task, probe, attn=attn)
+                    file_availability[model_key][key] = csv_path
+
+    # Single-column friendly sizes.
+    plt.rcParams.update({
+        "font.size": 14,
+        "axes.labelsize": 15,
+        "axes.titlesize": 15,
+        "xtick.labelsize": 12,
+        "ytick.labelsize": 12,
+        "legend.fontsize": 12,
+        "axes.linewidth": 1.2,
+        "grid.linewidth": 0.8,
+    })
+
+    fig, axes = plt.subplots(2, 1, figsize=(4.2, 6.2), sharex=True, constrained_layout=True)
+
+    task_color = {
+        "lexeme": "tab:blue",
+        "inflection": "tab:orange",
+    }
+    task_label = {
+        "lexeme": "Lemma",
+        "inflection": "Inflection",
+    }
+
+    for ax_idx, (attn, source_title) in enumerate(sources):
+        ax = axes[ax_idx]
+
+        for task in tasks:
+            ys = []
+            for model_key in model_list:
+                per_probe = []
+                for probe in probe_types:
+                    csv_path = file_availability[model_key].get((task, probe, attn))
+                    if not csv_path:
+                        continue
+                    try:
+                        x, y = _load_attention_curve(csv_path, task=task, plot_selectivity=plot_selectivity)
+                        # Guard: np.interp needs sorted x.
+                        order = np.argsort(x)
+                        y_interp = np.interp(common_x, x[order], y[order])
+                        per_probe.append(y_interp)
+                    except Exception:
+                        continue
+
+                if not per_probe:
+                    continue
+
+                if aggregate_over_probes and len(per_probe) > 1:
+                    ys.append(np.mean(per_probe, axis=0))
+                else:
+                    ys.extend(per_probe)
+
+            if ys:
+                ys = np.asarray(ys)
+                avg_y = np.mean(ys, axis=0)
+                min_y = np.min(ys, axis=0)
+                max_y = np.max(ys, axis=0)
+                ax.plot(
+                    common_x,
+                    avg_y,
+                    linewidth=3.0,
+                    color=task_color[task],
+                    label=task_label[task],
+                )
+                if shading:
+                    ax.fill_between(common_x, min_y, max_y, color=task_color[task], alpha=0.18)
+
+        ax.set_title(source_title, pad=8)
+        ax.set_xlim(0, 1)
+        ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
+        ax.set_xticklabels(["0", "25", "50", "75", "100"])
+        ax.grid(True, linestyle="--", alpha=0.35)
+
+        if plot_selectivity:
+            ax.set_ylim(0, 0.8)
+            ax.set_yticks(np.arange(0, 0.81, 0.2))
+            ax.set_ylabel("Selectivity")
+        else:
+            ax.set_ylim(0, 1.0)
+            ax.set_yticks(np.arange(0, 1.01, 0.2))
+            ax.set_ylabel("Accuracy")
+
+    axes[-1].set_xlabel("Normalized layer number (%)")
+    # Single legend for both panels
+    handles, labels = axes[0].get_legend_handles_labels()
+    if handles:
+        fig.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.02), ncol=2, frameon=True)
+
+    os.makedirs(output_dir, exist_ok=True)
+    out_path = os.path.join(output_dir, filename)
+    fig.savefig(out_path, bbox_inches="tight")
+    print(f"Saved condensed attention summary to {out_path}")
+
+
+def plot_attention_results_averaged(
+    model_to_dataset,
+    model_list,
+    output_dir="figures3",
+    filename="attention_averaged_combined.png",
+    shading=False,
+):
+    """
+    Averaged version of `plot_attention_results` (same 2x4 layout), but with curves
+    averaged across all models (instead of plotting each model).
+
+    Each panel shows:
+    - Solid: mean over models for Attention Output
+    - Solid: mean over models for Residual Stream (distinguished by color)
+    Optional min–max shading over models can be enabled with `shading=True`.
+    """
+    probe_types = ["reg", "mlp"]
+    titles = ["Linear Regression", "MLP"]
+    tasks = ["lexeme", "inflection"]
+    n_rows, n_cols = len(tasks), len(probe_types) * 2
+
+    aspect_ratio, base_height = 3.0, 5
+    fig_width = n_cols * base_height * aspect_ratio / 2.0
+    fig_height = n_rows * base_height
+    fig_size = (fig_width, fig_height)
+
+    common_x = np.linspace(0, 1, 101)
+
+    # Precompute file availability once.
+    file_availability = {}
+    for model_key in model_list:
+        dataset = model_to_dataset[model_key]
+        file_availability[model_key] = {}
+        for task in tasks:
+            for probe in probe_types:
+                for attn in [True, False]:
+                    key = (task, probe, attn)
+                    if probe == "mlp":
+                        csv_path = find_csv_file_probe(model_key, dataset, task, "mlp", attn=attn)
+                        if not csv_path:
+                            csv_path = find_csv_file_probe(model_key, dataset, task, "nn", attn=attn)
+                    else:
+                        csv_path = find_csv_file_probe(model_key, dataset, task, probe, attn=attn)
+                    file_availability[model_key][key] = csv_path
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=fig_size, constrained_layout=True)
+    axes = np.atleast_2d(axes)
+
+    def _collect_ys(task: str, probe: str, attn: bool, plot_selectivity: bool) -> np.ndarray:
+        ys = []
+        for model_key in model_list:
+            csv_path = file_availability[model_key].get((task, probe, attn))
+            if not csv_path:
+                continue
+            try:
+                x, y = _load_attention_curve(csv_path, task=task, plot_selectivity=plot_selectivity)
+                order = np.argsort(x)
+                y_interp = np.interp(common_x, x[order], y[order])
+                ys.append(y_interp)
+            except Exception:
+                continue
+        return np.asarray(ys) if ys else np.asarray([])
+
+    for row, task in enumerate(tasks):
+        for col in range(n_cols):
+            if col < 2:
+                probe = probe_types[col]
+                plot_selectivity = False
+            else:
+                probe = probe_types[col - 2]
+                plot_selectivity = True
+
+            ax = axes[row, col]
+
+            if row == 0:
+                title_idx = col % 2
+                ax.set_title(titles[title_idx], pad=15, fontsize=24)
+
+            for attn, alpha, zorder in [
+                (True, 1.0, 2),
+                (False, 0.7, 1),
+            ]:
+                ys = _collect_ys(task=task, probe=probe, attn=attn, plot_selectivity=plot_selectivity)
+                if ys.size == 0:
+                    continue
+                avg_y = np.mean(ys, axis=0)
+                min_y = np.min(ys, axis=0)
+                max_y = np.max(ys, axis=0)
+
+                ax.plot(
+                    common_x,
+                    avg_y,
+                    linewidth=3.0 if attn else 2.0,
+                    color="black",
+                    linestyle="-",
+                    alpha=alpha,
+                    zorder=zorder,
+                )
+                if shading:
+                    ax.fill_between(common_x, min_y, max_y, color="black", alpha=0.10 if attn else 0.06)
+
+            ax.set_xlim(0, 1)
+            ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
+            ax.set_xticklabels(["0", "25", "50", "75", "100"])
+            ax.tick_params(axis='both', which='major', length=10, width=2)
+
+            if plot_selectivity:
+                ax.set_ylim(0, 0.8)
+                ax.set_yticks(np.arange(0, 0.81, 0.2))
+            else:
+                ax.set_ylim(0, 1.0)
+                ax.set_yticks(np.arange(0, 1.01, 0.2))
+
+            if col == 0 or col == 2:
+                task_label = "Lemma" if task == "lexeme" else task.title()
+                ylabel = f"{task_label} {'Selectivity' if plot_selectivity else 'Accuracy'}"
+                ax.set_ylabel(ylabel, labelpad=15, fontsize=24)
+                ax.yaxis.set_tick_params(labelleft=True)
+            else:
+                ax.set_ylabel("")
+                ax.yaxis.set_tick_params(labelleft=False)
+
+            ax.grid(True, linestyle="--", alpha=0.4, linewidth=0.8)
+
+            if row == 1:
+                pass
+            else:
+                ax.set_xticklabels([])
+
+    fig.align_ylabels(axes[:, 0])
+    fig.align_ylabels(axes[:, 2])
+
+    fig.text(0.25, -0.03, "Normalized layer number (%)", ha="center", va="center", fontsize=plt.rcParams["axes.labelsize"])
+    fig.text(0.75, -0.03, "Normalized layer number (%)", ha="center", va="center", fontsize=plt.rcParams["axes.labelsize"])
+
+    # Legend: just source (solid vs dashed), no model legend.
+    from matplotlib.lines import Line2D
+    source_handles = [
+        Line2D([0], [0], color="black", linestyle="-", linewidth=3.0, label="Attention Output"),
+        Line2D([0], [0], color="black", linestyle="-", linewidth=2.0, alpha=0.7, label="Residual Stream"),
+    ]
+    fig.legend(
+        source_handles, [h.get_label() for h in source_handles],
+        loc="lower center", bbox_to_anchor=(0.5, -0.15),
+        ncol=2, frameon=True, fontsize=24, title="", title_fontsize=24
+    )
+
+    os.makedirs(output_dir, exist_ok=True)
+    out_path = os.path.join(output_dir, filename)
+    fig.savefig(out_path, bbox_inches="tight")
+    print(f"Saved averaged attention combined figure to {out_path}")
+
+
+def plot_attention_accuracy_two_panel_averaged(
+    model_to_dataset,
+    model_list,
+    output_dir="figures3",
+    filename="attention_accuracy_two_panel_averaged.png",
+    probe_types=("reg", "mlp"),
+    shading=False,
+):
+    tasks = [("lexeme", "Lemma"), ("inflection", "Inflection")]
+    common_x = np.linspace(0, 1, 101)
+
+    file_availability = {}
+    for model_key in model_list:
+        dataset = model_to_dataset[model_key]
+        file_availability[model_key] = {}
+        for task, _ in tasks:
+            for probe in probe_types:
+                for attn in [True, False]:
+                    key = (task, probe, attn)
+                    if probe == "mlp":
+                        csv_path = find_csv_file_probe(model_key, dataset, task, "mlp", attn=attn)
+                        if not csv_path:
+                            csv_path = find_csv_file_probe(model_key, dataset, task, "nn", attn=attn)
+                    else:
+                        csv_path = find_csv_file_probe(model_key, dataset, task, probe, attn=attn)
+                    file_availability[model_key][key] = csv_path
+
+    plt.rcParams.update({
+        "font.size": 18,
+        "axes.labelsize": 20,
+        "axes.titlesize": 20,
+        "xtick.labelsize": 16,
+        "ytick.labelsize": 16,
+        "legend.fontsize": 16,
+        "axes.linewidth": 1.5,
+        "grid.linewidth": 1.0,
+    })
+
+    fig, axes = plt.subplots(2, 1, figsize=(7.0, 8.0), sharex=True, sharey=True, constrained_layout=True)
+    axes = np.atleast_1d(axes)
+
+    line_specs = [
+        (True, "Attention Output", "tab:blue", "-", 3.0, 1.0),
+        (False, "Residual Stream", "tab:orange", "-", 2.8, 0.95),
+    ]
+
+    def _avg_over_models(task: str, attn: bool) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+        """
+        Returns (avg, min, max) over models, after averaging probe types within each model.
+        """
+        ys = []
+        for model_key in model_list:
+            per_probe = []
+            for probe in probe_types:
+                csv_path = file_availability[model_key].get((task, probe, attn))
+                if not csv_path:
+                    continue
+                try:
+                    x, y = _load_attention_curve(csv_path, task=task, plot_selectivity=False)
+                    order = np.argsort(x)
+                    y_interp = np.interp(common_x, x[order], y[order])
+                    per_probe.append(y_interp)
+                except Exception:
+                    continue
+            if not per_probe:
+                continue
+            ys.append(np.mean(per_probe, axis=0))  # average across probe types within-model
+
+        if not ys:
+            return None
+
+        ys = np.asarray(ys)
+        return np.mean(ys, axis=0), np.min(ys, axis=0), np.max(ys, axis=0)
+
+    for ax, (task, title) in zip(axes, tasks):
+        for attn, label, color, linestyle, lw, alpha in line_specs:
+            stats = _avg_over_models(task=task, attn=attn)
+            if stats is None:
+                continue
+            avg_y, min_y, max_y = stats
+            ax.plot(
+                common_x,
+                avg_y,
+                color=color,
+                linestyle=linestyle,
+                linewidth=lw,
+                alpha=alpha,
+                label=label,
+            )
+            if shading:
+                ax.fill_between(common_x, min_y, max_y, color=color, alpha=0.15)
+
+        ax.set_title(title, pad=10)
+        ax.set_xlim(0, 1)
+        ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
+        ax.grid(True, linestyle="--", alpha=0.35)
+        ax.tick_params(axis='both', which='major', length=8, width=1.6)
+        ax.set_xticklabels(["0", "25", "50", "75", "100"])
+
+    for ax in axes:
+        ax.set_ylabel("Accuracy")
+    axes[0].set_ylim(0, 1.0)
+    axes[0].set_yticks(np.arange(0, 1.01, 0.2))
+    axes[-1].set_xlabel("Normalized layer number (%)")
+
+    # Shared legend
+    handles, labels = axes[0].get_legend_handles_labels()
+    if handles:
+        fig.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.08), ncol=2, frameon=True)
+
+    os.makedirs(output_dir, exist_ok=True)
+    out_path = os.path.join(output_dir, filename)
+    fig.savefig(out_path, bbox_inches="tight")
+    print(f"Saved 2-panel averaged attention accuracy figure to {out_path}")
+
 def find_csv_file_probe(model_key, dataset, task, probe_type, attn=True):
-    # Use only the base model name (no language suffix) to match your directory/file names
-    # e.g., qwen2 or qwen2-instruct
     base_model = model_key.split('_')[0]
     probe_name = probe_type
     suffix = "_attn" if attn else ""
@@ -71,33 +516,36 @@ def add_legends(fig, model_list, title_model="Model", title_source="Source"):
     for label, base_model in filtered_model_labels_and_base_models:
         model_handles.append(Line2D([0], [0], color=MODEL_COLORS.get(base_model, "gray"), linestyle="-", linewidth=4.0, label=label))
         
-    model_bbox_anchor = (0.5, 0.03)
+    model_bbox_anchor = (0.5, -0.325)
     ncol = 5
 
     if any(model.startswith("bert") for model in model_list):
-        model_bbox_anchor = (0.5, 0.07)
+        model_bbox_anchor = (0.5, -0.275)
         ncol = 3
 
     fig.legend(
         source_handles, [h.get_label() for h in source_handles],
-        loc="lower center", bbox_to_anchor=(0.5, 0.16),
-        ncol=2, frameon=True, fontsize=20, title="", title_fontsize=20
+        loc="lower center", bbox_to_anchor=(0.5, -0.15),
+        ncol=2, frameon=True, fontsize=24, title="", title_fontsize=24
     )
 
     fig.legend(
         model_handles, [h.get_label() for h in model_handles],
         loc="lower center", bbox_to_anchor=model_bbox_anchor,
-        ncol=ncol, frameon=True, fontsize=20, title="", title_fontsize=20
+        ncol=ncol, frameon=True, fontsize=24, title="", title_fontsize=24
     )
 
 
 def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", filename_prefix="attention_"):
-    probe_types = ["reg", "mlp", "rf"]
-    titles = ["Linear Regression", "MLP", "Random Forest"]
+    probe_types = ["reg", "mlp"]
+    titles = ["Linear Regression", "MLP"]
     tasks = ["lexeme", "inflection"]
-    n_rows, n_cols = len(tasks), len(probe_types)
-    aspect_ratio, base_height = 8 / 3, 6.5  # Increased base_height from 5 to 6.5 for larger plots
-    fig_size = (n_cols * base_height * aspect_ratio / n_rows, n_rows * base_height)
+    n_rows, n_cols = len(tasks), len(probe_types) * 2
+    
+    aspect_ratio, base_height = 3.0, 5
+    fig_width = n_cols * base_height * aspect_ratio / 2.0
+    fig_height = n_rows * base_height
+    fig_size = (fig_width, fig_height)
 
     file_availability = {}
     missing_files = []
@@ -105,11 +553,7 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
         dataset = model_to_dataset[model_key]
         file_availability[model_key] = {}
         for task in tasks:
-            # Only include "rf" for inflection, not lexeme
-            probes = ["reg", "mlp"]
-            if task == "inflection":
-                probes.append("rf")
-            for probe in probes:
+            for probe in probe_types:
                 for attn in [True, False]:
                     key = (task, probe, attn)
                     if probe == "mlp":
@@ -123,37 +567,22 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
                         missing_files.append((model_key, task, probe, attn))
     if missing_files:
         print(f"[INFO] Missing {len(missing_files)} probe result files (will skip in plots)")
-        for (model, task, probe, attn) in missing_files:
-            # if probe != "rf":
-            print(f"  - {model} {task} {probe} {'attn' if attn else 'residual'}")
 
-    def plot_panel(axes, model_list_subset, plot_selectivity=False):
+    def plot_panel(axes, model_list_subset):
         for row, task in enumerate(tasks):
-            for col, probe in enumerate(probe_types):
+            for col in range(n_cols):
+                if col < 2:
+                    probe = probe_types[col]
+                    plot_selectivity = False
+                else:
+                    probe = probe_types[col - 2]
+                    plot_selectivity = True
+                
                 ax = axes[row, col]
-                # Add column titles for the first row
-                if row == 0 and col < len(titles):
-                    ax.set_title(titles[col], pad=15, fontsize=20)  # Added fontsize=20 to titles
-                if task == "lexeme" and probe == "rf":
-                    ax.text(0.5, 0.5, "(computationally infeasible: too many classes,\nprone to overfitting)",
-                            ha="center", va="center", transform=ax.transAxes, fontsize=20, color="gray")  # Increased fontsize from 18 to 20
-                    ax.set_xlim(0, 1)
-                    ax.set_xticks(np.arange(0, 1.1, 0.2))
-                    ax.set_xticklabels([f"{x*100:.0f}" for x in np.arange(0, 1.1, 0.2)])
-                    if plot_selectivity:
-                        ax.set_ylim(-0.3, 0.3)
-                    else:
-                        ax.set_ylim(0, 1.0)
-                    ax.set_yticks(np.arange(ax.get_ylim()[0], ax.get_ylim()[1] + 0.001, 0.2))
-                    if col == 0:
-                        ax.set_yticklabels([f"{y:.1f}" for y in ax.get_yticks()])
-                    else:
-                        ax.set_yticklabels([])
-                    ax.grid(True, linestyle="--", alpha=0.4, linewidth=0.8)
-                    if row == 1:
-                        ax.set_xlabel("Normalized layer number (%)", labelpad=15, fontsize=20)  # Added fontsize=20 to x-labels
-                    # Remove redundant set_title here
-                    continue
+                
+                if row == 0:
+                    title_idx = col % 2
+                    ax.set_title(titles[title_idx], pad=15, fontsize=24)
 
                 for model_key in model_list_subset:
                     base_model_name = model_key.split('_')[0]
@@ -162,8 +591,6 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
                         (True, " (Attention Output)", 1.0, 2),
                         (False, " (Residual Stream)", 0.7, 1)
                     ]:
-                        if task == "lexeme" and probe == "rf":
-                            continue
                         csv_path = file_availability[model_key].get((task, probe, attn))
                         if not csv_path:
                             continue
@@ -185,36 +612,35 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
                                 zorder=zorder
                             )
                         except Exception as e:
-                            print(f"[WARN] Error processing {model_key} {task} {probe} ({'attn' if attn else 'residual'}): {e}")
+                            # print(f"[WARN] Error processing {model_key} {task} {probe} ({'attn' if attn else 'residual'}): {e}")
                             continue
                 
                 ax.set_xlim(0, 1)
-                ax.set_xticks(np.arange(0, 1.1, 0.2))
-                ax.set_xticklabels([f"{x*100:.0f}" for x in np.arange(0, 1.1, 0.2)])
+                ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
+                ax.set_xticklabels(["0", "25", "50", "75", "100"])
+                ax.tick_params(axis='both', which='major', length=10, width=2)
+                
                 if plot_selectivity:
-                    if row == 0:
-                        ax.set_ylim(-0.25, 0.25)
-                        ax.set_yticks(np.arange(-0.2, 0.21, 0.2))
-                    else:
-                        ax.set_ylim(0, 0.8)
-                        ax.set_yticks(np.arange(0, 0.81, 0.2))
+                    ax.set_ylim(0, 0.8)
+                    ax.set_yticks(np.arange(0, 0.81, 0.2))
                 else:
-                    if row == 0:
-                        ax.set_ylim(0, 1.0)
-                        ax.set_yticks(np.arange(0, 1.01, 0.2))
-                    else:
-                        if col != 2:
-                            ax.set_ylim(0.5, 1.0)
-                            ax.set_yticks(np.arange(0.5, 1.01, 0.1))
-                        else:
-                            ax.set_ylim(0.4, 1.0)
-                            ax.set_yticks(np.arange(0.4, 1.01, 0.1))
-                if col == 0:
-                    ylabel = f"{task.title()} {'Selectivity' if plot_selectivity else 'Accuracy'}"
-                    ax.set_ylabel(ylabel, labelpad=15, fontsize=20)  # Added fontsize=20 to y-labels
+                    ax.set_ylim(0, 1.0)
+                    ax.set_yticks(np.arange(0, 1.01, 0.2))
+                if col == 0 or col == 2:
+                    task_label = "Lemma" if task == "lexeme" else task.title()
+                    ylabel = f"{task_label} {'Selectivity' if plot_selectivity else 'Accuracy'}"
+                    ax.set_ylabel(ylabel, labelpad=15, fontsize=24)
+                    ax.yaxis.set_tick_params(labelleft=True)
+                else:
+                    ax.set_ylabel("")
+                    ax.yaxis.set_tick_params(labelleft=False)
+                
                 ax.grid(True, linestyle="--", alpha=0.4, linewidth=0.8)
+                
                 if row == 1:
-                    ax.set_xlabel("Normalized layer number (%)", labelpad=15, fontsize=20)  # Added fontsize=20 to x-labels
+                    pass # Labels added globally
+                else:
+                    ax.set_xticklabels([])
 
     bert_models = [m for m in model_list if "bert" in m or "gpt" in m]
     other_models = [m for m in model_list if "bert" not in m and "gpt" not in m]
@@ -229,26 +655,23 @@ def plot_attention_results(model_to_dataset, model_list, output_dir="figures3", 
             print(f"Skipping {model_type} models (no models found)")
             continue
 
-        fig1, axes1 = plt.subplots(n_rows, n_cols, figsize=fig_size)
-        axes1 = np.atleast_2d(axes1)
-        plot_panel(axes1, models, plot_selectivity=False)
-        fig1.align_ylabels(axes1[:, 0])
-        fig1.tight_layout(rect=[0, 0.2, 1, 0.97]) 
-        add_legends(fig1, models)
-        os.makedirs(output_dir, exist_ok=True)
-        filename1 = f"{filename_prefix}{model_type.lower()}_linguistic_accuracy.png"
-        fig1.savefig(os.path.join(output_dir, filename1), bbox_inches="tight")
-        print(f"Saved {model_type} attention linguistic accuracy figure to {os.path.join(output_dir, filename1)}")
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=fig_size, constrained_layout=True)
+        axes = np.atleast_2d(axes)
+        plot_panel(axes, models)
+        
+        fig.align_ylabels(axes[:, 0])
+        fig.align_ylabels(axes[:, 2])
+        
+        # Add shared x-axis labels
+        fig.text(0.25, -0.03, "Normalized layer number (%)", ha="center", va="center", fontsize=plt.rcParams["axes.labelsize"])
+        fig.text(0.75, -0.03, "Normalized layer number (%)", ha="center", va="center", fontsize=plt.rcParams["axes.labelsize"])
 
-        fig2, axes2 = plt.subplots(n_rows, n_cols, figsize=fig_size)
-        axes2 = np.atleast_2d(axes2)
-        plot_panel(axes2, models, plot_selectivity=True)
-        fig2.align_ylabels(axes2[:, 0])
-        fig2.tight_layout(rect=[0, 0.2, 1, 0.97])
-        add_legends(fig2, models)
-        filename2 = f"{filename_prefix}{model_type.lower()}_classifier_selectivity.png"
-        fig2.savefig(os.path.join(output_dir, filename2), bbox_inches="tight")
-        print(f"Saved {model_type} attention selectivity figure to {os.path.join(output_dir, filename2)}")
+        add_legends(fig, models)
+        
+        os.makedirs(output_dir, exist_ok=True)
+        filename = f"{filename_prefix}{model_type.lower()}_combined.png"
+        fig.savefig(os.path.join(output_dir, filename), bbox_inches="tight")
+        print(f"Saved {model_type} attention combined figure to {os.path.join(output_dir, filename)}")
 
 
 def generate_attention_markdown_tables(model_to_dataset, model_list, output_dir="figures3"):
@@ -437,6 +860,15 @@ if __name__ == "__main__":
 
     print("Generating plots for attention experiments...")
     plot_attention_results(attention_model_to_dataset, attention_all_models)
+
+    print("Generating 2-panel averaged attention accuracy plot (averaged across probe types)...")
+    plot_attention_accuracy_two_panel_averaged(
+        attention_model_to_dataset,
+        attention_all_models,
+        output_dir="figures3",
+        filename="attention_accuracy_two_panel_averaged.png",
+        shading=True,
+    )
     
     # print("\nGenerating markdown tables for attention experiments...")
     # generate_attention_markdown_tables(attention_model_to_dataset, attention_all_models)

@@ -21,7 +21,7 @@ class ModelWrapper:
                 output_hidden_states=True,
                 output_attentions=True,
                 trust_remote_code=self.model_config.get("trust_remote_code", False),
-                device_map="cuda" if torch.cuda.is_available() else "cpu",
+                device_map="auto",
                 cache_dir=cache_dir,
             )
         except OSError as e:
@@ -35,7 +35,7 @@ class ModelWrapper:
                     output_hidden_states=True,
                     output_attentions=True,
                     trust_remote_code=self.model_config.get("trust_remote_code", False),
-                    device_map="cuda" if torch.cuda.is_available() else "cpu",
+                    device_map="auto",
                     cache_dir=cache_dir,
                 )
             else:

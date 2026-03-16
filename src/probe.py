@@ -317,18 +317,18 @@ def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type,
     f1 = f1_score(y_test, preds, average="macro")
     cf1 = f1_score(yc_test_m, preds_control, average="macro")
 
+    selectivity = accuracy - control_acc
+
     utils.log_info(f"[layer {layer}] {task} {probe_type} acc {accuracy:.3f} f1 {f1:.3f} "
-                   f"ctrl_acc {control_acc:.3f} ctrl_f1 {cf1:.3f}")
+                   f"ctrl_acc {control_acc:.3f} ctrl_f1 {cf1:.3f} "
+                   f"sel {selectivity:.3f}")
 
     result = {
         f"{task}_acc": accuracy,
         f"{task}_control_acc": control_acc,
         f"{task}_f1": f1,
         f"{task}_control_f1": cf1,
-        f"{task}_acc_ci_low": -1,
-        f"{task}_acc_ci_high": -1,
-        f"{task}_control_acc_ci_low": -1,
-        f"{task}_control_acc_ci_high": -1,
+        f"{task}_selectivity": selectivity,
         "pca_explained_variance": pca_explained_variance
     }
 
@@ -367,7 +367,8 @@ def plot_probe_results(results: dict, outdir: str, task: str):
     csv_path = os.path.join(outdir, f"{task}_results.csv")
     with open(csv_path, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["Layer", "Acc", "F1", "controlAcc", "controlF1", "PCA_ExplainedVar"])
+        w.writerow(["Layer", "Acc", "F1", "controlAcc", "controlF1",
+                     "Selectivity", "PCA_ExplainedVar"])
         for l in layers:
             r = results[l]
             w.writerow([
@@ -376,5 +377,6 @@ def plot_probe_results(results: dict, outdir: str, task: str):
                 r[f"{task}_f1"],
                 r[f"{task}_control_acc"],
                 r[f"{task}_control_f1"],
+                r.get(f"{task}_selectivity", -1),
                 r["pca_explained_variance"],
             ])
