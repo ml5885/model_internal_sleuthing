@@ -190,6 +190,12 @@ MODEL_CONFIGS = {
         "batch_size": 32,
         "n_layers": 12,
     },
+    "bert-base-multilingual-cased": {
+        "model_name": "google-bert/bert-base-multilingual-cased",
+        "tokenizer_name": "google-bert/bert-base-multilingual-cased",
+        "max_length": 128,
+        "batch_size": 32,
+    },
 }
 
 MODEL_DISPLAY_NAMES = {
@@ -210,6 +216,7 @@ MODEL_DISPLAY_NAMES = {
     # Encoder-only masked LMs
     "bert-base-uncased": "BERT-Base",
     "bert-large-uncased": "BERT-Large",
+    "bert-base-multilingual-cased": "mBERT",
     "distilbert-base-uncased": "DistilBERT-Base",
     "deberta-v3-large": "DeBERTa-v3-Large",
     # Meta Llama

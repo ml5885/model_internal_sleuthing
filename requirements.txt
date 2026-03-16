@@ -6,3 +6,4 @@ scikit-learn==1.6.1
 matplotlib==3.10.1
 seaborn
 conllu
+datasets
