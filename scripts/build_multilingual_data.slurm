@@ -6,6 +6,7 @@
 #SBATCH --time=8:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
+#SBATCH --gres=gpu:1
 #SBATCH --mem=48G
 
 # Build all multilingual edge datasets (zh/tr/fr/ru/de) with the fixed,
