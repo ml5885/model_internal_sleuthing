@@ -43,9 +43,29 @@ except Exception:
 MAX_ROWS: Optional[int] = 20000
 RNG_SEED: int = 1337
 
+def _assert_target_alignment(df: pd.DataFrame, label_for_log: str):
+    """Fail loudly if `Target Index` does not point at `Word Form` under whitespace
+    splitting -- the exact bug that made the extractor probe the wrong token."""
+    if not {"Sentence", "Target Index", "Word Form"}.issubset(df.columns) or df.empty:
+        return
+    ok = tot = 0
+    for _, r in df.iterrows():
+        toks = str(r["Sentence"]).split()
+        ti = int(r["Target Index"])
+        tot += 1
+        if 0 <= ti < len(toks) and toks[ti] == str(r["Word Form"]):
+            ok += 1
+    rate = ok / max(tot, 1)
+    logging.info(f"ALIGN: {label_for_log}: split()[Target Index]==Word Form for {rate:.1%}")
+    if rate < 0.999:
+        raise ValueError(f"{label_for_log}: token alignment {rate:.1%} < 99.9% -- "
+                         f"Target Index does not match Sentence.split(); extraction would probe wrong tokens.")
+
+
 def _write_csv_capped(df: pd.DataFrame, out_path: Path, label_for_log: str):
     """Write df to csv, capping to MAX_ROWS with deterministic sampling if needed."""
     global MAX_ROWS, RNG_SEED
+    _assert_target_alignment(df, label_for_log)
     n = len(df)
     if MAX_ROWS is not None and n > MAX_ROWS:
         # deterministic sampling
@@ -137,7 +157,12 @@ def is_int_token(tok) -> bool:
 
 
 def sent_text_and_tokens(tokenlist) -> Tuple[str, List[dict]]:
-    return render_sentence(tokenlist), [tok for tok in tokenlist if is_int_token(tok)]
+    # Sentence is stored as space-joined token forms so that `Sentence.split()`
+    # recovers the exact UD tokens that `Target Index` / span offsets refer to.
+    # (Detokenized text -- e.g. "Rude." -- would misalign whitespace-splitting with
+    # the UD tokenization used for the indices; that silently probed the wrong token.)
+    tokens = [tok for tok in tokenlist if is_int_token(tok)]
+    return " ".join(str(tok["form"]) for tok in tokens), tokens
 
 
 def doc_id_from_meta(tokenlist) -> Optional[str]:
