@@ -380,7 +380,7 @@ def process_cumulative(seed, X_all, y_true, task, head, outdir=None, label_map=N
     n_layers = X_all.shape[1]
     bs = sm["batch_size"]
 
-    f1s = []
+    accs, f1s = [], []
     for L in range(n_layers):
         Xc = np.ascontiguousarray(X_all[:, :L + 1, :])
         probe = ScalarMixProbe(L + 1, input_dim, n_classes, head=head,
@@ -388,27 +388,35 @@ def process_cumulative(seed, X_all, y_true, task, head, outdir=None, label_map=N
                                do_layer_norm=sm["do_layer_norm"])
         probe = _train_torch_model(probe, Xc[tr], y_true[tr], Xc[va], y_true[va], batch_size=bs)
         preds = _predict_logits(probe, Xc[te], batch_size=bs).argmax(1)
+        accs.append(float((preds == y_true[te]).mean()))
         f1s.append(float(f1_score(y_true[te], preds, average="macro")))
-        utils.log_info(f"[cumulative/{head}] {task} P^({L}) f1 {f1s[-1]:.3f}")
+        utils.log_info(f"[cumulative/{head}] {task} P^({L}) acc {accs[-1]:.3f} f1 {f1s[-1]:.3f}")
 
-    f1 = np.asarray(f1s)
+    # Expected layer from the differential of the (low-variance) accuracy curve.
+    # Clamp negative increments so optimization noise can't push the expectation
+    # out of range; fall back to the peak layer if nothing improves over layer 0.
+    acc = np.asarray(accs)
     layers = np.arange(n_layers)
-    deltas = np.diff(f1)                     # Delta^(l) for l = 1..L
+    deltas = np.maximum(np.diff(acc), 0.0)   # count only layers that help
     denom = deltas.sum()
-    expected_layer = float(np.sum(layers[1:] * deltas) / denom) if abs(denom) > 1e-9 else float(layers[-1])
+    expected_layer = (float(np.sum(layers[1:] * deltas) / denom)
+                      if denom > 1e-6 else float(acc.argmax()))
 
     if outdir:
         os.makedirs(outdir, exist_ok=True)
         with open(os.path.join(outdir, "cumulative_scores.json"), "w") as f:
-            json.dump({"layers": layers.tolist(), "f1": f1.tolist(),
-                       "baseline_f1": f1[0], "full_f1": f1[-1],
+            json.dump({"layers": layers.tolist(), "acc": acc.tolist(), "f1": f1s,
+                       "baseline_acc": accs[0], "full_acc": accs[-1],
+                       "baseline_f1": f1s[0], "full_f1": f1s[-1],
                        "expected_layer": expected_layer, "head": head}, f, indent=2)
 
-    utils.log_info(f"[cumulative/{head}] {task} baseline_f1 {f1[0]:.3f} full_f1 {f1[-1]:.3f} "
+    utils.log_info(f"[cumulative/{head}] {task} baseline_acc {accs[0]:.3f} full_acc {accs[-1]:.3f} "
                    f"expected_layer {expected_layer:.2f}")
 
-    return {f"{task}_baseline_f1": float(f1[0]), f"{task}_full_f1": float(f1[-1]),
-            f"{task}_expected_layer": expected_layer, "cumulative_f1": f1.tolist()}
+    return {f"{task}_baseline_acc": float(accs[0]), f"{task}_full_acc": float(accs[-1]),
+            f"{task}_baseline_f1": float(f1s[0]), f"{task}_full_f1": float(f1s[-1]),
+            f"{task}_expected_layer": expected_layer,
+            "cumulative_acc": acc.tolist(), "cumulative_f1": f1s}
 
 
 def online_code_mdl(X, y, n_classes, head, input_dim, hidden_dim, seed):
