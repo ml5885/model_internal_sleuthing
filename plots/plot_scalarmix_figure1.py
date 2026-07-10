@@ -127,7 +127,10 @@ def plot(model, data, out_path):
             if x <= cog + 1e-6:
                 return "white"          # on the visible blue bar
             return "black"              # on background
-        dy_e, dy_c = (0.17, -0.17) if abs(el - cog) < 1.9 else (0.0, 0.0)
+        # Stagger vertically when the two labels would crowd. Threshold is wide
+        # because a short expected-layer bar puts its label just right of the tip,
+        # eating into the gap toward the COG label.
+        dy_e, dy_c = (0.17, -0.17) if abs(el - cog) < 3.3 else (0.0, 0.0)
         for val, dy in [(el, dy_e), (cog, dy_c)]:
             if val < 1.8:               # too short: label just past the tip
                 x, ha = val + 0.28, "left"
