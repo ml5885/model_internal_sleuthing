@@ -21,7 +21,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 plt.rcParams["font.family"] = "serif"
+plt.rcParams["font.serif"] = ["Palatino", "Palatino Linotype", "URW Palladio L",
+                              "TeX Gyre Pagella", "P052", "Book Antiqua"]
 plt.rcParams["mathtext.fontset"] = "cm"
+plt.rcParams["font.weight"] = "bold"
+plt.rcParams["axes.titleweight"] = "bold"
 
 PURPLE, BLUE = "#c9c3e0", "#4372ad"
 
@@ -69,53 +73,64 @@ def plot(model, data, out_path):
     n = len(tasks)
     L = max(d["n_layers"] for d in data.values()) - 1
 
-    fig = plt.figure(figsize=(9.5, 0.62 * n + 1.2))
-    gs = fig.add_gridspec(1, 2, width_ratios=[1.0, 3.2], wspace=0.05)
+    fig = plt.figure(figsize=(6.6, 0.46 * n + 0.7))
+    gs = fig.add_gridspec(1, 2, width_ratios=[0.8, 3.5], wspace=0.03)
     ax_f1 = fig.add_subplot(gs[0])
     ax = fig.add_subplot(gs[1], sharey=ax_f1)
 
     y = np.arange(n)[::-1]  # first task on top
+    BAR_H = 0.82
 
     # ---- right panel: overlaid bars (blue behind = COG, purple front = expected layer) ----
     for yi, t in zip(y, tasks):
         d = data[t]
-        if d["cog"] is not None:
-            ax.barh(yi, d["cog"], height=0.72, color=BLUE, zorder=2)
-            ax.text(d["cog"] - 0.15, yi, f"{d['cog']:.2f}", va="center", ha="right",
-                    fontsize=10, color="white", zorder=4)
-        if d["expected_layer"] is not None:
-            ax.barh(yi, d["expected_layer"], height=0.72, color=PURPLE, zorder=3)
-            ax.text(d["expected_layer"] - 0.15, yi, f"{d['expected_layer']:.2f}",
-                    va="center", ha="right", fontsize=10, color="black", zorder=4)
+        el, cog = d["expected_layer"], d["cog"]
+        if cog is not None:
+            ax.barh(yi, cog, height=BAR_H, color=BLUE, zorder=2)
+        if el is not None:
+            ax.barh(yi, el, height=BAR_H, color=PURPLE, zorder=3)
+        if el is None or cog is None:
+            continue
+        # Each value labelled at its bar tip. Expected-layer (purple) sits on the
+        # purple region -> black; COG (blue) is white when the blue is visible
+        # (cog > el) else black (blue hidden under the longer purple bar). When the
+        # two are within ~2 layers, stagger vertically so they never overlap.
+        stag = abs(el - cog) < 1.9
+        dy_e, dy_c = (0.17, -0.17) if stag else (0.0, 0.0)
+        ax.text(el - 0.25, yi + dy_e, f"{el:.2f}", va="center", ha="right",
+                fontsize=12, color="black", fontweight="bold", zorder=5)
+        ax.text(cog - 0.25, yi + dy_c, f"{cog:.2f}", va="center", ha="right",
+                fontsize=12, color=("white" if cog > el else "black"),
+                fontweight="bold", zorder=5)
     ax.set_xlim(0, L)
-    ax.set_xticks(range(0, L + 1, 2))
-    ax.set_ylim(-0.6, n - 0.4)
-    ax.set_title("Expected layer & center-of-gravity", fontsize=12)
-    ax.tick_params(labelleft=False)
-    ax.grid(axis="x", color="0.85", lw=0.6)
+    ax.set_xticks(range(0, L + 1, 4))
+    ax.set_ylim(-0.5, n - 0.5)
+    ax.set_title("Expected layer & center-of-gravity", fontsize=13)
+    ax.tick_params(labelleft=False, labelsize=12)
+    plt.setp(ax.get_xticklabels(), fontweight="bold")
+    ax.grid(axis="x", color="0.82", lw=0.7)
     ax.set_axisbelow(True)
 
     # ---- left panel: F1 columns ----
     ax_f1.set_xlim(0, 1)
-    ax_f1.axvspan(0, 1, color="0.94", zorder=0)
+    ax_f1.axvspan(0, 1, color="0.93", zorder=0)
     for yi, t in zip(y, tasks):
         d = data[t]
         if d["base_f1"] is not None:
-            ax_f1.text(0.34, yi, f"{d['base_f1']:.1f}", va="center", ha="center", fontsize=10)
-            ax_f1.text(0.72, yi, f"{d['full_f1']:.1f}", va="center", ha="center", fontsize=10)
-    ax_f1.text(0.5, 1.10, "F1 Scores", transform=ax_f1.transAxes, ha="center", va="bottom", fontsize=12)
-    ax_f1.text(0.34, 1.02, r"$\ell{=}0$", transform=ax_f1.transAxes, ha="center", va="bottom", fontsize=10, color="0.3")
-    ax_f1.text(0.72, 1.02, rf"$\ell{{=}}{L}$", transform=ax_f1.transAxes, ha="center", va="bottom", fontsize=10, color="0.3")
+            ax_f1.text(0.32, yi, f"{d['base_f1']:.1f}", va="center", ha="center", fontsize=12, fontweight="bold")
+            ax_f1.text(0.74, yi, f"{d['full_f1']:.1f}", va="center", ha="center", fontsize=12, fontweight="bold")
+    ax_f1.text(0.5, 1.11, "F1 Scores", transform=ax_f1.transAxes, ha="center", va="bottom", fontsize=13, fontweight="bold")
+    ax_f1.text(0.32, 1.015, r"$\ell{=}0$", transform=ax_f1.transAxes, ha="center", va="bottom", fontsize=11.5, color="0.25")
+    ax_f1.text(0.74, 1.015, rf"$\ell{{=}}{L}$", transform=ax_f1.transAxes, ha="center", va="bottom", fontsize=11.5, color="0.25")
     ax_f1.set_yticks(y)
-    ax_f1.set_yticklabels([TASK_LABELS[t] for t in tasks], fontsize=11)
+    ax_f1.set_yticklabels([TASK_LABELS[t] for t in tasks], fontsize=14, fontweight="bold")
     ax_f1.tick_params(length=0)
     for s in ax_f1.spines.values():
         s.set_visible(False)
     ax_f1.set_xticks([])
 
-    fig.suptitle(f"Summary statistics on {MODEL_LABELS.get(model, model)}", fontsize=13, y=1.0)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    fig.savefig(out_path + ".png", dpi=200, bbox_inches="tight")
+    fig.savefig(out_path + ".png", dpi=300, bbox_inches="tight")
     print(f"Saved {out_path}.png")
 
     print(f"\n{model} ({'linear' if 'mlp' not in out_path else 'mlp'} head):")
