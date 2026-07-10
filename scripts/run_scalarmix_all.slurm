@@ -3,16 +3,18 @@
 #SBATCH --output=/home/ml6/logs/sbatch/%x_%A_%a.out
 #SBATCH --error=/home/ml6/logs/sbatch/%x_%A_%a.err
 #SBATCH --partition=general
-#SBATCH --time=16:00:00
+#SBATCH --time=2-00:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:L40S:1
 #SBATCH --mem=128G
-#SBATCH --array=0-119%24
+#SBATCH --array=0-24%8
 
-# Extract token-aligned activations and run the scalar-mixing probe for one
-# (model, language) cell per array index (manifest: scripts/scalarmix_manifest.tsv).
-# Datasets that did not build are skipped. Existing activations are reused.
+# One model per array index (manifest: scripts/scalarmix_manifest.tsv, lines of
+# "model<TAB>lang1,lang2,..."). For each of the model's languages, extract
+# token-aligned activations and run the scalar-mixing probe over that language's
+# tasks. Datasets that did not build are skipped; existing activations are reused.
+# Concurrency is capped at 8 (the normal-QOS GPU limit).
 
 export HF_HOME=/data/user_data/ml6/.hf_cache
 export HF_HUB_OFFLINE=0
@@ -65,21 +67,24 @@ emit_jobs() {
 
 LINE=$(sed -n "$((SLURM_ARRAY_TASK_ID + 1))p" scripts/scalarmix_manifest.tsv)
 MODEL=$(echo "$LINE" | cut -f1)
-LANG=$(echo "$LINE" | cut -f2)
-echo "=== cell $SLURM_ARRAY_TASK_ID : model=$MODEL lang=$LANG ==="
+LANGS=$(echo "$LINE" | cut -f2)
+echo "=== model $SLURM_ARRAY_TASK_ID : $MODEL langs=$LANGS ==="
 
-emit_jobs "$LANG" | while IFS='|' read -r TASK DSID CSV; do
-  [ -f "$CSV" ] || { echo "SKIP (no csv): $CSV"; continue; }
-  ACT="${REMOTE_FIXED}/${MODEL}_${DSID}_reps"
-  if ! ls "$ACT"/activations_part*.npz >/dev/null 2>&1; then
-    echo "--- extract $MODEL / $DSID"
-    python -m src.activation_extraction --data "$CSV" --output-dir "$ACT" --model "$MODEL" \
-      || { echo "ERROR extract $MODEL/$DSID"; continue; }
-  fi
-  echo "--- scalarmix $MODEL / $LANG / $TASK"
-  python -m src.train --activations "$ACT" --labels "$CSV" --task "$TASK" \
-    --dataset "$DSID" --exp_label "$MODEL" --probe_type scalarmix --max_examples 50000 \
-    --output_dir "output/probes_multiling/${DSID}_${MODEL}_${TASK}_scalarmix" \
-    || echo "ERROR probe $MODEL/$LANG/$TASK"
+for LANG in ${LANGS//,/ }; do
+  emit_jobs "$LANG" | while IFS='|' read -r TASK DSID CSV; do
+    [ -f "$CSV" ] || { echo "SKIP (no csv): $CSV"; continue; }
+    ACT="${REMOTE_FIXED}/${MODEL}_${DSID}_reps"
+    if ! ls "$ACT"/activations_part*.npz >/dev/null 2>&1; then
+      echo "--- extract $MODEL / $DSID"
+      python -m src.activation_extraction --data "$CSV" --output-dir "$ACT" --model "$MODEL" \
+        || { echo "ERROR extract $MODEL/$DSID"; continue; }
+    fi
+    OUT="output/probes_multiling/${DSID}_${MODEL}_${TASK}_scalarmix"
+    if [ -f "$OUT/scalarmix_weights.json" ]; then echo "skip done $OUT"; continue; fi
+    echo "--- scalarmix $MODEL / $LANG / $TASK"
+    python -m src.train --activations "$ACT" --labels "$CSV" --task "$TASK" \
+      --dataset "$DSID" --exp_label "$MODEL" --probe_type scalarmix --max_examples 50000 \
+      --output_dir "$OUT" || echo "ERROR probe $MODEL/$LANG/$TASK"
+  done
 done
-echo "=== cell $SLURM_ARRAY_TASK_ID done ==="
+echo "=== model $SLURM_ARRAY_TASK_ID done ==="
