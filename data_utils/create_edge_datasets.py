@@ -480,6 +480,22 @@ def _parse_header_line(line: str) -> Tuple[str, str]:
     return ex_id, sent
 
 
+def _char_to_word_span(text: str, cs: int, ce: int) -> Tuple[int, int]:
+    """Map a character span [cs, ce) in a space-normalized string to word indices
+    (start inclusive, end exclusive) so it aligns with `Sentence.split()`."""
+    words = text.split()
+    pos, ws, we = 0, None, None
+    for i, w in enumerate(words):
+        w0 = text.index(w, pos)
+        w1 = w0 + len(w)
+        pos = w1
+        if w1 > cs and w0 < ce:                 # word overlaps the char span
+            if ws is None:
+                ws = i
+            we = i + 1
+    return (ws, we) if ws is not None else (0, 1)
+
+
 def _parse_semeval_official(path: Path) -> List[dict]:
     rows = []
     for block in _iter_official_blocks(path):
@@ -490,10 +506,13 @@ def _parse_semeval_official(path: Path) -> List[dict]:
             clean, e1_span, e2_span = _strip_markers_and_get_spans(sentence_w_markers)
         except Exception:
             continue
+        # spans come back as CHARACTER offsets; extraction indexes words, so convert
+        s1, e1 = _char_to_word_span(clean, e1_span[0], e1_span[1])
+        s2, e2 = _char_to_word_span(clean, e2_span[0], e2_span[1])
         rows.append({
             "Text": clean, "Sentence": clean,
-            "Span1 Start": e1_span[0], "Span1 End": e1_span[1],
-            "Span2 Start": e2_span[0], "Span2 End": e2_span[1],
+            "Span1 Start": s1, "Span1 End": e1,
+            "Span2 Start": s2, "Span2 End": e2,
             "Label": relation, "Source Type": "SemEval2010",
             "Doc ID": ex_id, "Sent1 ID": 0, "Sent2 ID": 0
         })

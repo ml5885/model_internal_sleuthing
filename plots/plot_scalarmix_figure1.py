@@ -80,8 +80,10 @@ def collect(root, model, head):
             # recompute from the saved curve so the metric change needs no rerun
             "expected_layer": expected_layer(cu["acc"]) if cu else None,
             "snr": snr(cu["acc"]) if cu else None,
-            "base_f1": 100 * cu["baseline_f1"] if cu else None,
-            "full_f1": 100 * cu["full_f1"] if cu else None,
+            # micro-F1 (= accuracy for single-label tasks), comparable to Tenney's
+            # reported F1; macro-F1 would crater on the imbalanced many-class tasks.
+            "base_f1": 100 * cu["baseline_acc"] if cu else None,
+            "full_f1": 100 * cu["full_acc"] if cu else None,
             "cog": sm["cog"] if sm else None,
             "n_layers": n_layers,
         }
