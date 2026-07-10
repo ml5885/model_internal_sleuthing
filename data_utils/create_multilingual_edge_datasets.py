@@ -202,9 +202,13 @@ def render_sentence(tokenlist) -> str:
 
 def sent_text_and_tokens(tokenlist):
     # Space-join token forms so Sentence.split() recovers the UD tokens that
-    # Target Index / span offsets index into (detokenized text misaligns them).
+    # Target Index / span offsets index into. Collapse whitespace *inside* a form
+    # (e.g. the French thousands-separator token "10 000") first, so a single
+    # token cannot split into two and shift every downstream index.
     tokens = [tok for tok in tokenlist if is_int_token(tok)]
-    return " ".join(str(tok["form"]) for tok in tokens), tokens
+    for tok in tokens:
+        tok["form"] = re.sub(r"\s+", "", str(tok["form"])) or "_"
+    return " ".join(tok["form"] for tok in tokens), tokens
 
 
 # Chunk family mapping (same as English)

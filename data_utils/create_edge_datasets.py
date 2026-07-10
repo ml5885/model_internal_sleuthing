@@ -162,7 +162,9 @@ def sent_text_and_tokens(tokenlist) -> Tuple[str, List[dict]]:
     # (Detokenized text -- e.g. "Rude." -- would misalign whitespace-splitting with
     # the UD tokenization used for the indices; that silently probed the wrong token.)
     tokens = [tok for tok in tokenlist if is_int_token(tok)]
-    return " ".join(str(tok["form"]) for tok in tokens), tokens
+    for tok in tokens:
+        tok["form"] = re.sub(r"\s+", "", str(tok["form"])) or "_"
+    return " ".join(tok["form"] for tok in tokens), tokens
 
 
 def doc_id_from_meta(tokenlist) -> Optional[str]:
