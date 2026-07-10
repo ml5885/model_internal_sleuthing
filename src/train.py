@@ -7,7 +7,8 @@ import torch
 from tqdm import tqdm
 
 from src import config, utils
-from src.probe import process_layer, process_layer_mdl, process_scalarmix, plot_probe_results
+from src.probe import (process_layer, process_layer_mdl, process_scalarmix,
+                       process_cumulative, plot_probe_results)
 
 
 def load_shards(path):
@@ -163,9 +164,9 @@ def run_probes(activations, labels_path, task, lambda_reg, exp_label,
     results = {}
     all_preds = []
 
-    # ---- Scalar-mix probe: a single probe over ALL layers (Tenney et al. 2019) ----
-    if probe_type in ("scalarmix", "scalarmix_mlp"):
-        head = "mlp" if probe_type == "scalarmix_mlp" else "linear"
+    # ---- Whole-model probes that need ALL layers at once (Tenney et al. 2019) ----
+    if probe_type in ("scalarmix", "scalarmix_mlp", "cumulative", "cumulative_mlp"):
+        head = "mlp" if probe_type.endswith("_mlp") else "linear"
         X_all = load_all_layers(shards)[indices_filtered]
         y_sm, yc_sm = y_true_filtered, y_control_filtered
 
@@ -174,14 +175,19 @@ def run_probes(activations, labels_path, task, lambda_reg, exp_label,
             rng = np.random.RandomState(config.SEED)
             sel = rng.choice(len(X_all), max_ex, replace=False)
             X_all, y_sm, yc_sm = X_all[sel], y_sm[sel], yc_sm[sel]
-            utils.log_info(f"Subsampled to {max_ex} examples for scalar-mix training.")
+            utils.log_info(f"Subsampled to {max_ex} examples.")
 
-        res = process_scalarmix(config.SEED, X_all, y_sm, yc_sm, task, head,
-                                layer_count=X_all.shape[1], outdir=outdir,
-                                label_map=label_map, control_label_map=control_label_map)
-        np.savez_compressed(os.path.join(outdir, "probe_results.npz"),
-                            results={"scalarmix": res})
-        utils.log_info(f"Saved scalar-mix results to {outdir}")
+        if probe_type.startswith("cumulative"):
+            res = process_cumulative(config.SEED, X_all, y_sm, task, head,
+                                     outdir=outdir, label_map=label_map)
+            key = "cumulative"
+        else:
+            res = process_scalarmix(config.SEED, X_all, y_sm, yc_sm, task, head,
+                                    layer_count=X_all.shape[1], outdir=outdir,
+                                    label_map=label_map, control_label_map=control_label_map)
+            key = "scalarmix"
+        np.savez_compressed(os.path.join(outdir, "probe_results.npz"), results={key: res})
+        utils.log_info(f"Saved {key} results to {outdir}")
         return
 
     is_mdl = probe_type in ("mdl", "mdl_mlp")
@@ -300,7 +306,8 @@ def parse_args():
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--probe_type",
                         choices=["reg", "mlp", "nn", "rf",
-                                 "scalarmix", "scalarmix_mlp", "mdl", "mdl_mlp"],
+                                 "scalarmix", "scalarmix_mlp", "mdl", "mdl_mlp",
+                                 "cumulative", "cumulative_mlp"],
                         default="reg")
     parser.add_argument("--pca_dim", type=int, default=0)
     parser.add_argument("--output_dir", type=str, default=None,
