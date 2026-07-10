@@ -299,6 +299,14 @@ SCALARMIX_PARAMS = {
                             # far enough to concentrate; head LR is too slow for them)
 }
 
+# Cumulative scoring (Tenney et al. 2019, Eq. 3-4)
+CUMULATIVE_PARAMS = {
+    # average the per-layer accuracy curve over this many probe re-trainings
+    # (fixed data split, varied init) to denoise the differential -- needed for
+    # noisy tasks like coref whose single-seed curve is dominated by jitter.
+    "n_seeds": 4,
+}
+
 # Minimum description length probing (Voita & Titov 2020, online/prequential code)
 MDL_PARAMS = {
     # fractions of the training set at which the online code is evaluated

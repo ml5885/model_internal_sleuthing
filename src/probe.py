@@ -388,18 +388,27 @@ def process_cumulative(seed, X_all, y_true, task, head, outdir=None, label_map=N
     input_dim = X_all.shape[2]
     n_layers = X_all.shape[1]
     bs = sm["batch_size"]
+    n_seeds = config.CUMULATIVE_PARAMS["n_seeds"]
 
-    accs, f1s = [], []
+    # Average each P^(l) over n_seeds probe re-trainings (same split, different
+    # init) so the differential reflects real per-layer gains, not fitting jitter.
+    acc_runs, f1_runs = np.zeros((n_seeds, n_layers)), np.zeros((n_seeds, n_layers))
     for L in range(n_layers):
         Xc = np.ascontiguousarray(X_all[:, :L + 1, :])
-        probe = ScalarMixProbe(L + 1, input_dim, n_classes, head=head,
-                               hidden_dim=sm["hidden_dim"], dropout=sm["dropout"],
-                               do_layer_norm=sm["do_layer_norm"])
-        probe = _train_torch_model(probe, Xc[tr], y_true[tr], Xc[va], y_true[va], batch_size=bs)
-        preds = _predict_logits(probe, Xc[te], batch_size=bs).argmax(1)
-        accs.append(float((preds == y_true[te]).mean()))
-        f1s.append(float(f1_score(y_true[te], preds, average="macro")))
-        utils.log_info(f"[cumulative/{head}] {task} P^({L}) acc {accs[-1]:.3f} f1 {f1s[-1]:.3f}")
+        for s in range(n_seeds):
+            torch.manual_seed(seed + 101 * s + L)
+            probe = ScalarMixProbe(L + 1, input_dim, n_classes, head=head,
+                                   hidden_dim=sm["hidden_dim"], dropout=sm["dropout"],
+                                   do_layer_norm=sm["do_layer_norm"])
+            probe = _train_torch_model(probe, Xc[tr], y_true[tr], Xc[va], y_true[va], batch_size=bs)
+            preds = _predict_logits(probe, Xc[te], batch_size=bs).argmax(1)
+            acc_runs[s, L] = (preds == y_true[te]).mean()
+            f1_runs[s, L] = f1_score(y_true[te], preds, average="macro")
+        utils.log_info(f"[cumulative/{head}] {task} P^({L}) acc {acc_runs[:, L].mean():.3f} "
+                       f"(±{acc_runs[:, L].std():.3f}, {n_seeds} seeds)")
+
+    accs = acc_runs.mean(0).tolist()
+    f1s = f1_runs.mean(0).tolist()
 
     # Expected layer, Tenney et al. Eq. 4, on the RAW differential (no clamping):
     #   E = sum_l l * (acc_l - acc_{l-1}) / (acc_L - acc_0).
