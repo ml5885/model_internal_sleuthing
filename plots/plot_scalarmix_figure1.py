@@ -47,8 +47,26 @@ def _load(root, dataset, model, task, probe, key):
     return json.load(open(path)) if os.path.exists(path) else None
 
 
+def expected_layer(acc):
+    """Tenney Eq. 4 on the raw (unclamped) differential of the accuracy curve.
+    NaN when the total gain is negligible (task not meaningfully learned)."""
+    acc = np.asarray(acc, dtype=float)
+    total = acc[-1] - acc[0]
+    if total <= 1e-3:
+        return np.nan
+    return float(np.sum(np.arange(len(acc))[1:] * np.diff(acc)) / total)
+
+
+def snr(acc):
+    """Signal-to-noise of the curve: total gain / back-half layer-to-layer std.
+    Low SNR (<~3) means the expected layer is noise-dominated / unreliable."""
+    acc = np.asarray(acc, dtype=float)
+    noise = np.std(np.diff(acc[len(acc) // 2:]))
+    return float((acc[-1] - acc[0]) / noise) if noise > 0 else np.inf
+
+
 def collect(root, model, head):
-    """Return {task: dict(expected_layer, cog, base_f1, full_f1, n_layers)}."""
+    """Return {task: dict(expected_layer, cog, base_f1, full_f1, snr, n_layers)}."""
     sm_probe = "scalarmix" if head == "linear" else "scalarmix_mlp"
     cu_probe = "cumulative" if head == "linear" else "cumulative_mlp"
     out = {}
@@ -57,9 +75,11 @@ def collect(root, model, head):
         sm = _load(root, dataset, model, task, sm_probe, "scalarmix_weights")
         if cu is None and sm is None:
             continue
-        n_layers = (len(cu["f1"]) if cu else sm["n_layers"])
+        n_layers = (len(cu["acc"]) if cu else sm["n_layers"])
         out[task] = {
-            "expected_layer": cu["expected_layer"] if cu else None,
+            # recompute from the saved curve so the metric change needs no rerun
+            "expected_layer": expected_layer(cu["acc"]) if cu else None,
+            "snr": snr(cu["acc"]) if cu else None,
             "base_f1": 100 * cu["baseline_f1"] if cu else None,
             "full_f1": 100 * cu["full_f1"] if cu else None,
             "cog": sm["cog"] if sm else None,
@@ -85,23 +105,36 @@ def plot(model, data, out_path):
     for yi, t in zip(y, tasks):
         d = data[t]
         el, cog = d["expected_layer"], d["cog"]
-        if cog is not None:
+        has_el = el is not None and np.isfinite(el)
+        has_cog = cog is not None and np.isfinite(cog)
+        if has_cog:
             ax.barh(yi, cog, height=BAR_H, color=BLUE, zorder=2)
-        if el is not None:
+        if has_el:
             ax.barh(yi, el, height=BAR_H, color=PURPLE, zorder=3)
-        if el is None or cog is None:
+        if not (has_el and has_cog):
+            for val, txt in [(el if has_el else None, "black"), (cog if has_cog else None, "white")]:
+                if val is not None:
+                    ax.text(val - 0.25, yi, f"{val:.2f}", va="center", ha="right",
+                            fontsize=12, color=txt, fontweight="bold", zorder=5)
             continue
-        # Each value labelled at its bar tip. Expected-layer (purple) sits on the
-        # purple region -> black; COG (blue) is white when the blue is visible
-        # (cog > el) else black (blue hidden under the longer purple bar). When the
-        # two are within ~2 layers, stagger vertically so they never overlap.
-        stag = abs(el - cog) < 1.9
-        dy_e, dy_c = (0.17, -0.17) if stag else (0.0, 0.0)
-        ax.text(el - 0.25, yi + dy_e, f"{el:.2f}", va="center", ha="right",
-                fontsize=12, color="black", fontweight="bold", zorder=5)
-        ax.text(cog - 0.25, yi + dy_c, f"{cog:.2f}", va="center", ha="right",
-                fontsize=12, color=("white" if cog > el else "black"),
-                fontweight="bold", zorder=5)
+        # Label each value at its bar tip (or just past it if the bar is too short
+        # to hold the text). Purple is drawn in front over [0, el] and blue behind
+        # over [0, cog], so the colour under any x follows that stacking. Stagger
+        # vertically when the two values are within ~2 layers.
+        def color_at(x):
+            if x <= el + 1e-6:
+                return "black"          # on the (front) purple bar
+            if x <= cog + 1e-6:
+                return "white"          # on the visible blue bar
+            return "black"              # on background
+        dy_e, dy_c = (0.17, -0.17) if abs(el - cog) < 1.9 else (0.0, 0.0)
+        for val, dy in [(el, dy_e), (cog, dy_c)]:
+            if val < 1.8:               # too short: label just past the tip
+                x, ha = val + 0.28, "left"
+            else:
+                x, ha = val - 0.28, "right"
+            ax.text(x, yi + dy, f"{val:.2f}", va="center", ha=ha, fontsize=12,
+                    color=color_at(x), fontweight="bold", zorder=5)
     ax.set_xlim(0, L)
     ax.set_xticks(range(0, L + 1, 4))
     ax.set_ylim(-0.5, n - 0.5)

@@ -401,15 +401,18 @@ def process_cumulative(seed, X_all, y_true, task, head, outdir=None, label_map=N
         f1s.append(float(f1_score(y_true[te], preds, average="macro")))
         utils.log_info(f"[cumulative/{head}] {task} P^({L}) acc {accs[-1]:.3f} f1 {f1s[-1]:.3f}")
 
-    # Expected layer from the differential of the (low-variance) accuracy curve.
-    # Clamp negative increments so optimization noise can't push the expectation
-    # out of range; fall back to the peak layer if nothing improves over layer 0.
+    # Expected layer, Tenney et al. Eq. 4, on the RAW differential (no clamping):
+    #   E = sum_l l * (acc_l - acc_{l-1}) / (acc_L - acc_0).
+    # Leaving the differential unclamped lets plateau noise cancel (up- and
+    # down-wiggles offset), so the expectation stays on the layers where accuracy
+    # genuinely rises. Clamping to positive-only keeps jitter and drags saturated
+    # curves deep. Guard against a near-zero / negative total gain (task not
+    # meaningfully learned) -- then the expected layer is undefined.
     acc = np.asarray(accs)
     layers = np.arange(n_layers)
-    deltas = np.maximum(np.diff(acc), 0.0)   # count only layers that help
-    denom = deltas.sum()
-    expected_layer = (float(np.sum(layers[1:] * deltas) / denom)
-                      if denom > 1e-6 else float(acc.argmax()))
+    total = float(acc[-1] - acc[0])
+    expected_layer = (float(np.sum(layers[1:] * np.diff(acc)) / total)
+                      if total > 1e-3 else float("nan"))
 
     if outdir:
         os.makedirs(outdir, exist_ok=True)
