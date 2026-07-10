@@ -133,7 +133,27 @@ LANGUAGES = ["zh", "tr", "fr", "ru", "de"]
 # Shared helpers
 # ============================================================
 
+def _assert_target_alignment(df: pd.DataFrame, label_for_log: str):
+    """Fail loudly if `Target Index` does not point at `Word Form` under whitespace
+    splitting -- guards against the token-vs-detokenized misalignment bug."""
+    if not {"Sentence", "Target Index", "Word Form"}.issubset(df.columns) or df.empty:
+        return
+    ok = tot = 0
+    for _, r in df.iterrows():
+        toks = str(r["Sentence"]).split()
+        ti = int(r["Target Index"])
+        tot += 1
+        if 0 <= ti < len(toks) and toks[ti] == str(r["Word Form"]):
+            ok += 1
+    rate = ok / max(tot, 1)
+    logging.info(f"ALIGN: {label_for_log}: split()[Target Index]==Word Form for {rate:.1%}")
+    if rate < 0.999:
+        raise ValueError(f"{label_for_log}: token alignment {rate:.1%} < 99.9% -- "
+                         f"extraction would probe the wrong tokens.")
+
+
 def _write_csv_capped(df: pd.DataFrame, out_path: Path, label_for_log: str):
+    _assert_target_alignment(df, label_for_log)
     n = len(df)
     if MAX_ROWS is not None and n > MAX_ROWS:
         df = df.sample(n=MAX_ROWS, random_state=RNG_SEED).reset_index(drop=True)
