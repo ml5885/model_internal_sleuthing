@@ -316,6 +316,8 @@ def parse_args():
                         help="If set, load LLaMA-3 to fetch LayerNorm weights (memory heavy).")
     parser.add_argument("--max_examples", type=int, default=0,
                         help="Cap examples for scalar-mix training (memory); 0 = use all.")
+    parser.add_argument("--n_seeds", type=int, default=0,
+                        help="Override cumulative multi-seed averaging count; 0 = config default.")
     return parser.parse_args()
 
 
@@ -323,6 +325,8 @@ if __name__ == "__main__":
     args = parse_args()
     if args.max_examples:
         config.SCALARMIX_PARAMS["max_examples"] = args.max_examples
+    if args.n_seeds:
+        config.CUMULATIVE_PARAMS["n_seeds"] = args.n_seeds
     run_probes(
         args.activations,
         args.labels,

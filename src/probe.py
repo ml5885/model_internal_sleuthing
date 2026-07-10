@@ -372,30 +372,36 @@ def process_cumulative(seed, X_all, y_true, task, head, outdir=None, label_map=N
     keep = np.isin(y_true, uniq[counts >= 1])
     X_all, y_true = X_all[keep], y_true[keep]
 
-    idx = np.arange(len(X_all))
-    try:
-        tr, tmp = train_test_split(idx, train_size=config.SPLIT_RATIOS["train"],
-                                   random_state=seed, stratify=y_true)
-    except ValueError:
-        tr, tmp = train_test_split(idx, train_size=config.SPLIT_RATIOS["train"],
-                                   random_state=seed, stratify=None)
-    val_frac = config.SPLIT_RATIOS["val"] / (config.SPLIT_RATIOS["val"] + config.SPLIT_RATIOS["test"])
-    tc = np.bincount(y_true[tmp])
-    va, te = train_test_split(tmp, train_size=val_frac, random_state=seed,
-                              stratify=y_true[tmp] if tc.min() > 1 else None)
-
     n_classes = int(np.max(y_true) + 1)
     input_dim = X_all.shape[2]
     n_layers = X_all.shape[1]
     bs = sm["batch_size"]
     n_seeds = config.CUMULATIVE_PARAMS["n_seeds"]
 
-    # Average each P^(l) over n_seeds probe re-trainings (same split, different
-    # init) so the differential reflects real per-layer gains, not fitting jitter.
+    def make_split(sd):
+        idx = np.arange(len(X_all))
+        try:
+            tr, tmp = train_test_split(idx, train_size=config.SPLIT_RATIOS["train"],
+                                       random_state=sd, stratify=y_true)
+        except ValueError:
+            tr, tmp = train_test_split(idx, train_size=config.SPLIT_RATIOS["train"],
+                                       random_state=sd, stratify=None)
+        vf = config.SPLIT_RATIOS["val"] / (config.SPLIT_RATIOS["val"] + config.SPLIT_RATIOS["test"])
+        tc = np.bincount(y_true[tmp])
+        va, te = train_test_split(tmp, train_size=vf, random_state=sd,
+                                  stratify=y_true[tmp] if tc.min() > 1 else None)
+        return tr, va, te
+
+    # Average each P^(l) over n_seeds runs that vary BOTH the data split and the
+    # init (Monte-Carlo CV). Varying the split is essential for small datasets
+    # (e.g. coref): there the per-layer noise is dominated by which examples land
+    # in the tiny test set, not by training randomness, so a fixed split can't be
+    # denoised by re-training alone.
+    splits = [make_split(seed + 101 * s) for s in range(n_seeds)]
     acc_runs, f1_runs = np.zeros((n_seeds, n_layers)), np.zeros((n_seeds, n_layers))
     for L in range(n_layers):
         Xc = np.ascontiguousarray(X_all[:, :L + 1, :])
-        for s in range(n_seeds):
+        for s, (tr, va, te) in enumerate(splits):
             torch.manual_seed(seed + 101 * s + L)
             probe = ScalarMixProbe(L + 1, input_dim, n_classes, head=head,
                                    hidden_dim=sm["hidden_dim"], dropout=sm["dropout"],
