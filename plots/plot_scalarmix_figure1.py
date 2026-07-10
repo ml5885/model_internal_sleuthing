@@ -117,27 +117,26 @@ def plot(model, data, out_path):
                     ax.text(val - 0.25, yi, f"{val:.2f}", va="center", ha="right",
                             fontsize=12, color=txt, fontweight="bold", zorder=5)
             continue
-        # Label each value at its bar tip (or just past it if the bar is too short
-        # to hold the text). Purple is drawn in front over [0, el] and blue behind
-        # over [0, cog], so the colour under any x follows that stacking. Stagger
-        # vertically when the two values are within ~2 layers.
-        def color_at(x):
-            if x <= el + 1e-6:
-                return "black"          # on the (front) purple bar
-            if x <= cog + 1e-6:
-                return "white"          # on the visible blue bar
-            return "black"              # on background
-        # Stagger vertically when the two labels would crowd. Threshold is wide
-        # because a short expected-layer bar puts its label just right of the tip,
-        # eating into the gap toward the COG label.
-        dy_e, dy_c = (0.17, -0.17) if abs(el - cog) < 3.3 else (0.0, 0.0)
-        for val, dy in [(el, dy_e), (cog, dy_c)]:
-            if val < 1.8:               # too short: label just past the tip
-                x, ha = val + 0.28, "left"
-            else:
-                x, ha = val - 0.28, "right"
-            ax.text(x, yi + dy, f"{val:.2f}", va="center", ha=ha, fontsize=12,
-                    color=color_at(x), fontweight="bold", zorder=5)
+        # Value labels, all on one baseline (no vertical stacking). Since el < cog,
+        # purple is the inner bar and blue the outer. Label each at its tip; but if
+        # the purple bar is too short to hold its number, put that number just past
+        # its tip (white, on blue), and if the two tips are too close, move the COG
+        # number just past the blue tip (black, on background) so nothing overlaps.
+        W = 0.12 * L                              # approx label width, in layers
+        el_short = el < W + 0.5
+        if el_short:
+            ax.text(el + 0.18, yi, f"{el:.2f}", va="center", ha="left",
+                    fontsize=12, color="white", fontweight="bold", zorder=5)
+        else:
+            ax.text(el - 0.28, yi, f"{el:.2f}", va="center", ha="right",
+                    fontsize=12, color="black", fontweight="bold", zorder=5)
+        crowded = el_short or (cog - el) < W + 0.9
+        if crowded and cog + 0.2 + W < L:
+            ax.text(cog + 0.2, yi, f"{cog:.2f}", va="center", ha="left",
+                    fontsize=12, color="black", fontweight="bold", zorder=5)
+        else:
+            ax.text(cog - 0.28, yi, f"{cog:.2f}", va="center", ha="right",
+                    fontsize=12, color="white", fontweight="bold", zorder=5)
     ax.set_xlim(0, L)
     ax.set_xticks(range(0, L + 1, 4))
     ax.set_ylim(-0.5, n - 0.5)
