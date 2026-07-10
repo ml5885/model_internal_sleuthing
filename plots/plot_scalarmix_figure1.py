@@ -115,28 +115,28 @@ def plot(model, data, out_path):
             for val, txt in [(el if has_el else None, "black"), (cog if has_cog else None, "white")]:
                 if val is not None:
                     ax.text(val - 0.25, yi, f"{val:.2f}", va="center", ha="right",
-                            fontsize=12, color=txt, fontweight="bold", zorder=5)
+                            fontsize=14, color=txt, fontweight="bold", zorder=5)
             continue
         # Value labels, all on one baseline (no vertical stacking). Since el < cog,
         # purple is the inner bar and blue the outer. Label each at its tip; but if
         # the purple bar is too short to hold its number, put that number just past
         # its tip (white, on blue), and if the two tips are too close, move the COG
         # number just past the blue tip (black, on background) so nothing overlaps.
-        W = 0.12 * L                              # approx label width, in layers
+        W = 0.145 * L                             # approx label width, in layers (14pt)
         el_short = el < W + 0.5
         if el_short:
             ax.text(el + 0.18, yi, f"{el:.2f}", va="center", ha="left",
-                    fontsize=12, color="white", fontweight="bold", zorder=5)
+                    fontsize=14, color="white", fontweight="bold", zorder=5)
         else:
             ax.text(el - 0.28, yi, f"{el:.2f}", va="center", ha="right",
-                    fontsize=12, color="black", fontweight="bold", zorder=5)
+                    fontsize=14, color="black", fontweight="bold", zorder=5)
         crowded = el_short or (cog - el) < W + 0.9
         if crowded and cog + 0.2 + W < L:
             ax.text(cog + 0.2, yi, f"{cog:.2f}", va="center", ha="left",
-                    fontsize=12, color="black", fontweight="bold", zorder=5)
+                    fontsize=14, color="black", fontweight="bold", zorder=5)
         else:
             ax.text(cog - 0.28, yi, f"{cog:.2f}", va="center", ha="right",
-                    fontsize=12, color="white", fontweight="bold", zorder=5)
+                    fontsize=14, color="white", fontweight="bold", zorder=5)
     ax.set_xlim(0, L)
     ax.set_xticks(range(0, L + 1, 4))
     ax.set_ylim(-0.5, n - 0.5)
@@ -152,8 +152,8 @@ def plot(model, data, out_path):
     for yi, t in zip(y, tasks):
         d = data[t]
         if d["base_f1"] is not None:
-            ax_f1.text(0.32, yi, f"{d['base_f1']:.1f}", va="center", ha="center", fontsize=12, fontweight="bold")
-            ax_f1.text(0.74, yi, f"{d['full_f1']:.1f}", va="center", ha="center", fontsize=12, fontweight="bold")
+            ax_f1.text(0.32, yi, f"{d['base_f1']:.1f}", va="center", ha="center", fontsize=14, fontweight="bold")
+            ax_f1.text(0.74, yi, f"{d['full_f1']:.1f}", va="center", ha="center", fontsize=14, fontweight="bold")
     ax_f1.text(0.5, 1.11, "F1 Scores", transform=ax_f1.transAxes, ha="center", va="bottom", fontsize=13, fontweight="bold")
     ax_f1.text(0.32, 1.015, r"$\ell{=}0$", transform=ax_f1.transAxes, ha="center", va="bottom", fontsize=11.5, color="0.25")
     ax_f1.text(0.74, 1.015, rf"$\ell{{=}}{L}$", transform=ax_f1.transAxes, ha="center", va="bottom", fontsize=11.5, color="0.25")
