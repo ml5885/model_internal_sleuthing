@@ -288,6 +288,24 @@ TRAIN_PARAMS = {
     "workers": max(1, os.cpu_count() - 1),
 }
 
+# Scalar-mix probe (Tenney et al. 2019 reproduction)
+SCALARMIX_PARAMS = {
+    "hidden_dim": 256,      # MLP head width for scalarmix_mlp
+    "dropout": 0.3,
+    "do_layer_norm": True,  # per-layer LayerNorm before mixing (ELMo convention)
+    "max_examples": 0,      # 0 = use all; else subsample for memory
+    "batch_size": 512,      # smaller than default: input is [B, n_layers, H]
+}
+
+# Minimum description length probing (Voita & Titov 2020, online/prequential code)
+MDL_PARAMS = {
+    # fractions of the training set at which the online code is evaluated
+    "fractions": [0.001, 0.002, 0.004, 0.008, 0.016, 0.032,
+                  0.0625, 0.125, 0.25, 0.5, 1.0],
+    "hidden_dim": 256,      # MLP head width for mdl_mlp
+    "dropout": 0.3,
+}
+
 # Data split ratios
 SPLIT_RATIOS = {
     "train": 0.7,

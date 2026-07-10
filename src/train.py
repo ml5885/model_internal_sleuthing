@@ -7,7 +7,7 @@ import torch
 from tqdm import tqdm
 
 from src import config, utils
-from src.probe import process_layer, plot_probe_results
+from src.probe import process_layer, process_layer_mdl, process_scalarmix, plot_probe_results
 
 
 def load_shards(path):
@@ -29,6 +29,12 @@ def load_layer(shards, layer_idx):
     for shard in shards:
         # mmap_mode keeps the shard on disk; no in‑RAM copy
         parts.append(np.load(shard, mmap_mode="r")["activations"][:, layer_idx, :])
+    return np.concatenate(parts, axis=0)
+
+
+def load_all_layers(shards):
+    """Return the full [N, n_layers, H] activation tensor (needed for scalar mix)."""
+    parts = [np.load(shard, mmap_mode="r")["activations"] for shard in shards]
     return np.concatenate(parts, axis=0)
 
 
@@ -157,6 +163,30 @@ def run_probes(activations, labels_path, task, lambda_reg, exp_label,
     results = {}
     all_preds = []
 
+    # ---- Scalar-mix probe: a single probe over ALL layers (Tenney et al. 2019) ----
+    if probe_type in ("scalarmix", "scalarmix_mlp"):
+        head = "mlp" if probe_type == "scalarmix_mlp" else "linear"
+        X_all = load_all_layers(shards)[indices_filtered]
+        y_sm, yc_sm = y_true_filtered, y_control_filtered
+
+        max_ex = config.SCALARMIX_PARAMS["max_examples"]
+        if max_ex and len(X_all) > max_ex:
+            rng = np.random.RandomState(config.SEED)
+            sel = rng.choice(len(X_all), max_ex, replace=False)
+            X_all, y_sm, yc_sm = X_all[sel], y_sm[sel], yc_sm[sel]
+            utils.log_info(f"Subsampled to {max_ex} examples for scalar-mix training.")
+
+        res = process_scalarmix(config.SEED, X_all, y_sm, yc_sm, task, head,
+                                layer_count=X_all.shape[1], outdir=outdir,
+                                label_map=label_map, control_label_map=control_label_map)
+        np.savez_compressed(os.path.join(outdir, "probe_results.npz"),
+                            results={"scalarmix": res})
+        utils.log_info(f"Saved scalar-mix results to {outdir}")
+        return
+
+    is_mdl = probe_type in ("mdl", "mdl_mlp")
+    mdl_head = "mlp" if probe_type == "mdl_mlp" else "linear"
+
     use_llama3_norm = (
         use_llama3_norm_flag and
         exp_label in ["llama3-8b", "llama3-8b-instruct"] and
@@ -186,6 +216,17 @@ def run_probes(activations, labels_path, task, lambda_reg, exp_label,
         # Load activations for this layer
         X_flat = load_layer(shards, layer_idx)
         X_filtered = X_flat[indices_filtered]
+
+        # ---- MDL probing: per-layer online codelength (Voita & Titov 2020) ----
+        if is_mdl:
+            try:
+                _, res, _ = process_layer_mdl(config.SEED + layer_idx, X_filtered,
+                                              y_true_filtered, y_control_filtered,
+                                              task, mdl_head, layer_idx)
+                results[f"layer_{layer_idx}"] = res
+            except Exception as e:
+                utils.log_info(f"Skipping layer {layer_idx} (mdl) due to error: {e}")
+            continue
 
         norm_weight = None
         if use_llama3_norm:
@@ -244,7 +285,8 @@ def run_probes(activations, labels_path, task, lambda_reg, exp_label,
                         results=results)
     utils.log_info(f"Saved probe results to {outdir}")
 
-    plot_probe_results(results, outdir, task)
+    if not is_mdl:
+        plot_probe_results(results, outdir, task)
 
 
 def parse_args():
@@ -256,17 +298,24 @@ def parse_args():
     parser.add_argument("--lambda_reg", type=float, default=1e-3)
     parser.add_argument("--exp_label", default="exp")
     parser.add_argument("--dataset", required=True)
-    parser.add_argument("--probe_type", choices=["reg", "mlp", "nn", "rf"], default="reg")
+    parser.add_argument("--probe_type",
+                        choices=["reg", "mlp", "nn", "rf",
+                                 "scalarmix", "scalarmix_mlp", "mdl", "mdl_mlp"],
+                        default="reg")
     parser.add_argument("--pca_dim", type=int, default=0)
     parser.add_argument("--output_dir", type=str, default=None,
                         help="Custom output directory for results")
     parser.add_argument("--use_llama3_norm", action="store_true",
                         help="If set, load LLaMA-3 to fetch LayerNorm weights (memory heavy).")
+    parser.add_argument("--max_examples", type=int, default=0,
+                        help="Cap examples for scalar-mix training (memory); 0 = use all.")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
+    if args.max_examples:
+        config.SCALARMIX_PARAMS["max_examples"] = args.max_examples
     run_probes(
         args.activations,
         args.labels,

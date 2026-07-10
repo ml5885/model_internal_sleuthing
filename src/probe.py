@@ -144,6 +144,288 @@ def predict(arr, model):
     return torch.cat(out, dim=0).numpy()
 
 
+class ScalarMixProbe(nn.Module):
+    """
+    Tenney et al. (2019) style probe: an ELMo scalar mix over all layers feeding
+    a linear or MLP head.
+
+        mixed = gamma * sum_l softmax(s)_l * LN(h_l)
+
+    LN is a per-layer, non-affine LayerNorm over the hidden dimension (ELMo
+    convention). It is essential for decoder-only models, whose late-layer norms
+    are orders of magnitude larger and would otherwise dominate the mixture.
+    """
+    def __init__(self, n_layers, input_dim, output_dim, head="linear",
+                 hidden_dim=256, dropout=0.3, do_layer_norm=True):
+        super().__init__()
+        self.scalar_weights = nn.Parameter(torch.zeros(n_layers))  # softmax -> uniform
+        self.gamma = nn.Parameter(torch.ones(()))
+        self.do_layer_norm = do_layer_norm
+        if do_layer_norm:
+            self.ln = nn.LayerNorm(input_dim, elementwise_affine=False)
+        if head == "linear":
+            self.head = nn.Linear(input_dim, output_dim)
+        else:
+            self.head = nn.Sequential(
+                nn.Linear(input_dim, hidden_dim),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(hidden_dim, output_dim),
+            )
+
+    def mix(self, x):  # x: [B, n_layers, H]
+        if self.do_layer_norm:
+            x = self.ln(x)
+        w = torch.softmax(self.scalar_weights, dim=0)
+        return self.gamma * torch.einsum("l,blh->bh", w, x)
+
+    def forward(self, x):
+        return self.head(self.mix(x))
+
+    def weights(self):
+        return torch.softmax(self.scalar_weights.detach(), dim=0).cpu().numpy()
+
+
+def _train_torch_model(model, X_train, y_train, X_val, y_val,
+                       batch_size=None, epochs=None, lr=None,
+                       weight_decay=None, early_stop=None):
+    """Generic AdamW / early-stopping trainer for any nn.Module classifier.
+
+    Mirrors ``train_probe`` but accepts inputs of arbitrary trailing shape so it
+    can drive both the 2D per-layer probes and the 3D scalar-mix probe.
+    """
+    p = config.TRAIN_PARAMS
+    device = get_device()
+    model = model.to(device)
+    optim = torch.optim.AdamW(
+        model.parameters(),
+        lr=lr if lr is not None else p["learning_rate"],
+        weight_decay=weight_decay if weight_decay is not None else p["weight_decay"],
+    )
+    crit = nn.CrossEntropyLoss()
+    bs = batch_size or p["batch_size"]
+    epochs = epochs or p["epochs"]
+    early_stop = early_stop or p["early_stop"]
+
+    def make_loader(X, y, shuffle):
+        return torch.utils.data.DataLoader(
+            torch.utils.data.TensorDataset(
+                torch.from_numpy(np.ascontiguousarray(X)).float(),
+                torch.from_numpy(y).long(),
+            ),
+            batch_size=bs, shuffle=shuffle, pin_memory=True,
+        )
+
+    train_loader = make_loader(X_train, y_train, True)
+    val_loader = make_loader(X_val, y_val, False)
+
+    best_acc, best_state, wait = float("-inf"), None, 0
+    for _ in range(epochs):
+        model.train()
+        for xb, yb in train_loader:
+            xb, yb = xb.to(device), yb.to(device)
+            optim.zero_grad(set_to_none=True)
+            loss = crit(model(xb), yb)
+            loss.backward()
+            optim.step()
+
+        model.eval()
+        correct, total = 0, 0
+        with torch.no_grad():
+            for xb, yb in val_loader:
+                logits = model(xb.to(device)).cpu()
+                correct += (logits.argmax(1) == yb).sum().item()
+                total += yb.size(0)
+        val_acc = correct / max(total, 1)
+
+        if val_acc > best_acc:
+            best_acc, best_state, wait = val_acc, {k: v.cpu() for k, v in model.state_dict().items()}, 0
+        else:
+            wait += 1
+            if wait >= early_stop:
+                break
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
+    return model
+
+
+def _predict_logits(model, X, batch_size=None):
+    bs = batch_size or config.TRAIN_PARAMS["batch_size"]
+    device = next(model.parameters()).device
+    model.eval()
+    out = []
+    with torch.no_grad():
+        for i in range(0, len(X), bs):
+            chunk = torch.from_numpy(np.ascontiguousarray(X[i:i + bs])).float().to(device)
+            out.append(model(chunk).cpu())
+    return torch.cat(out, dim=0).numpy()
+
+
+def _map_control_to_classes(yc_train, yc_val, yc_test, n_classes, seed):
+    """Map control-token ids into the label space (same scheme as process_layer)."""
+    rng = np.random.RandomState(seed)
+    uniq = sorted(set(yc_train.tolist() + yc_val.tolist() + yc_test.tolist()))
+    perm = rng.permutation(len(uniq))
+    cmap = {uniq[i]: perm[i] % n_classes for i in range(len(uniq))}
+    return (np.array([cmap[v] for v in yc_train]),
+            np.array([cmap[v] for v in yc_val]),
+            np.array([cmap[v] for v in yc_test]))
+
+
+def process_scalarmix(seed, X_all, y_true, y_control, task, head, layer_count,
+                      outdir=None, label_map=None, control_label_map=None):
+    """Train a single scalar-mix probe over all layers and report its center of
+    gravity, accuracy, F1 and selectivity. ``X_all`` is [N, n_layers, H]."""
+    sm = config.SCALARMIX_PARAMS
+    uniq, counts = np.unique(y_true, return_counts=True)
+    keep = np.isin(y_true, uniq[counts >= 1])
+    X_all, y_true, y_control = X_all[keep], y_true[keep], y_control[keep]
+
+    def split3(*arrays, stratify):
+        try:
+            return train_test_split(*arrays, train_size=config.SPLIT_RATIOS["train"],
+                                    random_state=seed, stratify=stratify)
+        except ValueError:
+            return train_test_split(*arrays, train_size=config.SPLIT_RATIOS["train"],
+                                    random_state=seed, stratify=None)
+
+    X_train, X_temp, y_train, y_temp, yc_train, yc_temp = split3(
+        X_all, y_true, y_control, stratify=y_true)
+    val_frac = config.SPLIT_RATIOS["val"] / (config.SPLIT_RATIOS["val"] + config.SPLIT_RATIOS["test"])
+    temp_counts = np.bincount(y_temp)
+    X_val, X_test, y_val, y_test, yc_val, yc_test = train_test_split(
+        X_temp, y_temp, yc_temp, train_size=val_frac, random_state=seed,
+        stratify=y_temp if temp_counts.min() > 1 else None)
+
+    if len(y_test) == 0:
+        raise ValueError("scalarmix: no test samples after split.")
+
+    n_classes = int(np.max(y_true) + 1)
+    input_dim = X_all.shape[2]
+    bs = sm["batch_size"]
+
+    def make_probe():
+        return ScalarMixProbe(layer_count, input_dim, n_classes, head=head,
+                              hidden_dim=sm["hidden_dim"], dropout=sm["dropout"],
+                              do_layer_norm=sm["do_layer_norm"])
+
+    model = _train_torch_model(make_probe(), X_train, y_train, X_val, y_val, batch_size=bs)
+    preds = _predict_logits(model, X_test, batch_size=bs).argmax(1)
+
+    yc_train_m, yc_val_m, yc_test_m = _map_control_to_classes(yc_train, yc_val, yc_test, n_classes, seed)
+    ctrl = _train_torch_model(make_probe(), X_train, yc_train_m, X_val, yc_val_m, batch_size=bs)
+    preds_ctrl = _predict_logits(ctrl, X_test, batch_size=bs).argmax(1)
+
+    weights = model.weights()
+    layers = np.arange(layer_count)
+    cog = float(np.sum(layers * weights))
+
+    accuracy = float((preds == y_test).mean())
+    control_acc = float((preds_ctrl == yc_test_m).mean())
+    f1 = float(f1_score(y_test, preds, average="macro"))
+    cf1 = float(f1_score(yc_test_m, preds_ctrl, average="macro"))
+
+    if outdir:
+        os.makedirs(outdir, exist_ok=True)
+        with open(os.path.join(outdir, "scalarmix_weights.json"), "w") as f:
+            json.dump({"weights": weights.tolist(), "gamma": float(model.gamma.detach()),
+                       "cog": cog, "n_layers": int(layer_count), "head": head}, f, indent=2)
+        torch.save(model.state_dict(), os.path.join(outdir, "scalarmix_probe.pt"))
+        if isinstance(label_map, list):
+            with open(os.path.join(outdir, "label_map.json"), "w") as f:
+                json.dump(label_map, f)
+
+    utils.log_info(f"[scalarmix/{head}] {task} acc {accuracy:.3f} f1 {f1:.3f} "
+                   f"ctrl_acc {control_acc:.3f} cog {cog:.2f} gamma {float(model.gamma.detach()):.3f}")
+
+    return {
+        f"{task}_acc": accuracy,
+        f"{task}_control_acc": control_acc,
+        f"{task}_f1": f1,
+        f"{task}_control_f1": cf1,
+        f"{task}_selectivity": accuracy - control_acc,
+        f"{task}_cog": cog,
+        "scalarmix_weights": weights.tolist(),
+    }
+
+
+def online_code_mdl(X, y, n_classes, head, input_dim, hidden_dim, seed):
+    """Prequential (online) codelength in bits (Voita & Titov 2020).
+
+    Data is shuffled once, then transmitted in growing blocks: block 1 is coded
+    with a uniform code; each later block is coded by a probe trained on all data
+    seen so far. Returns (codelength_bits, compression), where compression is the
+    uniform codelength divided by the online codelength.
+    """
+    rng = np.random.RandomState(seed)
+    N = len(X)
+    perm = rng.permutation(N)
+    X, y = X[perm], y[perm]
+
+    bounds = sorted({int(round(f * N)) for f in config.MDL_PARAMS["fractions"]})
+    bounds = [b for b in bounds if b > 0]
+    if not bounds or bounds[-1] != N:
+        bounds.append(N)
+
+    uniform_bits = np.log2(n_classes)
+    codelength = bounds[0] * uniform_bits  # first block: uniform code
+
+    for i in range(len(bounds) - 1):
+        tr_end, ev_end = bounds[i], bounds[i + 1]
+        X_tr, y_tr = X[:tr_end], y[:tr_end]
+        X_ev, y_ev = X[tr_end:ev_end], y[tr_end:ev_end]
+
+        n_val = max(1, int(0.1 * tr_end))
+        if tr_end - n_val >= n_classes:
+            Xt, yt, Xv, yv = X_tr[:-n_val], y_tr[:-n_val], X_tr[-n_val:], y_tr[-n_val:]
+        else:
+            Xt, yt, Xv, yv = X_tr, y_tr, X_tr, y_tr
+
+        if head == "linear":
+            model = nn.Linear(input_dim, n_classes)
+        else:
+            model = nn.Sequential(nn.Linear(input_dim, hidden_dim), nn.ReLU(),
+                                  nn.Dropout(config.MDL_PARAMS["dropout"]),
+                                  nn.Linear(hidden_dim, n_classes))
+        model = _train_torch_model(model, Xt, yt, Xv, yv)
+
+        logits = _predict_logits(model, X_ev)
+        logp = logits - np.log(np.exp(logits).sum(axis=1, keepdims=True))  # log softmax
+        codelength += float(-logp[np.arange(len(y_ev)), y_ev].sum() / np.log(2))
+
+    compression = (N * uniform_bits) / codelength if codelength > 0 else float("nan")
+    return float(codelength), float(compression)
+
+
+def process_layer_mdl(seed, X_flat, y_true, y_control, task, head, layer):
+    """Per-layer MDL for the task and its control; returns codelength (kbits),
+    compression and a compression-based selectivity."""
+    n_classes = int(np.max(y_true) + 1)
+    input_dim = X_flat.shape[1]
+    hidden_dim = config.MDL_PARAMS["hidden_dim"]
+
+    mdl, comp = online_code_mdl(X_flat, y_true, n_classes, head, input_dim, hidden_dim, seed)
+
+    # control: random-but-fixed label per control token, same label space
+    rng = np.random.RandomState(seed)
+    uniq = sorted(set(y_control.tolist()))
+    cmap = {v: rng.permutation(len(uniq))[i] % n_classes for i, v in enumerate(uniq)}
+    yc = np.array([cmap[v] for v in y_control])
+    mdl_c, comp_c = online_code_mdl(X_flat, yc, n_classes, head, input_dim, hidden_dim, seed)
+
+    utils.log_info(f"[mdl/{head}] layer {layer} {task} mdl {mdl/1e3:.1f}kb comp {comp:.2f} "
+                   f"ctrl_comp {comp_c:.2f}")
+
+    return seed, {
+        f"{task}_mdl": mdl,
+        f"{task}_compression": comp,
+        f"{task}_control_mdl": mdl_c,
+        f"{task}_control_compression": comp_c,
+        f"{task}_compression_selectivity": comp - comp_c,
+    }, None
+
+
 def process_layer(seed, X_flat, y_true, y_control, lambda_reg, task, probe_type, layer, pca_dim, outdir=None, indices=None, label_map=None, control_label_map=None, norm_weight=None):
     uniq, counts = np.unique(y_true, return_counts=True)
     keep_classes = uniq[counts >= 1]
