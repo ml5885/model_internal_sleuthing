@@ -82,7 +82,6 @@ def main():
                loc="lower center", ncol=2, frameon=False, fontsize=11, bbox_to_anchor=(0.5, -0.04))
 
     out = "plots/figs/figure1_comparison_bert-large"
-    fig.savefig(out + ".pdf", bbox_inches="tight")
     fig.savefig(out + ".png", dpi=200, bbox_inches="tight")
     print(f"Saved {out}.png")
 

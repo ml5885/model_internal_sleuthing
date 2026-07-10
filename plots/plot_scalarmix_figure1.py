@@ -115,7 +115,6 @@ def plot(model, data, out_path):
 
     fig.suptitle(f"Summary statistics on {MODEL_LABELS.get(model, model)}", fontsize=13, y=1.0)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    fig.savefig(out_path + ".pdf", bbox_inches="tight")
     fig.savefig(out_path + ".png", dpi=200, bbox_inches="tight")
     print(f"Saved {out_path}.png")
 
