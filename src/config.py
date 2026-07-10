@@ -295,6 +295,8 @@ SCALARMIX_PARAMS = {
     "do_layer_norm": True,  # per-layer LayerNorm before mixing (ELMo convention)
     "max_examples": 0,      # 0 = use all; else subsample for memory
     "batch_size": 512,      # smaller than default: input is [B, n_layers, H]
+    "mix_lr_mult": 25.0,    # LR multiplier for the mixing logits (they need to move
+                            # far enough to concentrate; head LR is too slow for them)
 }
 
 # Minimum description length probing (Voita & Titov 2020, online/prequential code)

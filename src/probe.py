@@ -197,11 +197,20 @@ def _train_torch_model(model, X_train, y_train, X_val, y_val,
     p = config.TRAIN_PARAMS
     device = get_device()
     model = model.to(device)
-    optim = torch.optim.AdamW(
-        model.parameters(),
-        lr=lr if lr is not None else p["learning_rate"],
-        weight_decay=weight_decay if weight_decay is not None else p["weight_decay"],
-    )
+    lr = lr if lr is not None else p["learning_rate"]
+    wd = weight_decay if weight_decay is not None else p["weight_decay"]
+    # Scalar-mix logits need a higher LR and no weight decay to actually
+    # concentrate; otherwise the mix stays ~uniform and dilutes the signal.
+    if hasattr(model, "scalar_weights"):
+        mix_ids = {id(model.scalar_weights), id(model.gamma)}
+        head_params = [q for q in model.parameters() if id(q) not in mix_ids]
+        optim = torch.optim.AdamW([
+            {"params": head_params, "lr": lr, "weight_decay": wd},
+            {"params": [model.scalar_weights, model.gamma],
+             "lr": lr * config.SCALARMIX_PARAMS["mix_lr_mult"], "weight_decay": 0.0},
+        ])
+    else:
+        optim = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
     crit = nn.CrossEntropyLoss()
     bs = batch_size or p["batch_size"]
     epochs = epochs or p["epochs"]
