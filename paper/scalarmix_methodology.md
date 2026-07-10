@@ -1,12 +1,11 @@
 # Scalar-Mixing Probes and Layer-Localization Metrics
 
-This section describes the probing methodology we use to test whether a language
-model computes linguistic structure in a shallow-to-deep progression across its
-layers (the "classical NLP pipeline" of Tenney et al., 2019). We (i) train
-*scalar-mixing* probes that learn where in the network a given task's information
-lives, and (ii) summarize that localization with two complementary statistics —
-the **center of gravity** of the learned mixing weights and the **expected layer**
-of the cumulative differential scores.
+We localize each linguistic task within the network with *scalar-mixing* probes
+that learn a task-specific weighting over layers, and summarize that weighting
+with two complementary statistics: the **center of gravity** of the learned mixing
+weights and the **expected layer** of the cumulative differential scores. Together
+these test whether a model resolves linguistic structure in the shallow-to-deep
+progression of the classical NLP pipeline (Tenney et al., 2019).
 
 ## 1. Setup and notation
 
@@ -113,7 +112,7 @@ $\bar{E}$ and features that require deeper composition yield a deep one. The
 endpoints $s(0)$ and $s(L)$ are reported as the baseline ($\ell{=}0$) and
 full-model ($\ell{=}L$) scores.
 
-We use three estimator choices that matter in practice.
+Three choices in estimating $\bar{E}$ are important for stability.
 
 **(a) Score = accuracy (micro-$F_1$).** We take $s(\ell)$ to be accuracy, i.e.
 micro-averaged $F_1$ for our single-label tasks. Macro-$F_1$ is far higher variance
