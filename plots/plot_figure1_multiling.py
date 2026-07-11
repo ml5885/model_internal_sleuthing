@@ -1,11 +1,12 @@
 """
 Cross-model Figure-1 (Tenney et al.) multiplot: one figure per language, a grid
-of per-model panels. Each panel shows, per task, the expected layer (purple,
-cumulative) and the mixing-weight center of gravity (blue, scalar mix), on that
-model's absolute layer axis -- the same style as figure1_fixed_bert-base.png.
+of per-model panels, each in the figure1_fixed_bert-base.png style -- F1 columns
+(baseline / full-model accuracy) plus nested expected-layer (purple, cumulative)
+and mixing-weight center-of-gravity (blue, scalar mix) bars, on that model's
+absolute layer axis.
 
 Reads output/probes_multiling/{dataset_id}_{model}_{task}_{scalarmix,cumulative}.
-Panels render COG immediately; expected-layer fills in as cumulative completes.
+Panels render COG immediately; expected-layer + F1 fill in as cumulative completes.
 """
 import glob
 import json
@@ -47,13 +48,11 @@ def _lang(ds):
 def _expected_layer(acc):
     acc = np.asarray(acc, float)
     tot = acc[-1] - acc[0]
-    if tot <= 1e-3:
-        return np.nan
-    return float(np.sum(np.arange(len(acc))[1:] * np.diff(acc)) / tot)
+    return float(np.sum(np.arange(len(acc))[1:] * np.diff(acc)) / tot) if tot > 1e-3 else np.nan
 
 
 def collect(root):
-    data = {}  # (lang, model, task) -> dict
+    data = {}
     for d in glob.glob(os.path.join(root, "*_scalarmix")) + glob.glob(os.path.join(root, "*_cumulative")):
         kind = "cumulative" if d.endswith("_cumulative") else "scalarmix"
         base = os.path.basename(d)[:-(len(kind) + 1)]
@@ -69,62 +68,99 @@ def collect(root):
         if not os.path.exists(jf):
             continue
         rec = data.setdefault((lang, model, task), {})
+        j = json.load(open(jf))
         if kind == "scalarmix":
-            w = json.load(open(jf))
-            rec["cog"] = w["cog"]
-            rec["n_layers"] = w["n_layers"]
+            rec["cog"] = j["cog"]
+            rec["n_layers"] = j["n_layers"]
         else:
-            c = json.load(open(jf))
-            rec["expected"] = _expected_layer(c["acc"])
-            rec["full_acc"] = 100 * c["full_acc"]
-            rec["n_layers"] = len(c["acc"])
+            rec["expected"] = _expected_layer(j["acc"])
+            rec["base_f1"] = 100 * j["baseline_acc"]
+            rec["full_f1"] = 100 * j["full_acc"]
+            rec["n_layers"] = len(j["acc"])
     return data
 
 
-def panel(ax, model, recs, L):
+def draw_panel(ax_f1, ax, model, recs, L, show_task_labels):
     tasks = [t for t in TASKS if t in recs]
     y = np.arange(len(tasks))[::-1]
+    W = 0.13 * L                                     # ~label width in layer units
     for yi, t in zip(y, tasks):
         r = recs[t]
-        cog, el = r.get("cog"), r.get("expected")
-        if cog is not None and np.isfinite(cog):
+        el, cog = r.get("expected"), r.get("cog")
+        has_el = el is not None and np.isfinite(el)
+        has_cog = cog is not None and np.isfinite(cog)
+        if has_cog:
             ax.barh(yi, cog, height=0.8, color=BLUE, zorder=2)
-        if el is not None and np.isfinite(el):
+        if has_el:
             ax.barh(yi, el, height=0.8, color=PURPLE, zorder=3)
+        if has_el and has_cog:                       # both -> bert-figure label style
+            if el < W + 0.3:                         # purple too short: label past its tip (on blue)
+                ax.text(el + 0.12, yi, f"{el:.1f}", va="center", ha="left", fontsize=6,
+                        color="white", fontweight="bold", zorder=5)
+            else:
+                ax.text(el - 0.15, yi, f"{el:.1f}", va="center", ha="right", fontsize=6,
+                        color="black", fontweight="bold", zorder=5)
+            if (el < W + 0.3) or (cog - el) < W + 0.4:   # crowded: cog outside the blue tip
+                ax.text(cog + 0.12, yi, f"{cog:.1f}", va="center", ha="left", fontsize=6,
+                        color="black", fontweight="bold", zorder=5)
+            else:
+                ax.text(cog - 0.15, yi, f"{cog:.1f}", va="center", ha="right", fontsize=6,
+                        color="white", fontweight="bold", zorder=5)
+        elif has_cog:
+            ax.text(cog - 0.15, yi, f"{cog:.1f}", va="center", ha="right", fontsize=6,
+                    color="white", fontweight="bold", zorder=5)
     ax.set_xlim(0, L)
     ax.set_ylim(-0.5, len(tasks) - 0.5)
-    ax.set_yticks(y)
-    ax.set_yticklabels([TASK_LABEL[t] for t in tasks], fontsize=8)
     ax.set_xticks([0, L])
-    ax.tick_params(labelsize=7, length=2)
-    ax.set_title(MODEL_LABEL.get(model, model), fontsize=9)
+    ax.set_yticks([])
+    ax.tick_params(labelsize=6, length=2)
+    ax.set_title(MODEL_LABEL.get(model, model), fontsize=8, pad=2)
     ax.grid(axis="x", color="0.9", lw=0.5)
     ax.set_axisbelow(True)
 
+    # F1 columns (baseline / full accuracy). Task labels only on the leftmost panel.
+    ax_f1.set_xlim(0, 1)
+    ax_f1.set_ylim(-0.5, len(tasks) - 0.5)
+    ax_f1.axvspan(0, 1, color="0.94", zorder=0)
+    ax_f1.set_xticks([])
+    for s in ax_f1.spines.values():
+        s.set_visible(False)
+    ax_f1.tick_params(length=0)
+    if show_task_labels:
+        ax_f1.set_yticks(y)
+        ax_f1.set_yticklabels([TASK_LABEL[t] for t in tasks], fontsize=7)
+    else:
+        ax_f1.set_yticks([])
+    for yi, t in zip(y, tasks):
+        r = recs[t]
+        if r.get("base_f1") is not None:
+            ax_f1.text(0.3, yi, f"{r['base_f1']:.0f}", va="center", ha="center", fontsize=6)
+            ax_f1.text(0.75, yi, f"{r['full_f1']:.0f}", va="center", ha="center", fontsize=6)
+
 
 def plot_lang(data, lang, out):
-    models = [m for m in MODELS if (lang, m) in {(l, mo) for (l, mo, _) in data}]
+    models = [m for m in MODELS if any(l == lang and mo == m for (l, mo, _) in data)]
     if not models:
         return
     n = len(models)
     ncol = min(5, n)
     nrow = math.ceil(n / ncol)
-    fig, axes = plt.subplots(nrow, ncol, figsize=(3.0 * ncol, 1.7 * nrow + 0.6), squeeze=False)
+    fig = plt.figure(figsize=(3.3 * ncol, 1.9 * nrow))
+    gs = fig.add_gridspec(nrow, ncol * 2, width_ratios=[0.5, 2.6] * ncol, wspace=0.08, hspace=0.5)
     for k, m in enumerate(models):
         recs = {t: data[(lang, m, t)] for (l, mo, t) in data if l == lang and mo == m}
-        L = max((r.get("n_layers", 2) for r in recs.values()), default=13) - 1
-        panel(axes[k // ncol][k % ncol], m, recs, L)
-    for k in range(n, nrow * ncol):
-        axes[k // ncol][k % ncol].axis("off")
-    fig.tight_layout()
+        L = max((r.get("n_layers", 13) for r in recs.values()), default=13) - 1
+        r0, c0 = k // ncol, (k % ncol) * 2
+        draw_panel(fig.add_subplot(gs[r0, c0]), fig.add_subplot(gs[r0, c0 + 1]), m, recs, L,
+                   show_task_labels=(k % ncol == 0))
     os.makedirs(os.path.dirname(out), exist_ok=True)
-    fig.savefig(out, dpi=180, bbox_inches="tight")
+    fig.savefig(out, dpi=190, bbox_inches="tight")
     print(f"saved {out}  ({n} models)")
 
 
 if __name__ == "__main__":
     data = collect("output/probes_multiling")
     n_exp = sum("expected" in r for r in data.values())
-    print(f"{len(data)} (lang,model,task) cells; {n_exp} with expected-layer (cumulative)")
+    print(f"{len(data)} (lang,model,task) cells; {n_exp} with expected-layer")
     for lg in ["en", "zh", "tr", "fr", "ru", "de"]:
         plot_lang(data, lg, f"plots/figs/figure1_multiling_{lg}.png")
