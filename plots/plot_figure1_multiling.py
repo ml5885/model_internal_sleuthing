@@ -116,10 +116,7 @@ def plot_lang(data, lang, out):
         panel(axes[k // ncol][k % ncol], m, recs, L)
     for k in range(n, nrow * ncol):
         axes[k // ncol][k % ncol].axis("off")
-    has_exp = any("expected" in r for r in data.values() if True)
-    fig.suptitle(f"Expected layer (purple) & center-of-gravity (blue) — {lang}"
-                 + ("" if has_exp else "  [COG only; cumulative running]"), fontsize=13)
-    fig.tight_layout(rect=[0, 0, 1, 0.97])
+    fig.tight_layout()
     os.makedirs(os.path.dirname(out), exist_ok=True)
     fig.savefig(out, dpi=180, bbox_inches="tight")
     print(f"saved {out}  ({n} models)")
