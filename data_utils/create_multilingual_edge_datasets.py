@@ -70,10 +70,12 @@ UD_CONFIGS = {
 # NER datasets (HuggingFace hub IDs or custom loaders)
 NER_CONFIGS = {
     "zh": {
-        "hf_dataset": "levow/msra_ner",
+        # parquet mirror of MSRA NER (levow/msra_ner is a script-only repo that
+        # `datasets`>=3 can no longer load). NB: the mirror's tag order differs
+        # from the original repo's.
+        "hf_dataset": "PassbyGrocer/msra-ner",
         "token_field": "tokens", "tag_field": "ner_tags",
-        "tag_names": ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC"],
-        "skip_splits": ["dev"],  # MSRA has no dev split
+        "tag_names": ["O", "B-LOC", "I-LOC", "B-ORG", "I-ORG", "B-PER", "I-PER"],
     },
     "tr": {
         "hf_dataset": "turkish-nlp-suite/turkish-wikiNER",
@@ -91,9 +93,13 @@ NER_CONFIGS = {
         "convert_bioes_to_bio": True,
     },
     "de": {
-        "hf_dataset": "GermanEval/germeval_14",
-        "token_field": "tokens", "tag_field": "ner_tags",
-        "tag_names": None,  # Will resolve from ClassLabel
+        # GermanEval/germeval_14 is script-only on HF; fetch the raw GermEval-2014
+        # TSVs the script itself points at (Google Drive, small direct downloads).
+        "gdrive_tsv": {
+            "train": "https://drive.google.com/uc?export=download&id=1Jjhbal535VVz2ap4v4r_rN1UEHTdLK5P",
+            "dev": "https://drive.google.com/uc?export=download&id=1ZfRcQThdtAR5PPRjIDtrVP7BtXSCUBbm",
+            "test": "https://drive.google.com/uc?export=download&id=1u9mb7kNJHWQCWyweMDRMuTFoOHOfeBTH",
+        },
     },
     "ru": {"source": "nerel"},  # Custom loader for NEREL
 }
@@ -377,12 +383,57 @@ def _bioes_to_bio(label: str) -> str:
     return label  # B and I stay the same
 
 
+def _build_ner_germeval_tsv(lang: str, split: str, urls: dict):
+    """Build NER rows from GermEval-2014 style TSVs (idx, token, outer BIO, inner BIO;
+    '#' comment lines start a sentence block, blank lines end it)."""
+    url = urls.get(split)
+    if not url:
+        return
+    dest = DATA_DIR / f"raw_ner_{lang}" / f"{split}.tsv"
+    path = http_get(url, dest, text=True)
+
+    rows, tokens, tags = [], [], []
+
+    def flush():
+        if not tokens:
+            return
+        sentence = " ".join(tokens)
+        for idx, (tok, tag) in enumerate(zip(tokens, tags)):
+            rows.append({"Sentence": sentence, "Target Index": idx, "Label": tag,
+                         "Word Form": tok, "Lemma": tok,
+                         "Source Type": f"NER_{lang}_{split}"})
+        tokens.clear(); tags.clear()
+
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            flush()
+            continue
+        if line.startswith("#"):
+            continue
+        cols = line.split("\t")
+        if len(cols) < 3:
+            continue
+        tok = re.sub(r"\s+", "", cols[1]) or "_"   # keep split() alignment
+        tokens.append(tok)
+        tags.append(cols[2].strip() or "O")
+    flush()
+
+    if rows:
+        prefix = DATASET_REGISTRY[(lang, "ner")]
+        _write_csv_capped(pd.DataFrame(rows), DATA_DIR / f"{prefix}_ner_{split}.csv",
+                          f"NER {lang}/{split}")
+    else:
+        logging.warning(f"NER {lang}/{split}: no rows from TSV.")
+
+
 def build_ner_hf(lang: str, split: str):
     """Build NER dataset from a HuggingFace token classification dataset."""
+    cfg = NER_CONFIGS[lang]
+    if "gdrive_tsv" in cfg:
+        return _build_ner_germeval_tsv(lang, split, cfg["gdrive_tsv"])
     if load_dataset is None:
         raise RuntimeError("datasets library not installed. pip install datasets")
 
-    cfg = NER_CONFIGS[lang]
     if "hf_dataset" not in cfg:
         logging.warning(f"NER for {lang}: no HuggingFace dataset configured, skipping.")
         return
@@ -434,7 +485,8 @@ def build_ner_hf(lang: str, split: str):
         if not tokens or not tags:
             continue
 
-        sentence = " ".join(str(t) for t in tokens)
+        tokens = [re.sub(r"\s+", "", str(t)) or "_" for t in tokens]  # split() alignment
+        sentence = " ".join(tokens)
         for idx, (tok, tag) in enumerate(zip(tokens, tags)):
             if tags_are_strings:
                 label = str(tag)
@@ -596,6 +648,10 @@ def _conllup_sentence_to_srl_rows(lines: list[str], columns_hint: list[str],
         cols = ln.split("\t")
         if len(cols) < 10:
             continue
+        # Keep only integer-ID rows: multi-word-token ranges ("6-7 im") and empty
+        # nodes ("8.1") would duplicate surface forms and shift every index.
+        if not cols[0].isdigit():
+            continue
         raw_tokens.append(cols)
     if not raw_tokens:
         return []
@@ -682,13 +738,17 @@ def parse_conllup_srl(path: Path, source_type: str) -> list[dict]:
         for line in f:
             line = line.rstrip("\n")
             if line.startswith("#"):
+                # Some UP releases omit the "=" in comment lines
+                # (e.g. German: "# sent_id train-s1/de").
+                def _comment_value(prefix):
+                    rest = line[len(prefix):].strip()
+                    return rest[1:].strip() if rest.startswith("=") else rest
                 if line.startswith("# global.columns"):
-                    rhs = line.split("=", 1)[1].strip()
-                    columns_hint = rhs.split()
+                    columns_hint = _comment_value("# global.columns").split()
                 if line.startswith("# newdoc id"):
-                    doc_id = line.split("=", 1)[1].strip()
+                    doc_id = _comment_value("# newdoc id")
                 if line.startswith("# sent_id"):
-                    sent_id = line.split("=", 1)[1].strip()
+                    sent_id = _comment_value("# sent_id")
                 sent_lines.append(line)
                 continue
             if line == "":
@@ -756,57 +816,56 @@ def _char_to_token_map(text: str) -> dict[int, int]:
 def build_relations_redfm(lang: str, split: str):
     """Build relation extraction dataset from REDFM.
 
-    REDFM format: each example has 'text', 'entities' (list of entity dicts with
-    surfaceform/start/end), and 'relations' (list of dicts with subject/predicate/object).
+    Fetches the raw per-language jsonl straight from the hub (the repo is
+    script-only, which `datasets`>=3 refuses to load). Each line has 'text' and
+    'relations' whose subject/object dicts carry char-offset 'boundaries' and
+    whose predicate carries a human-readable 'surfaceform'.
     """
-    if load_dataset is None:
-        raise RuntimeError("datasets library not installed. pip install datasets")
     if lang not in REDFM_LANGS:
         return
 
-    hf_split_map = {"train": "train", "dev": "validation", "test": "test"}
-    hf_split = hf_split_map.get(split, split)
-
+    url = (f"https://huggingface.co/datasets/Babelscape/REDFM/resolve/main/"
+           f"data/{split}.{REDFM_LANGS[lang]}.jsonl")
+    dest = DATA_DIR / f"raw_redfm_{lang}" / f"{split}.jsonl"
     try:
-        ds = load_dataset("Babelscape/REDFM", REDFM_LANGS[lang], split=hf_split,
-                          trust_remote_code=True)
-    except (ValueError, KeyError, Exception) as e:
-        logging.warning(f"Relations {lang}: split '{hf_split}' not available in REDFM: {e}")
+        path = http_get(url, dest, text=True)
+    except requests.HTTPError as e:
+        logging.warning(f"Relations {lang}: could not fetch REDFM {split}: {e}")
         return
 
     rows = []
-    for example in ds:
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        example = json.loads(line)
+        # normalize whitespace so char offsets map cleanly to split() tokens
         text = example.get("text", "")
         relations = example.get("relations", [])
         doc_id = example.get("docid", "")
-
         if not text or not relations:
             continue
 
         c2t = _char_to_token_map(text)
 
         for rel in relations:
-            subj = rel.get("subject", {})
-            obj = rel.get("object", {})
-            predicate = rel.get("predicate", "")
-            # predicate may be an int ID; convert to string
-            predicate = str(predicate)
+            subj, obj, pred = rel.get("subject"), rel.get("object"), rel.get("predicate")
+            if not (isinstance(subj, dict) and isinstance(obj, dict) and isinstance(pred, dict)):
+                continue
+            sb, ob = subj.get("boundaries"), obj.get("boundaries")
+            label = pred.get("surfaceform") or pred.get("uri")
+            if not sb or not ob or not label:
+                continue
 
-            h_start = subj.get("start", 0)
-            h_end = subj.get("end", 0)
-            t_start = obj.get("start", 0)
-            t_end = obj.get("end", 0)
-
-            s1_start = c2t.get(h_start, 0)
-            s1_end = c2t.get(max(h_end - 1, 0), 0) + 1
-            s2_start = c2t.get(t_start, 0)
-            s2_end = c2t.get(max(t_end - 1, 0), 0) + 1
+            s1_start = c2t.get(int(sb[0]), 0)
+            s1_end = c2t.get(max(int(sb[1]) - 1, 0), 0) + 1
+            s2_start = c2t.get(int(ob[0]), 0)
+            s2_end = c2t.get(max(int(ob[1]) - 1, 0), 0) + 1
 
             rows.append({
                 "Text": text, "Sentence": text,
                 "Span1 Start": s1_start, "Span1 End": s1_end,
                 "Span2 Start": s2_start, "Span2 End": s2_end,
-                "Label": predicate,
+                "Label": str(label),
                 "Source Type": f"REDFM_{lang}",
                 "Doc ID": doc_id, "Sent1 ID": 0, "Sent2 ID": 0,
             })
@@ -1181,12 +1240,64 @@ def build_coref_rucoco(split: str):
 # DuIE 2.0 Chinese relation extraction (local zip)
 # ============================================================
 
+def _duie_records_to_rows(records: list, split: str) -> list[dict]:
+    """Convert DuIE records ({'text', 'spo_list'}) to per-character span rows.
+    Whitespace is stripped from the text first so that character index ==
+    whitespace-token index of the space-joined character sentence."""
+    rows = []
+    for rec in records:
+        text = re.sub(r"\s+", "", rec.get("text", "") or "")
+        spo_list = rec.get("spo_list", [])
+        if not text or spo_list is None or len(spo_list) == 0:
+            continue
+        for spo in spo_list:
+            subject = re.sub(r"\s+", "", spo.get("subject", "") or "")
+            predicate = spo.get("predicate", "")
+            obj_val = spo.get("object", {})
+            obj = obj_val.get("@value", "") if isinstance(obj_val, dict) else str(obj_val)
+            obj = re.sub(r"\s+", "", obj or "")
+            if not subject or not predicate or not obj:
+                continue
+            subj_start = text.find(subject)
+            obj_start = text.find(obj)
+            if subj_start == -1 or obj_start == -1:
+                continue
+            sentence = " ".join(list(text))
+            rows.append({
+                "Text": sentence, "Sentence": sentence,
+                "Span1 Start": subj_start, "Span1 End": subj_start + len(subject),
+                "Span2 Start": obj_start, "Span2 End": obj_start + len(obj),
+                "Label": predicate, "Source Type": "DuIE_zh",
+                "Doc ID": "", "Sent1 ID": 0, "Sent2 ID": 0,
+            })
+    return rows
+
+
+def _build_duie_from_hf_mirror(split: str):
+    """DuIE 2.0 via the xusenlin/duie parquet mirror (no zip needed)."""
+    from huggingface_hub import hf_hub_download
+    import pyarrow.parquet as pq
+    split_file = {"train": "data/train-00000-of-00001-84ec7a0a2e99d99c.parquet",
+                  "dev": "data/validation-00000-of-00001-c745e3595863248c.parquet"}.get(split)
+    if not split_file:
+        return
+    path = hf_hub_download(repo_id="xusenlin/duie", filename=split_file, repo_type="dataset")
+    records = pq.read_table(path).to_pylist()
+    rows = _duie_records_to_rows(records, split)
+    if rows:
+        prefix = DATASET_REGISTRY[("zh", "relation")]
+        _write_csv_capped(pd.DataFrame(rows), DATA_DIR / f"{prefix}_relation_{split}.csv",
+                          f"Relations zh/DuIE {split}")
+    else:
+        logging.warning(f"DuIE {split}: no rows produced from HF mirror.")
+
+
 def build_relations_duie(split: str):
     """Build Chinese relation extraction dataset from DuIE 2.0."""
     duie_zip = DATA_DIR / DUIE_ZIP
     if not duie_zip.exists():
-        logging.warning(f"DuIE zip not found at {duie_zip}")
-        return
+        logging.info(f"DuIE zip not found at {duie_zip}; using HF parquet mirror.")
+        return _build_duie_from_hf_mirror(split)
 
     split_file_map = {"train": "DUIE/duie_train.json", "dev": "DUIE/duie_dev.json",
                       "test": "DUIE/duie_test2.json"}
@@ -1200,45 +1311,11 @@ def build_relations_duie(split: str):
             return
         raw = z.read(jsonl_path).decode("utf-8")
 
-    rows = []
+    records = []
     for line in raw.strip().split("\n"):
-        if not line.strip():
-            continue
-        rec = json.loads(line)
-        text = rec.get("text", "")
-        spo_list = rec.get("spo_list", [])
-        if not text or not spo_list:
-            continue
-
-        # Chinese text: tokenize by character for consistent indexing
-        chars = list(text)
-        for spo in spo_list:
-            subject = spo.get("subject", "")
-            predicate = spo.get("predicate", "")
-            obj_val = spo.get("object", {})
-            obj = obj_val.get("@value", "") if isinstance(obj_val, dict) else str(obj_val)
-
-            if not subject or not predicate or not obj:
-                continue
-
-            # Find subject and object spans by character offset
-            subj_start = text.find(subject)
-            obj_start = text.find(obj)
-            if subj_start == -1 or obj_start == -1:
-                continue
-
-            subj_end = subj_start + len(subject)
-            obj_end = obj_start + len(obj)
-
-            sentence = " ".join(chars)
-            rows.append({
-                "Text": sentence, "Sentence": sentence,
-                "Span1 Start": subj_start, "Span1 End": subj_end,
-                "Span2 Start": obj_start, "Span2 End": obj_end,
-                "Label": predicate,
-                "Source Type": "DuIE_zh",
-                "Doc ID": "", "Sent1 ID": 0, "Sent2 ID": 0,
-            })
+        if line.strip():
+            records.append(json.loads(line))
+    rows = _duie_records_to_rows(records, split)
 
     if rows:
         prefix = DATASET_REGISTRY[("zh", "relation")]

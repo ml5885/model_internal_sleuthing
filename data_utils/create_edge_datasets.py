@@ -594,6 +594,9 @@ def _conllup_sentence_to_srl_rows(lines: List[str], columns_hint: List[str],
         if not ln or ln.startswith("#"): continue
         cols = ln.split("\t")
         if len(cols) < 10: continue
+        # integer-ID rows only: MWT ranges ("6-7") / empty nodes ("8.1") would
+        # duplicate surface forms and shift every index
+        if not cols[0].isdigit(): continue
         raw_tokens.append(cols)
     if not raw_tokens: return []
 
