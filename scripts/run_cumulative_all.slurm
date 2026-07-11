@@ -79,7 +79,7 @@ for LANG in ${LANGS//,/ }; do
     if [ -f "$OUT/cumulative_scores.json" ]; then echo "skip done $OUT"; continue; fi
     echo "--- cumulative $MODEL / $LANG / $TASK"
     python -m src.train --activations "$ACT" --labels "$CSV" --task "$TASK" \
-      --dataset "$DSID" --exp_label "$MODEL" --probe_type cumulative --max_examples 50000 --n_seeds 1 \
+      --dataset "$DSID" --exp_label "$MODEL" --probe_type cumulative --max_examples 50000 --n_seeds 4 \
       --output_dir "$OUT" || echo "ERROR probe $MODEL/$LANG/$TASK"
   done
 done
