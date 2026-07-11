@@ -186,6 +186,23 @@ class ScalarMixProbe(nn.Module):
         return torch.softmax(self.scalar_weights.detach(), dim=0).cpu().numpy()
 
 
+def _make_optimizer(model, lr=None, weight_decay=None):
+    p = config.TRAIN_PARAMS
+    lr = lr if lr is not None else p["learning_rate"]
+    wd = weight_decay if weight_decay is not None else p["weight_decay"]
+    # Scalar-mix logits need a higher LR and no weight decay to actually
+    # concentrate; otherwise the mix stays ~uniform and dilutes the signal.
+    if hasattr(model, "scalar_weights"):
+        mix_ids = {id(model.scalar_weights), id(model.gamma)}
+        head_params = [q for q in model.parameters() if id(q) not in mix_ids]
+        return torch.optim.AdamW([
+            {"params": head_params, "lr": lr, "weight_decay": wd},
+            {"params": [model.scalar_weights, model.gamma],
+             "lr": lr * config.SCALARMIX_PARAMS["mix_lr_mult"], "weight_decay": 0.0},
+        ])
+    return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
+
+
 def _train_torch_model(model, X_train, y_train, X_val, y_val,
                        batch_size=None, epochs=None, lr=None,
                        weight_decay=None, early_stop=None):
@@ -197,20 +214,7 @@ def _train_torch_model(model, X_train, y_train, X_val, y_val,
     p = config.TRAIN_PARAMS
     device = get_device()
     model = model.to(device)
-    lr = lr if lr is not None else p["learning_rate"]
-    wd = weight_decay if weight_decay is not None else p["weight_decay"]
-    # Scalar-mix logits need a higher LR and no weight decay to actually
-    # concentrate; otherwise the mix stays ~uniform and dilutes the signal.
-    if hasattr(model, "scalar_weights"):
-        mix_ids = {id(model.scalar_weights), id(model.gamma)}
-        head_params = [q for q in model.parameters() if id(q) not in mix_ids]
-        optim = torch.optim.AdamW([
-            {"params": head_params, "lr": lr, "weight_decay": wd},
-            {"params": [model.scalar_weights, model.gamma],
-             "lr": lr * config.SCALARMIX_PARAMS["mix_lr_mult"], "weight_decay": 0.0},
-        ])
-    else:
-        optim = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
+    optim = _make_optimizer(model, lr, weight_decay)
     crit = nn.CrossEntropyLoss()
     bs = batch_size or p["batch_size"]
     epochs = epochs or p["epochs"]
@@ -392,6 +396,69 @@ def process_cumulative(seed, X_all, y_true, task, head, outdir=None, label_map=N
                                   stratify=y_true[tmp] if tc.min() > 1 else None)
         return tr, va, te
 
+    # ---- one-time device residency ----
+    # The probes are tiny; naive training is dominated by data movement (a fresh
+    # CPU copy of the full [N, L, H] tensor per layer prefix, plus a host->GPU
+    # transfer of every ~100-300 MB batch on every step). Instead: apply the
+    # (parameter-free) LayerNorm once, park the tensor on the device in fp16, and
+    # train every prefix x seed from the resident tensor with on-device index
+    # shuffling. The math is identical; only the data path changes.
+    p = config.TRAIN_PARAMS
+    device = get_device()
+    Xg = torch.empty((len(X_all), n_layers, input_dim), dtype=torch.float16, device=device)
+    src = torch.from_numpy(X_all)
+    for i in range(0, len(X_all), 1024):
+        chunk = src[i:i + 1024].to(device, dtype=torch.float32)
+        Xg[i:i + 1024] = nn.functional.layer_norm(chunk, (input_dim,)).half()
+    yg = torch.from_numpy(y_true.astype(np.int64)).to(device)
+
+    def train_resident(n_prefix, tr, va, seed_offset):
+        torch.manual_seed(seed_offset)
+        probe = ScalarMixProbe(n_prefix, input_dim, n_classes, head=head,
+                               hidden_dim=sm["hidden_dim"], dropout=sm["dropout"],
+                               do_layer_norm=False).to(device)   # LN precomputed
+        optim = _make_optimizer(probe)
+        crit = nn.CrossEntropyLoss()
+        tr_t = torch.as_tensor(tr, device=device)
+        va_t = torch.as_tensor(va, device=device)
+        best_acc, best_state, wait = -1.0, None, 0
+        for _ in range(p["epochs"]):
+            probe.train()
+            perm = tr_t[torch.randperm(len(tr_t), device=device)]
+            for i in range(0, len(perm), bs):
+                bidx = perm[i:i + bs]
+                optim.zero_grad(set_to_none=True)
+                loss = crit(probe(Xg[bidx, :n_prefix].float()), yg[bidx])
+                loss.backward()
+                optim.step()
+            probe.eval()
+            correct = 0
+            with torch.no_grad():
+                for i in range(0, len(va_t), 4096):
+                    bidx = va_t[i:i + 4096]
+                    correct += (probe(Xg[bidx, :n_prefix].float()).argmax(1) == yg[bidx]).sum().item()
+            acc = correct / max(len(va_t), 1)
+            if acc > best_acc:
+                best_acc, wait = acc, 0
+                best_state = {k: v.detach().clone() for k, v in probe.state_dict().items()}
+            else:
+                wait += 1
+                if wait >= p["early_stop"]:
+                    break
+        if best_state is not None:
+            probe.load_state_dict(best_state)
+        return probe
+
+    def eval_test(probe, n_prefix, te):
+        te_t = torch.as_tensor(te, device=device)
+        preds = []
+        probe.eval()
+        with torch.no_grad():
+            for i in range(0, len(te_t), 4096):
+                bidx = te_t[i:i + 4096]
+                preds.append(probe(Xg[bidx, :n_prefix].float()).argmax(1).cpu())
+        return torch.cat(preds).numpy()
+
     # Average each P^(l) over n_seeds runs that vary BOTH the data split and the
     # init (Monte-Carlo CV). Varying the split is essential for small datasets
     # (e.g. coref): there the per-layer noise is dominated by which examples land
@@ -400,18 +467,14 @@ def process_cumulative(seed, X_all, y_true, task, head, outdir=None, label_map=N
     splits = [make_split(seed + 101 * s) for s in range(n_seeds)]
     acc_runs, f1_runs = np.zeros((n_seeds, n_layers)), np.zeros((n_seeds, n_layers))
     for L in range(n_layers):
-        Xc = np.ascontiguousarray(X_all[:, :L + 1, :])
         for s, (tr, va, te) in enumerate(splits):
-            torch.manual_seed(seed + 101 * s + L)
-            probe = ScalarMixProbe(L + 1, input_dim, n_classes, head=head,
-                                   hidden_dim=sm["hidden_dim"], dropout=sm["dropout"],
-                                   do_layer_norm=sm["do_layer_norm"])
-            probe = _train_torch_model(probe, Xc[tr], y_true[tr], Xc[va], y_true[va], batch_size=bs)
-            preds = _predict_logits(probe, Xc[te], batch_size=bs).argmax(1)
+            probe = train_resident(L + 1, tr, va, seed + 101 * s + L)
+            preds = eval_test(probe, L + 1, te)
             acc_runs[s, L] = (preds == y_true[te]).mean()
             f1_runs[s, L] = f1_score(y_true[te], preds, average="macro")
         utils.log_info(f"[cumulative/{head}] {task} P^({L}) acc {acc_runs[:, L].mean():.3f} "
                        f"(±{acc_runs[:, L].std():.3f}, {n_seeds} seeds)")
+    del Xg
 
     accs = acc_runs.mean(0).tolist()
     f1s = f1_runs.mean(0).tolist()
