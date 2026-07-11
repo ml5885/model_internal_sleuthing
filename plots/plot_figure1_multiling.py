@@ -51,6 +51,14 @@ def _expected_layer(acc):
     return float(np.sum(np.arange(len(acc))[1:] * np.diff(acc)) / tot) if tot > 1e-3 else np.nan
 
 
+def _snr(acc):
+    """Total gain over back-half layer-to-layer std; <~3 means the expected
+    layer is noise-dominated (drawn as an outline, no label)."""
+    acc = np.asarray(acc, float)
+    noise = np.std(np.diff(acc[len(acc) // 2:]))
+    return float((acc[-1] - acc[0]) / noise) if noise > 0 else np.inf
+
+
 def collect(root):
     data = {}
     for d in glob.glob(os.path.join(root, "*_scalarmix")) + glob.glob(os.path.join(root, "*_cumulative")):
@@ -74,6 +82,7 @@ def collect(root):
             rec["n_layers"] = j["n_layers"]
         else:
             rec["expected"] = _expected_layer(j["acc"])
+            rec["snr"] = _snr(j["acc"])
             rec["base_f1"] = 100 * j["baseline_acc"]
             rec["full_f1"] = 100 * j["full_acc"]
             rec["n_layers"] = len(j["acc"])
@@ -87,28 +96,46 @@ def draw_panel(ax_f1, ax, model, recs, L, show_task_labels):
     for yi, t in zip(y, tasks):
         r = recs[t]
         el, cog = r.get("expected"), r.get("cog")
-        has_el = el is not None and np.isfinite(el)
         has_cog = cog is not None and np.isfinite(cog)
+        # A noise-dominated or out-of-range expected layer is not a measurement:
+        # draw it as an outline with no label instead of asserting a value.
+        reliable = (el is not None and np.isfinite(el) and 0 <= el <= L
+                    and r.get("snr", np.inf) >= 3)
         if has_cog:
             ax.barh(yi, cog, height=0.8, color=BLUE, zorder=2)
-        if has_el:
-            ax.barh(yi, el, height=0.8, color=PURPLE, zorder=3)
-        if has_el and has_cog:                       # both -> bert-figure label style
-            if el < W + 0.3:                         # purple too short: label past its tip (on blue)
-                ax.text(el + 0.12, yi, f"{el:.1f}", va="center", ha="left", fontsize=6,
-                        color="white", fontweight="bold", zorder=5)
+        if el is not None and np.isfinite(el):
+            if reliable:
+                ax.barh(yi, el, height=0.8, color=PURPLE, zorder=3)
             else:
-                ax.text(el - 0.15, yi, f"{el:.1f}", va="center", ha="right", fontsize=6,
-                        color="black", fontweight="bold", zorder=5)
-            if (el < W + 0.3) or (cog - el) < W + 0.4:   # crowded: cog outside the blue tip
-                ax.text(cog + 0.12, yi, f"{cog:.1f}", va="center", ha="left", fontsize=6,
-                        color="black", fontweight="bold", zorder=5)
-            else:
-                ax.text(cog - 0.15, yi, f"{cog:.1f}", va="center", ha="right", fontsize=6,
-                        color="white", fontweight="bold", zorder=5)
-        elif has_cog:
-            ax.text(cog - 0.15, yi, f"{cog:.1f}", va="center", ha="right", fontsize=6,
-                    color="white", fontweight="bold", zorder=5)
+                ax.barh(yi, min(el, L), height=0.8, fill=False, edgecolor=PURPLE,
+                        lw=1.0, linestyle=(0, (2, 2)), zorder=3)
+
+        def color_at(x):                      # purple is drawn over blue on [0, el]
+            if reliable and x <= el:
+                return "black"
+            if has_cog and x <= cog:
+                return "white"
+            return "black"
+
+        labels = []
+        if reliable:
+            labels.append(el)
+        if has_cog:
+            labels.append(cog)
+        if not labels:
+            continue
+        lo, hi = min(labels), max(labels)
+        crowded = (len(labels) == 2) and ((hi - lo) < W + 0.4 or lo < W + 0.3)
+        lo_outside = lo < W + 0.3
+        for v in labels:
+            outside = (v == lo and lo_outside) or (crowded and v == hi)
+            x = v + 0.12 if outside else v - 0.15
+            if outside and v == hi and lo_outside:      # both outside: hi clears lo's text
+                x = max(x, lo + 0.12 + W)
+            if x + (W if outside else 0) > L:           # keep text inside the panel
+                x, outside = v - 0.15, False
+            ax.text(x, yi, f"{v:.1f}", va="center", ha="left" if outside else "right",
+                    fontsize=6, color=color_at(x), fontweight="bold", zorder=5)
     ax.set_xlim(0, L)
     ax.set_ylim(-0.5, len(tasks) - 0.5)
     ax.set_xticks([0, L])
