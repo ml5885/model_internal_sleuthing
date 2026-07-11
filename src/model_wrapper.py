@@ -254,7 +254,11 @@ class ModelWrapper:
 
         # Hidden states or attention outputs per layer
         if not use_attention:
-            hidden_states = outputs.hidden_states
+            hidden_states = getattr(outputs, "hidden_states", None)
+            if hidden_states is None:
+                # Encoder-decoder models (T5/mT5) expose per-layer states on the
+                # encoder, which is what processes the input tokens we probe.
+                hidden_states = outputs.encoder_hidden_states
 
         for i in range(batch_size):
             spans = normalized_targets[i]
