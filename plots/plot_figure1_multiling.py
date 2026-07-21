@@ -30,7 +30,10 @@ MODELS = ["bert-base-uncased", "bert-large-uncased", "deberta-v3-large", "gpt2",
 MODEL_LABEL = {m: m.replace("_latn_1000mb", "").replace("_hans_1000mb", "").replace("_cyrl_1000mb", "")
                .replace("goldfish_", "goldfish-").replace("-uncased", "").replace("-instruct", "-it")
                for m in MODELS}
-TASKS = ["pos", "constituents", "dep", "ner", "srl", "coref", "relation"]
+# Dropped: coref (no correctly-scoped fixed-context dataset -- GUM is within-sentence
+# only, RuCoCo/CorefUD truncate at 84%+); constituents (a POS-derived chunk proxy,
+# near-redundant with POS and weakly cross-lingual). See methodology writeup.
+TASKS = ["pos", "dep", "ner", "srl", "relation"]
 TASK_LABEL = {"pos": "POS", "constituents": "Consts.", "dep": "Deps.", "ner": "Entities",
               "srl": "SRL", "coref": "Coref.", "relation": "Relations"}
 DS_LANG = {"ud_gum": "en", "up_ewt": "en", "semeval2010": "en", "ud_chinese": "zh", "msra": "zh",
