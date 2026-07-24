@@ -42,6 +42,9 @@ DS_LANG = {"ud_gum": "en", "up_ewt": "en", "semeval2010": "en", "ud_chinese": "z
            "corefud_french": "fr", "redfm_fr": "fr", "ud_russian": "ru", "nerel": "ru",
            "rucoco": "ru", "ud_german": "de", "germeval": "de", "up_german": "de",
            "corefud_german": "de", "redfm_de": "de"}
+LANGS = ["en", "zh", "tr", "fr", "ru", "de"]
+LANG_LABEL = {"en": "English", "zh": "Chinese", "tr": "Turkish", "fr": "French",
+              "ru": "Russian", "de": "German"}
 
 
 def _lang(ds):
@@ -92,12 +95,16 @@ def collect(root):
     return data
 
 
-def draw_panel(ax_f1, ax, model, recs, L, show_task_labels):
-    tasks = [t for t in TASKS if t in recs]
+def draw_panel(ax_f1, ax, model, recs, L, show_task_labels, title=None, all_tasks=False):
+    # all_tasks keeps a fixed 5-row slot per task (blank where a language lacks a
+    # task, e.g. tr/ru SRL & relations) so panels line up across languages.
+    tasks = TASKS if all_tasks else [t for t in TASKS if t in recs]
     y = np.arange(len(tasks))[::-1]
     W = 0.13 * L                                     # ~label width in layer units
     for yi, t in zip(y, tasks):
-        r = recs[t]
+        r = recs.get(t)
+        if r is None:
+            continue
         el, cog = r.get("expected"), r.get("cog")
         has_cog = cog is not None and np.isfinite(cog)
         # A noise-dominated or out-of-range expected layer is not a measurement:
@@ -144,7 +151,7 @@ def draw_panel(ax_f1, ax, model, recs, L, show_task_labels):
     ax.set_xticks([0, L])
     ax.set_yticks([])
     ax.tick_params(labelsize=6, length=2)
-    ax.set_title(MODEL_LABEL.get(model, model), fontsize=8, pad=2)
+    ax.set_title(title if title is not None else MODEL_LABEL.get(model, model), fontsize=8, pad=2)
     ax.grid(axis="x", color="0.9", lw=0.5)
     ax.set_axisbelow(True)
 
@@ -162,8 +169,8 @@ def draw_panel(ax_f1, ax, model, recs, L, show_task_labels):
     else:
         ax_f1.set_yticks([])
     for yi, t in zip(y, tasks):
-        r = recs[t]
-        if r.get("base_f1") is not None:
+        r = recs.get(t)
+        if r is not None and r.get("base_f1") is not None:
             ax_f1.text(0.3, yi, f"{r['base_f1']:.0f}", va="center", ha="center", fontsize=6)
             ax_f1.text(0.75, yi, f"{r['full_f1']:.0f}", va="center", ha="center", fontsize=6)
 
@@ -185,12 +192,42 @@ def plot_lang(data, lang, out):
                    show_task_labels=(k % ncol == 0))
     os.makedirs(os.path.dirname(out), exist_ok=True)
     fig.savefig(out, dpi=190, bbox_inches="tight")
+    plt.close(fig)
     print(f"saved {out}  ({n} models)")
+
+
+def plot_model(data, model, out):
+    """Transpose of plot_lang: one figure per model, a row of per-language panels
+    on that model's shared layer axis -- shows how a single model's pipeline
+    ordering shifts across languages."""
+    langs = [lg for lg in LANGS if any(l == lg and mo == model for (l, mo, _) in data)]
+    if len(langs) < 2:
+        return
+    L = max((r.get("n_layers", 13) for (l, mo, t), r in data.items() if mo == model),
+            default=13) - 1
+    ncol = len(langs)
+    fig = plt.figure(figsize=(3.3 * ncol, 2.1))
+    gs = fig.add_gridspec(1, ncol * 2, width_ratios=[0.5, 2.6] * ncol, wspace=0.08)
+    for k, lg in enumerate(langs):
+        recs = {t: data[(lg, model, t)] for (l, mo, t) in data if l == lg and mo == model}
+        draw_panel(fig.add_subplot(gs[0, 2 * k]), fig.add_subplot(gs[0, 2 * k + 1]),
+                   model, recs, L, show_task_labels=(k == 0),
+                   title=LANG_LABEL[lg], all_tasks=True)
+    fig.suptitle(MODEL_LABEL.get(model, model), fontsize=11, y=1.05)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    fig.savefig(out, dpi=190, bbox_inches="tight")
+    plt.close(fig)
+    print(f"saved {out}  ({ncol} languages)")
 
 
 if __name__ == "__main__":
     data = collect("output/probes_multiling")
     n_exp = sum("expected" in r for r in data.values())
     print(f"{len(data)} (lang,model,task) cells; {n_exp} with expected-layer")
-    for lg in ["en", "zh", "tr", "fr", "ru", "de"]:
+    for lg in LANGS:
         plot_lang(data, lg, f"plots/figs/figure1_multiling_{lg}.png")
+    # Per-model cross-language transpose (skip single-language Goldfish models).
+    for m in MODELS:
+        if m.startswith("goldfish"):
+            continue
+        plot_model(data, m, f"plots/figs/figure1_bymodel_{m}.png")
