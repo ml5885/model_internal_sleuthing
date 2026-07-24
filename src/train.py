@@ -193,6 +193,19 @@ def run_probes(activations, labels_path, task, lambda_reg, exp_label,
     is_mdl = probe_type in ("mdl", "mdl_mlp")
     mdl_head = "mlp" if probe_type == "mdl_mlp" else "linear"
 
+    # Cap examples for MDL once, before the per-layer loop, so every layer's online
+    # code sees the same subsample (compression is ~N-invariant; the cap only bounds
+    # runtime). Reuses the scalar-mix example cap.
+    if is_mdl:
+        max_ex = config.SCALARMIX_PARAMS["max_examples"]
+        if max_ex and len(indices_filtered) > max_ex:
+            rng = np.random.RandomState(config.SEED)
+            sel = rng.choice(len(indices_filtered), max_ex, replace=False)
+            indices_filtered = indices_filtered[sel]
+            y_true_filtered = y_true_filtered[sel]
+            y_control_filtered = y_control_filtered[sel]
+            utils.log_info(f"MDL subsampled to {max_ex} examples.")
+
     use_llama3_norm = (
         use_llama3_norm_flag and
         exp_label in ["llama3-8b", "llama3-8b-instruct"] and

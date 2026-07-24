@@ -509,49 +509,89 @@ def process_cumulative(seed, X_all, y_true, task, head, outdir=None, label_map=N
             "cumulative_acc": acc.tolist(), "cumulative_f1": f1s}
 
 
-def online_code_mdl(X, y, n_classes, head, input_dim, hidden_dim, seed):
-    """Prequential (online) codelength in bits (Voita & Titov 2020).
+def _make_mdl_head(head, input_dim, n_classes, hidden_dim):
+    if head == "linear":
+        return nn.Linear(input_dim, n_classes)
+    return nn.Sequential(nn.Linear(input_dim, hidden_dim), nn.ReLU(),
+                         nn.Dropout(config.MDL_PARAMS["dropout"]),
+                         nn.Linear(hidden_dim, n_classes))
 
-    Data is shuffled once, then transmitted in growing blocks: block 1 is coded
-    with a uniform code; each later block is coded by a probe trained on all data
-    seen so far. Returns (codelength_bits, compression), where compression is the
-    uniform codelength divided by the online codelength.
+
+def online_code_mdl(Xg, yg, n_classes, head, input_dim, hidden_dim, seed, device):
+    """Prequential (online) codelength in bits (Voita & Titov 2020), GPU-resident.
+
+    ``Xg`` is an [N, H] fp32 activation tensor already parked on ``device`` and
+    ``yg`` the matching [N] label tensor. Data is shuffled once, then transmitted
+    in growing blocks: block 1 is coded with a uniform code; each later block is
+    coded by a probe trained (from the resident tensor, with on-device index
+    shuffling — no per-batch host->GPU transfer) on all data seen so far. Returns
+    (codelength_bits, compression), where compression is the uniform codelength
+    over the online codelength.
     """
-    rng = np.random.RandomState(seed)
-    N = len(X)
-    perm = rng.permutation(N)
-    X, y = X[perm], y[perm]
+    p = config.TRAIN_PARAMS
+    N = Xg.shape[0]
+    order = torch.as_tensor(np.random.RandomState(seed).permutation(N), device=device)
 
     bounds = sorted({int(round(f * N)) for f in config.MDL_PARAMS["fractions"]})
     bounds = [b for b in bounds if b > 0]
     if not bounds or bounds[-1] != N:
         bounds.append(N)
 
-    uniform_bits = np.log2(n_classes)
+    uniform_bits = float(np.log2(n_classes))
     codelength = bounds[0] * uniform_bits  # first block: uniform code
 
+    def train_block(tr_idx, va_idx):
+        model = _make_mdl_head(head, input_dim, n_classes, hidden_dim).to(device)
+        optim = _make_optimizer(model)
+        crit = nn.CrossEntropyLoss()
+        bs = p["batch_size"]
+        best_acc, best_state, wait = -1.0, None, 0
+        for _ in range(p["epochs"]):
+            model.train()
+            perm = tr_idx[torch.randperm(len(tr_idx), device=device)]
+            for i in range(0, len(perm), bs):
+                b = perm[i:i + bs]
+                optim.zero_grad(set_to_none=True)
+                loss = crit(model(Xg[b]), yg[b])
+                loss.backward()
+                optim.step()
+            model.eval()
+            correct = 0
+            with torch.no_grad():
+                for i in range(0, len(va_idx), 4096):
+                    b = va_idx[i:i + 4096]
+                    correct += (model(Xg[b]).argmax(1) == yg[b]).sum().item()
+            acc = correct / max(len(va_idx), 1)
+            if acc > best_acc:
+                best_acc, wait = acc, 0
+                best_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
+            else:
+                wait += 1
+                if wait >= p["early_stop"]:
+                    break
+        if best_state is not None:
+            model.load_state_dict(best_state)
+        return model
+
+    ln2 = float(np.log(2))
     for i in range(len(bounds) - 1):
         tr_end, ev_end = bounds[i], bounds[i + 1]
-        X_tr, y_tr = X[:tr_end], y[:tr_end]
-        X_ev, y_ev = X[tr_end:ev_end], y[tr_end:ev_end]
-
         n_val = max(1, int(0.1 * tr_end))
         if tr_end - n_val >= n_classes:
-            Xt, yt, Xv, yv = X_tr[:-n_val], y_tr[:-n_val], X_tr[-n_val:], y_tr[-n_val:]
+            tr_idx, va_idx = order[:tr_end - n_val], order[tr_end - n_val:tr_end]
         else:
-            Xt, yt, Xv, yv = X_tr, y_tr, X_tr, y_tr
+            tr_idx = va_idx = order[:tr_end]
+        ev_idx = order[tr_end:ev_end]
 
-        if head == "linear":
-            model = nn.Linear(input_dim, n_classes)
-        else:
-            model = nn.Sequential(nn.Linear(input_dim, hidden_dim), nn.ReLU(),
-                                  nn.Dropout(config.MDL_PARAMS["dropout"]),
-                                  nn.Linear(hidden_dim, n_classes))
-        model = _train_torch_model(model, Xt, yt, Xv, yv)
-
-        logits = _predict_logits(model, X_ev)
-        logp = logits - np.log(np.exp(logits).sum(axis=1, keepdims=True))  # log softmax
-        codelength += float(-logp[np.arange(len(y_ev)), y_ev].sum() / np.log(2))
+        model = train_block(tr_idx, va_idx)
+        model.eval()
+        block_bits = 0.0
+        with torch.no_grad():
+            for j in range(0, len(ev_idx), 4096):
+                b = ev_idx[j:j + 4096]
+                block_bits += nn.functional.cross_entropy(
+                    model(Xg[b]), yg[b], reduction="sum").item()
+        codelength += block_bits / ln2
 
     compression = (N * uniform_bits) / codelength if codelength > 0 else float("nan")
     return float(codelength), float(compression)
@@ -559,19 +599,26 @@ def online_code_mdl(X, y, n_classes, head, input_dim, hidden_dim, seed):
 
 def process_layer_mdl(seed, X_flat, y_true, y_control, task, head, layer):
     """Per-layer MDL for the task and its control; returns codelength (kbits),
-    compression and a compression-based selectivity."""
+    compression and a compression-based selectivity. Parks the layer's activation
+    tensor on the device once and codes both the task and its control from it."""
     n_classes = int(np.max(y_true) + 1)
     input_dim = X_flat.shape[1]
     hidden_dim = config.MDL_PARAMS["hidden_dim"]
+    device = get_device()
 
-    mdl, comp = online_code_mdl(X_flat, y_true, n_classes, head, input_dim, hidden_dim, seed)
+    Xg = torch.from_numpy(np.ascontiguousarray(X_flat)).to(device, dtype=torch.float32)
+    yg = torch.from_numpy(y_true.astype(np.int64)).to(device)
+
+    mdl, comp = online_code_mdl(Xg, yg, n_classes, head, input_dim, hidden_dim, seed, device)
 
     # control: random-but-fixed label per control token, same label space
     rng = np.random.RandomState(seed)
     uniq = sorted(set(y_control.tolist()))
     cmap = {v: rng.permutation(len(uniq))[i] % n_classes for i, v in enumerate(uniq)}
     yc = np.array([cmap[v] for v in y_control])
-    mdl_c, comp_c = online_code_mdl(X_flat, yc, n_classes, head, input_dim, hidden_dim, seed)
+    ycg = torch.from_numpy(yc.astype(np.int64)).to(device)
+    mdl_c, comp_c = online_code_mdl(Xg, ycg, n_classes, head, input_dim, hidden_dim, seed, device)
+    del Xg
 
     utils.log_info(f"[mdl/{head}] layer {layer} {task} mdl {mdl/1e3:.1f}kb comp {comp:.2f} "
                    f"ctrl_comp {comp_c:.2f}")
