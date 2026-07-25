@@ -301,10 +301,15 @@ SCALARMIX_PARAMS = {
 
 # Cumulative scoring (Tenney et al. 2019, Eq. 3-4)
 CUMULATIVE_PARAMS = {
-    # average the per-layer accuracy curve over this many probe re-trainings
-    # (fixed data split, varied init) to denoise the differential -- needed for
-    # noisy tasks like coref whose single-seed curve is dominated by jitter.
+    # average the per-layer accuracy curve over this many Monte-Carlo CV re-trainings
+    # (varied data split + init) to denoise the differential -- needed for noisy
+    # tasks whose single-seed curve is dominated by jitter.
     "n_seeds": 4,
+    # Small / flat-curve tasks whose cumulative expected-layer is a high-variance
+    # ratio estimator (a bad top-layer probe fit swings E by several layers) need
+    # more seeds to converge, the same reason coref did. POS/deps/SRL are
+    # well-conditioned at the default. A CLI --n_seeds overrides this uniformly.
+    "n_seeds_by_task": {"ner": 12, "relation": 12},
 }
 
 # Minimum description length probing (Voita & Titov 2020, online/prequential code)

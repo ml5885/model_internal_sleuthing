@@ -339,7 +339,9 @@ if __name__ == "__main__":
     if args.max_examples:
         config.SCALARMIX_PARAMS["max_examples"] = args.max_examples
     if args.n_seeds:
+        # An explicit override applies uniformly across tasks (drop the per-task map).
         config.CUMULATIVE_PARAMS["n_seeds"] = args.n_seeds
+        config.CUMULATIVE_PARAMS["n_seeds_by_task"] = {}
     run_probes(
         args.activations,
         args.labels,

@@ -380,7 +380,8 @@ def process_cumulative(seed, X_all, y_true, task, head, outdir=None, label_map=N
     input_dim = X_all.shape[2]
     n_layers = X_all.shape[1]
     bs = sm["batch_size"]
-    n_seeds = config.CUMULATIVE_PARAMS["n_seeds"]
+    cp = config.CUMULATIVE_PARAMS
+    n_seeds = cp.get("n_seeds_by_task", {}).get(task, cp["n_seeds"])
 
     def make_split(sd):
         idx = np.arange(len(X_all))
@@ -498,7 +499,8 @@ def process_cumulative(seed, X_all, y_true, task, head, outdir=None, label_map=N
             json.dump({"layers": layers.tolist(), "acc": acc.tolist(), "f1": f1s,
                        "baseline_acc": accs[0], "full_acc": accs[-1],
                        "baseline_f1": f1s[0], "full_f1": f1s[-1],
-                       "expected_layer": expected_layer, "head": head}, f, indent=2)
+                       "expected_layer": expected_layer, "head": head,
+                       "n_seeds": n_seeds}, f, indent=2)
 
     utils.log_info(f"[cumulative/{head}] {task} baseline_acc {accs[0]:.3f} full_acc {accs[-1]:.3f} "
                    f"expected_layer {expected_layer:.2f}")
