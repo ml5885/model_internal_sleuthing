@@ -297,8 +297,11 @@ def run_probes(activations, labels_path, task, lambda_reg, exp_label,
         pd.DataFrame().to_csv(predictions_path, index=False)
 
     if not results:
-        utils.log_info("No new results were generated. Skipping results saving and plotting.")
-        return
+        raise RuntimeError(
+            "No results were generated for any layer (every layer raised an "
+            "exception -- see logs/main.log for the per-layer errors). Failing "
+            "loudly instead of silently skipping so the caller sees a nonzero exit."
+        )
 
     np.savez_compressed(os.path.join(outdir, "probe_results.npz"),
                         results=results)
